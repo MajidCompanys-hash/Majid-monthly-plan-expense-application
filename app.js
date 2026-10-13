@@ -130,9 +130,11 @@ const TI={
 };
 TI.debt='<path d="M3 10l9-6 9 6"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8"/><path d="M3 21h18"/>';
 TI.docs=CI.idcard;
+TI.adv='<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0 0 12 3z"/>';
 function tile(o){return `<button class="tile${o.st?' '+o.st:''}" ${o.attr}><span class="ti" style="background:${o.c}22;color:${o.c}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">${TI[o.i]}</svg></span><b>${o.t}</b><small>${o.s}</small></button>`}
 function dashHtml(){
   const m=S.month,a=inMonth(m),exp=sum(a,'exp');const T=[];
+  {const c=advCtx(),P=advPriorities(c),sc=advScore(c,P,advChecklist(c));T.push({i:'adv',c:'#C28A1E',attr:'data-tab="advisor"',t:'مستشاري الذكي',st:P.some(p=>p.w>=80)?'alert':sc.total>=80?'good':'',s:'صحتك المالية <span class="num">'+sc.total+'</span>/100'+(P.length?' · '+P.length+' أولويات':'')})}
   const C=cars(),al=carAlerts();
   T.push({i:'car',c:'#3E7CB1',attr:'data-tab="cars"',t:'السيارات',st:al.length?'alert':C.length?'good':'',s:!C.length?'أضف سيارتك لمتابعة التأمين والملكية والصيانة':al.length?esc(al[0].text)+(al.length>1?' (+'+(al.length-1)+')':''):(C.length===1?'سيارة واحدة':C.length+' سيارات')+' · كل شيء ساري'});
   {const A=docAlertList();const n=Vault.docs.length;T.push({i:'docs',c:'#24508C',attr:'data-tab="docs"',t:'مستنداتي',st:A.some(a=>a.level==='late')?'alert':'',s:A.length?esc(A[0].title)+' '+esc(A[0].when.split('،')[0]):n?n+' مستند في الخزنة المشفّرة':'البطاقة والجواز والـCV في خزنة مشفّرة'})}
@@ -159,6 +161,133 @@ function txRow(t){const c=catOf(t.cat);const cls=t.type==='inc'?'amt-inc':'amt-e
   <span class="t"><b>${esc(t.note||c.n)}</b><small>${esc(c.n)}${t.note?'':''} · ${esc((METHODS.find(m=>m[0]===t.method)||['',''])[1])}${t.person?' · لـ'+esc(personName(t.person)):''}${t.sample?' · مثال':''}</small></span>
   <span class="num ${cls}">${t.type==='inc'?'+':'−'}${money(t.amount)}</span></button>`}
 
+/* ---------- مستشاري: تحليل ذكي لبياناتك داخل الجهاز فقط ---------- */
+function advCtx(){const now=new Date(),cm=ym(now);const a=inMonth(cm);const inc=sum(a,'inc'),exp=sum(a,'exp');
+  const prev=[1,2,3].map(k=>inMonth(shiftMonth(cm,-k))).filter(x=>x.length);
+  const avgInc=prev.length?prev.reduce((s,x)=>s+sum(x,'inc'),0)/prev.length:0;
+  const avgExp=prev.length?prev.reduce((s,x)=>s+sum(x,'exp'),0)/prev.length:0;
+  const dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate(),day=now.getDate();
+  const st=recStatus(cm);const G=(S.settings.goals||[]).map(g=>({g,c:goalCalc(g)}));
+  return{now,cm,a,inc,exp,prev,avgInc,avgExp,dim,day,st,G,baseInc:Math.max(inc,avgInc),refExp:avgExp||exp,B:+S.settings.monthlyBudget||0,gs:goalsSummary(),Ds:debts().filter(d=>+d.balance>0)}}
+function advLastBackup(){try{return localStorage.getItem('masareef:lastBackup')||''}catch(e){return ''}}
+function advPriorities(c){const P=[];const add=(w,ic,t,s,act,kind)=>P.push({w,ic,t,s,act,kind:kind||''});
+  const late=c.st.R.filter(i=>!i.isPaid&&c.day>i.day);
+  if(late.length)add(100,'bills',(late.length===1?'دفعة متأخرة: ':late.length===2?'دفعتان متأخرتان: ':late.length+' دفعات متأخرة: ')+late.slice(0,3).map(i=>esc(i.name)).join('، '),'المجموع <b class="num">'+money(late.reduce((s,i)=>s+i.amount,0))+'</b>. ادفعها أولًا لتتجنب الغرامات.',['افتح الشهرية','data-tab="monthly"']);
+  const soon=c.st.R.filter(i=>!i.isPaid&&i.day>=c.day&&i.day-c.day<=3);
+  if(soon.length)add(70,'cal','قريبًا خلال 3 أيام: '+soon.slice(0,3).map(i=>esc(i.name)).join('، '),'جهّز <b class="num">'+money(soon.reduce((s,i)=>s+i.amount,0))+'</b> '+CUR+'.',['الشهرية','data-tab="monthly"']);
+  carAlertList().slice(0,3).forEach(x=>add(x.level==='late'?95:60,'car',esc(x.title),esc(x.when),['السيارات','data-tab="cars"'],'car'));
+  docAlertList().slice(0,3).forEach(x=>add(x.level==='late'?90:55,'doc',esc(x.title),esc(x.when),['مستنداتي','data-tab="docs"'],'doc'));
+  if(c.inc>0&&c.exp>c.inc)add(92,'warn','مصاريفك هذا الشهر أكثر من دخلك','تجاوزته بـ <b class="num">'+money(c.exp-c.inc)+'</b>. راجع أكبر الفئات وأجّل غير الضروري.',['السجل','data-tab="log"']);
+  if(c.B&&c.day>=3){const proj=c.exp/c.day*c.dim;const dl=c.dim-c.day+1;
+    if(c.exp>c.B)add(90,'budget','تجاوزت سقف مصاريفك الشهري','صرفت <b class="num">'+money(c.exp)+'</b> من سقف <b class="num">'+money(c.B)+'</b>.',['الميزانية','data-tab="budget"']);
+    else if(proj>c.B*1.05)add(80,'budget','بهذا المعدل ستتجاوز سقفك','المتوقع حتى آخر الشهر <b class="num">'+money(proj)+'</b>. لتلتزم لا تتجاوز <b class="num">'+money((c.B-c.exp)/dl)+'</b> يوميًا.',['الميزانية','data-tab="budget"'])}
+  const sur=avgSurplus();
+  if(sur!==null&&c.gs.plan>0.0005&&c.gs.plan>sur+0.0005){const far=c.gs.G.filter(x=>!x.c.done).sort((a,b)=>b.c.monthly-a.c.monthly)[0];
+    add(85,'plan','خططك أكبر من قدرتك الشهرية','تحتاج <b class="num">'+money(c.gs.plan)+'</b> شهريًا، ومتوسط ما يتبقى لك <b class="num">'+money(Math.max(0,sur))+'</b>.'+(far?' جرّب تأجيل موعد «'+esc(far.g.name)+'» أو تقليل مبلغها.':''),far?['عدّل الخطة','data-goplan="'+esc(far.g.id)+'"']:['الخطط','data-tab="budget"'])}
+  c.G.filter(x=>x.c.past&&!x.c.done&&x.c.tgt).slice(0,2).forEach(x=>add(75,'plan','حان موعد «'+esc(x.g.name)+'» ولم تكتمل','ادّخرت <b class="num">'+money(x.c.sv)+'</b> من <b class="num">'+money(x.c.tgt)+'</b>.',['افتح الخطة','data-goplan="'+esc(x.g.id)+'"']));
+  if(c.gs.total>0.0005&&c.day>=10)add(c.day>=20?68:52,'plan','باقي حصة خططك لهذا الشهر','ادّخر <b class="num">'+money(c.gs.total)+'</b>'+(c.gs.near?'، وأقرب خطة «'+esc(c.gs.near.g.name)+'»':'')+'.',['أودعت مبلغًا','data-advdep="1"']);
+  {const acc=savAcc();if(acc.balance!==null&&acc.balance!==''&&(+acc.balance)<savTotal()-0.0005)add(60,'warn','رصيد حساب الادخار أقل من مجموع خططك','الفرق <b class="num">'+money(savTotal()-(+acc.balance))+'</b>. سجّل ما صرفته من الخطط.',['حساب الادخار','data-tab="budget"'])}
+  if(c.Ds.length&&c.baseInc){const inst=c.Ds.reduce((s,d)=>s+(+d.payment||0),0);const r=inst/c.baseInc;
+    if(r>0.4)add(72,'debt','أقساطك '+Math.round(r*100)+'% من دخلك','الأفضل أن تبقى أقل من 40%. تجنّب أي دين جديد حتى تنخفض النسبة.',['ديوني','data-tab="debts"'])}
+  if(c.Ds.length){const D=debtPlan();const ex=Math.max(10,Math.round(Math.max(0,sur||0)*0.1/5)*5);const b=simDebts(c.Ds,D.extra,D.strategy,true),p=simDebts(c.Ds,(+D.extra||0)+ex,D.strategy,true);
+    if(!b.stuck&&!p.stuck&&b.months-p.months>=1)add(58,'debt','عجّل التخلص من ديونك','لو زدت <b class="num">'+money(ex)+'</b> شهريًا تنتهي في '+monthLabel(p.months)+' بدل '+monthLabel(b.months)+(b.interest-p.interest>0.5?' وتوفّر فوائد <b class="num">'+money(b.interest-p.interest)+'</b>':'')+'.',['خطة الديون','data-tab="debts"'])}
+  if(c.prev.length){const avg={};c.prev.forEach(x=>x.filter(t=>t.type==='exp').forEach(t=>avg[t.cat]=(avg[t.cat]||0)+(+t.amount)/c.prev.length));const now={};c.a.filter(t=>t.type==='exp').forEach(t=>now[t.cat]=(now[t.cat]||0)+(+t.amount));
+    Object.entries(now).filter(([k,v])=>avg[k]&&v>avg[k]*1.4&&v-avg[k]>=10).sort((x,y)=>(y[1]-avg[y[0]])-(x[1]-avg[x[0]])).slice(0,2).forEach(([k,v])=>add(50,'up','صرفك على «'+esc(catOf(k).n)+'» ارتفع','هذا الشهر <b class="num">'+money(v)+'</b> ومعدلك <b class="num">'+money(avg[k])+'</b> (أعلى بـ <span dir="ltr">'+Math.round((v/avg[k]-1)*100)+'%</span>).',['السجل','data-tab="log"']))}
+  if(!c.inc&&c.day>=7&&c.avgInc>0)add(45,'bulb','لم تسجّل دخل هذا الشهر','سجّل راتبك ليكون التحليل دقيقًا.',['سجّل الدخل','data-advinc="1"']);
+  return P.sort((a,b)=>b.w-a.w)}
+function advChecklist(c){const L=[];const add=(done,t,s,act)=>L.push({done:!!done,t,s,act});const has=k=>c.G.some(x=>x.g.kind===k);
+  const em=c.G.find(x=>x.g.kind==='emergency');
+  add(em,'صندوق الطوارئ',em?'ادّخرت منه '+money(em.c.sv)+' '+CUR:'احتياطي يغطي 3 أشهر من مصاريفك'+(c.refExp?' (تقريبًا <b class="num">'+money(c.refExp*3)+'</b>)':'')+' للظروف المفاجئة.',['أنشئ الخطة','data-advplan="emergency"']);
+  const miss=['ramadan','fitr','adha'].filter(k=>!has(k));
+  add(!miss.length,'خطط رمضان والعيدين',miss.length?'ينقصك: '+miss.map(k=>GOAL_KINDS[k].n).join('، ')+'. أحسب مواعيدها بالهجري تلقائيًا.':'كلها مضافة.',miss.length?['أضف '+GOAL_KINDS[miss[0]].n,'data-gadd="'+miss[0]+'"']:null);
+  const C=cars();
+  if(C.length){const bad=C.filter(x=>!x.insExpiry||!x.regExpiry);add(!bad.length,'تواريخ التأمين والملكية لسياراتك',bad.length?'أكمل التواريخ لـ'+bad.map(x=>esc(x.name)).join('، ')+' لأنبّهك قبل الانتهاء.':'سأنبهك قبل انتهائها.',['السيارات','data-tab="cars"']);
+    if(!has('insurance')&&!has('mulkiya'))add(false,'ادخار لتأمين وتجديد السيارة','تأمين السيارة السنوي يأتي دفعة واحدة؛ قسّمه على الأشهر.',['أضف الخطة','data-gadd="insurance"'])}
+  else add(false,'سجّل سيارتك','لتنبيهك قبل انتهاء التأمين والملكية وموعد الصيانة.',['السيارات','data-tab="cars"']);
+  add(c.B,'سقف المصاريف الشهري',c.B?'سقفك '+money(c.B)+' '+CUR:'حدّد سقفًا لأحسب لك المبلغ اليومي المتاح وأنبهك قبل التجاوز.',['حدّد السقف','data-tab="budget"']);
+  add(recs().length,'الفواتير والالتزامات الثابتة',recs().length?recs().length+' التزامات تتكرر كل شهر':'أضف الإيجار والإنترنت والكهرباء لتظهر كل شهر في «الشهرية».',['الشهرية','data-tab="monthly"']);
+  if(c.G.length){const acc=savAcc();add(acc.balance!==null&&acc.balance!=='','رصيد حساب الادخار','اكتب رصيد البنك لأطابقه مع مجموع خططك.',['حساب الادخار','data-tab="budget"'])}
+  {const mine=Vault.docs.filter(d=>!d.owner);const id=mine.some(d=>d.type==='id'),pp=mine.some(d=>d.type==='passport');
+   add(id&&pp,'بطاقتك وجوازك في الخزنة',id&&pp?'محفوظة ومشفّرة، وأنبهك قبل انتهائها.':'ينقصك: '+[!id&&'البطاقة الشخصية',!pp&&'جواز السفر'].filter(Boolean).join(' و')+'. أضف تاريخ الانتهاء لأنبهك.',['مستنداتي','data-tab="docs"'])}
+  {const lb=advLastBackup();const ok=Sync.linked()||(lb&&(Date.now()-new Date(lb+'T12:00'))/864e5<=30);
+   add(ok,'نسخة احتياطية حديثة',Sync.linked()?'المزامنة مع Google Drive مفعّلة.':lb?'آخر نسخة '+fmtD(lb)+(ok?'':'، احفظ نسخة جديدة.'):'لم تحفظ نسخة بعد. احفظها حتى لا تضيع بياناتك.',['احفظ نسخة','data-advbak="1"'])}
+  add(people().length,'الأهل والبيت',people().length?people().length+' أشخاص':'أضف أفراد أسرتك لتعرف كم يُصرف على كل واحد.',['الأهل والبيت','data-tab="house"']);
+  return L}
+function advScore(c,P,CL){const parts=[];
+  {const inc=c.inc||c.avgInc,exp=c.inc?c.exp:c.avgExp;const r=inc?(inc-exp)/inc:null;parts.push(['نسبة التوفير',r===null?12:Math.max(0,Math.min(1,r/0.2))*25,25])}
+  {const em=c.G.find(x=>x.g.kind==='emergency');parts.push(['صندوق الطوارئ',em&&c.refExp?Math.min(1,em.c.sv/(c.refExp*3))*20:0,20])}
+  {const late=c.st.R.filter(i=>!i.isPaid&&c.day>i.day).length;parts.push(['الالتزام بالدفع',Math.max(0,15-5*late),15])}
+  {let v=15;if(c.Ds.length){const r=c.baseInc?c.Ds.reduce((s,d)=>s+(+d.payment||0),0)/c.baseInc:1;v=r<=0.2?13:r<=0.4?9:r<=0.5?5:2}parts.push(['الديون',v,15])}
+  {const sur=avgSurplus();let v=5;if(c.G.length){v=10;if(sur!==null&&c.gs.plan>sur+0.0005)v-=5;if(c.G.some(x=>x.c.past&&!x.c.done&&x.c.tgt))v-=3}parts.push(['الخطط',Math.max(0,v),10])}
+  parts.push(['الميزانية',!c.B?2:c.exp<=c.B?5:0,5]);
+  parts.push(['الترتيب والتنظيم',CL.length?CL.filter(x=>x.done).length/CL.length*10:0,10]);
+  const total=Math.round(parts.reduce((s,p)=>s+p[1],0));
+  const lbl=total>=80?['ممتاز','var(--inc)']:total>=60?['جيد','var(--accent)']:total>=40?['مقبول','var(--warn)']:['يحتاج اهتمامًا','var(--exp)'];
+  return{total,lbl,parts}}
+function advAlloc(c){const base=c.baseInc;if(!base)return null;
+  const fixed=c.st.total,plans=c.gs.plan,hasEm=c.G.some(x=>x.g.kind==='emergency'&&!x.c.done);
+  const emerg=hasEm?0:Math.round(base*0.1);const free=base-fixed-plans-emerg;
+  const varAvg=Math.max(0,c.refExp-fixed);
+  return{base,fixed,plans,emerg,free,daily:free/c.dim,varAvg}}
+function advIc(k){const m={warn:'<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/>',up:'<path d="M4 17l6-6 4 4 6-7"/><path d="M15 8h5v5"/>',bulb:'<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0 0 12 3z"/>',cal:CI.calendar,car:TI.car,debt:TI.debt,doc:CI.idcard,plan:TI.plan,bills:TI.bills,budget:TI.budget};
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${m[k]||m.bulb}</svg>`}
+function advRow(p,i){const lv=p.w>=80?'high':p.w>=55?'mid':'low';
+  return `<div class="advrow ${lv}"><span class="advic">${advIc(p.ic)}</span><div class="advtx"><b>${i!=null?'<span class="advn">'+(i+1)+'</span>':''}${p.t}</b><small>${p.s}</small></div>${p.act?`<button class="chip" ${p.act[1]}>${p.act[0]}</button>`:''}</div>`}
+function advGreet(){const h=new Date().getHours();return h<12?'صباح الخير':h<18?'مساء الخير':'مساء النور'}
+function advHomeHtml(){if(!list().length&&!(S.settings.goals||[]).length)return '';
+  const c=advCtx(),P=advPriorities(c),CL=advChecklist(c),sc=advScore(c,P,CL);const top=P.filter(p=>p.kind!=='car'&&p.kind!=='doc').slice(0,3);const miss=CL.filter(x=>!x.done).length;
+  return `<h2>مستشاري</h2><div class="panel advcard"><div class="advhead"><div class="hp-ring adv-ring" style="--p:${sc.total};--rc:${sc.lbl[1]}"><span class="num">${sc.total}</span></div><div style="min-width:0"><span class="note">${advGreet()}، صحتك المالية</span><b style="color:${sc.lbl[1]}">${sc.lbl[0]}</b><small class="note">${P.length?(P.length===1?'أولوية واحدة':P.length===2?'أولويتان':P.length+(P.length<=10?' أولويات':' أولوية'))+' لك الآن':'لا شيء عاجل، أحسنت'}${miss?' · '+miss+' أشياء قد تكون نسيتها':''}</small></div></div>
+  ${top.length?'<div class="advlist">'+top.map(p=>advRow(p)).join('')+'</div>':'<div class="okbox" style="margin-top:10px">كل شيء تحت السيطرة هذا الشهر.</div>'}
+  <button class="btn block ghost" style="margin-top:10px" data-tab="advisor">التحليل الكامل وترتيب أولوياتي</button></div>`}
+function vAdvisor(){const c=advCtx(),P=advPriorities(c),CL=advChecklist(c),sc=advScore(c,P,CL),A=advAlloc(c);const done=CL.filter(x=>x.done).length;
+  const parts=sc.parts.map(([n,v,m])=>`<div class="advpart"><span>${n}</span><span class="meter"><i style="width:${v/m*100}%;background:${v/m>=.7?'var(--inc)':v/m>=.4?'var(--warn)':'var(--exp)'}"></i></span><b class="num">${Math.round(v)}/${m}</b></div>`).join('');
+  let alloc='<div class="note">سجّل دخلك لأقترح عليك كيف توزّعه.</div>';
+  if(A){const seg=[['الالتزامات والأقساط',A.fixed,'#6B5CA5'],['الخطط والأهداف',A.plans,'#2E8B72'],['صندوق الطوارئ',A.emerg,'#B8423A'],['مصروفك اليومي',Math.max(0,A.free),'#3E7CB1']].filter(s=>s[1]>0.0005);const tot=Math.max(A.base,seg.reduce((s,x)=>s+x[1],0));
+    alloc=`<div class="note" style="margin-bottom:8px">على أساس دخل شهري <b class="num">${money(A.base)}</b> ${CUR}</div><div class="allocbar">${seg.map(s=>`<i style="width:${s[1]/tot*100}%;background:${s[2]}"></i>`).join('')}</div>
+    <div style="margin-top:8px">${seg.map(s=>`<div class="sumrow"><span><i class="dot" style="background:${s[2]}"></i>${s[0]}</span><b class="num">${money(s[1])} <small class="note" dir="ltr">${Math.round(s[1]/A.base*100)}%</small></b></div>`).join('')}</div>
+    ${A.free<0?`<div class="warnbox" style="margin-top:8px">التزاماتك وخططك أكبر من دخلك بـ <b class="num">${money(-A.free)}</b>. أجّل خطة أو قلّل مبلغها، أو زد المبلغ في «ديوني» لاحقًا بعد أن تخف الأقساط.</div>`
+     :`<div class="okbox" style="margin-top:8px">المتاح لمصروفك اليومي <b class="num">${money(A.daily)}</b> ${CUR} في اليوم.${A.varAvg>A.free+0.0005?' معدل صرفك المعتاد <b class="num">'+money(A.varAvg)+'</b>، فخفّفه بـ <b class="num">'+money(A.varAvg-A.free)+'</b> لتلتزم.':''}</div>`}
+    ${A.emerg?'<div class="note" style="margin-top:6px">اقترحت 10% لصندوق الطوارئ لأنه غير موجود بعد. أنشئه من «قد تكون نسيت».</div>':''}`}
+  return `<div class="backrow" style="margin-top:4px"><h2 style="margin:0">مستشاري الذكي</h2><button class="chip" data-tab="home">الرئيسية</button></div>
+  <div class="panel"><div class="advhead"><div class="hp-ring adv-ring big" style="--p:${sc.total};--rc:${sc.lbl[1]}"><span class="num">${sc.total}</span></div><div><span class="note">صحتك المالية من 100</span><b style="color:${sc.lbl[1]};font-size:20px">${sc.lbl[0]}</b><small class="note">أحلّل دخلك ومصاريفك وخططك وديونك داخل هاتفك فقط.</small></div></div><div class="advparts">${parts}</div></div>
+  <h2>أولوياتك الآن</h2>${P.length?'<div class="panel advlist" style="padding-block:4px">'+P.map(advRow).join('')+'</div>':'<div class="okbox">لا توجد أولويات عاجلة. استمر على هذا.</div>'}
+  <h2>خطة دخلك المقترحة</h2><div class="panel">${alloc}</div>
+  <div class="backrow"><h2 style="margin:0">قد تكون نسيت</h2><span class="note">أنجزت ${done} من ${CL.length}</span></div>
+  <div class="panel"><div class="meter" style="margin-bottom:8px"><i style="width:${done/CL.length*100}%;background:var(--inc)"></i></div>${CL.map(x=>`<div class="chk ${x.done?'done':''}"><span class="chkbox">${x.done?'✓':''}</span><div class="advtx"><b>${x.t}</b><small>${x.s}</small></div>${!x.done&&x.act?`<button class="chip pay" ${x.act[1]}>${x.act[0]}</button>`:''}</div>`).join('')}</div>`}
+
+/* لوحة الخطط وملخص التقارير في الرئيسية */
+function plansHomeHtml(){const all=(S.settings.goals||[]).map(g=>({g,c:goalCalc(g)})).sort((a,b)=>a.g.due.localeCompare(b.g.due));
+  if(!all.length)return `<h2>خططي</h2><div class="panel hplan-empty"><span>خطط لرمضان والعيدين والتأمين وشراء سيارة، وأحسب لك كم تدّخر كل شهر.</span><button class="chip pay" data-plannew="1">+ خطة جديدة</button></div>`;
+  const W=all.filter(x=>x.c.tgt>0);const T=W.reduce((s,x)=>s+x.c.tgt,0),V=W.reduce((s,x)=>s+Math.min(x.c.sv,x.c.tgt),0),R=W.reduce((s,x)=>s+x.c.rem,0);const pct=T?Math.round(V/T*100):0;
+  const gs=goalsSummary();const done=W.filter(x=>x.c.done).length;
+  const rows=all.map(({g,c})=>{const col=PLAN_T[g.kind]?PLAN_T[g.kind].c:(GOAL_ICON[g.kind]||['', 'var(--accent)'])[1];
+    const when=c.done?'اكتملت':c.past?'حان موعدها':c.days===0?'اليوم':'بعد '+daysWord(c.days);
+    const right=!c.tgt?'<b class="hp-amt" style="font-size:13px">حدّد المبلغ</b>':c.done?'<b class="hp-amt amt-inc">اكتمل ✓</b>':`<b class="hp-amt num">${money(c.rem)}</b><small>${c.past?'متبقٍ':'متبقٍ · '+money(c.monthly)+' شهريًا'}</small>`;
+    return `<button class="hprow${c.past&&!c.done?' late':''}" data-goplan="${esc(g.id)}">${goalBadge(g)}<span class="hp-main"><b>${esc(g.name)}</b><small>${when} · ${c.tgt?'<span class="num" dir="ltr">'+Math.round(c.pct)+'%</span>':'—'}</small>${c.tgt?`<span class="meter"><i style="width:${c.pct}%;background:${c.done?'var(--inc)':col}"></i></span>`:''}</span><span class="hp-side">${right}</span></button>`}).join('');
+  return `<div class="backrow"><h2 style="margin:0">خططي</h2><div style="display:flex;gap:6px"><button class="chip" data-plannew="1">+ خطة</button><button class="chip pay" data-tab="budget">إدارة الخطط</button></div></div>
+  <div class="panel hplans">${T?`<div class="hp-sum"><div class="hp-ring" style="--p:${pct}"><span class="num">${pct}%</span></div><div class="hp-cells">
+   <div><span>المتبقي لتحقيقها</span><b class="num">${money(R)}</b></div><div><span>ادّخرت</span><b class="num">${money(V)}</b></div>
+   <div><span>المطلوب كاملًا</span><b class="num">${money(T)}</b></div><div><span>${gs.total>0.0005?'ادّخر هذا الشهر':'هذا الشهر'}</span><b class="num ${gs.total>0.0005?'':'amt-inc'}">${gs.total>0.0005?money(gs.total):'مكتمل ✓'}</b></div></div></div>
+   <div class="note hp-meta">${all.length===1?'خطة واحدة':all.length===2?'خطتان':all.length+(all.length<=10?' خطط':' خطة')}${done?' · اكتمل منها '+done:''} · اضغط على أي خطة لفتحها</div>`:''}
+   <div class="hp-list">${rows}</div></div>`}
+function repHomeHtml(){if(!list().length)return '';
+  const m=S.month,pm=shiftMonth(m,-1),a=inMonth(m),b=inMonth(pm);const inc=sum(a,'inc'),exp=sum(a,'exp'),pexp=sum(b,'exp');
+  const ch=pexp?Math.round((exp-pexp)/pexp*100):null;const rate=inc?Math.round((inc-exp)/inc*100):null;
+  const byCat={};a.filter(t=>t.type==='exp').forEach(t=>byCat[t.cat]=(byCat[t.cat]||0)+(+t.amount));const top=Object.entries(byCat).sort((x,y)=>y[1]-x[1])[0];
+  const y=m.slice(0,4);let yi=0,ye=0;for(let k=1;k<=+m.slice(5);k++){const q=inMonth(y+'-'+String(k).padStart(2,'0'));yi+=sum(q,'inc');ye+=sum(q,'exp')}
+  const ms=[];for(let k=5;k>=0;k--){const mm=shiftMonth(m,-k),q=inMonth(mm);ms.push({mm,i:sum(q,'inc'),e:sum(q,'exp')})}const mx=Math.max(1,...ms.map(d=>Math.max(d.i,d.e)));
+  const W=300,H=86,bw=13,cw=W/6;let svg=`<svg viewBox="0 0 ${W} ${H+16}" width="100%" role="img" aria-label="الدخل والمصاريف لآخر ستة أشهر" style="direction:ltr;display:block">`;
+  ms.forEach((d,i)=>{const x=i*cw+cw/2;const hi=Math.max(d.i?2:0,d.i/mx*H),he=Math.max(d.e?2:0,d.e/mx*H);
+    svg+=`<rect x="${x-bw-1}" y="${H-hi}" width="${bw}" height="${hi}" rx="3" fill="var(--inc)" opacity="${d.mm===m?1:.55}"/><rect x="${x+1}" y="${H-he}" width="${bw}" height="${he}" rx="3" fill="var(--exp)" opacity="${d.mm===m?1:.55}"/><text x="${x}" y="${H+13}" text-anchor="middle" font-size="10" fill="var(--muted)" font-family="-apple-system,sans-serif" font-weight="${d.mm===m?700:400}">${MONTHS[+d.mm.slice(5)-1]}</text>`});svg+='</svg>';
+  const cell=(l,v,s,cls='')=>`<div class="hstat"><span>${l}</span><b class="num ${cls}">${v}</b>${s?`<small>${s}</small>`:''}</div>`;
+  return `<div class="backrow"><h2 style="margin:0">ملخص التقارير</h2><button class="chip pay" data-tab="reports">كل التقارير</button></div>
+  <div class="panel hrep"><div class="hstats">
+   ${cell('مصاريف '+MONTHS[+m.slice(5)-1],money(exp),ch===null?'لا مقارنة بالشهر الماضي':(ch>0?'▲ أكثر بـ <span dir="ltr">'+ch+'%</span> عن الشهر الماضي':ch<0?'▼ أقل بـ <span dir="ltr">'+(-ch)+'%</span> عن الشهر الماضي':'مثل الشهر الماضي'),ch>0?'amt-exp':'')}
+   ${cell('نسبة ما وفّرته',rate===null?'—':rate+'%',inc?'من دخل الشهر':'سجّل دخلك لتظهر النسبة',rate!==null&&rate<0?'amt-exp':rate>0?'amt-inc':'')}
+   ${cell('أكثر ما صرفت عليه',top?esc(catOf(top[0]).n):'—',top?money(top[1])+' · '+Math.round(top[1]/exp*100)+'%':'')}
+   ${cell('منذ بداية '+y,(yi-ye<0?'−':'')+money(Math.abs(yi-ye)),'دخل '+money(yi)+' · صرف '+money(ye),yi-ye<0?'amt-exp':'amt-inc')}
+  </div><div class="hchart"><div class="hleg"><span><i style="background:var(--inc)"></i>الدخل</span><span><i style="background:var(--exp)"></i>المصاريف</span><span class="note">آخر 6 أشهر</span></div>${svg}</div>
+  <div class="hrep-btns"><button class="chip" data-gorep="month">التقرير الشهري</button><button class="chip" data-gorep="year">التقرير السنوي</button><button class="chip" data-gorep="print">طباعة / PDF</button></div></div>`}
 function vHome(){
   const m=S.month,a=inMonth(m),inc=sum(a,'inc'),exp=sum(a,'exp'),left=inc-exp;
   const byCat={};a.filter(t=>t.type==='exp').forEach(t=>byCat[t.cat]=(byCat[t.cat]||0)+(+t.amount));
@@ -169,7 +298,7 @@ function vHome(){
   return `<section class="hero"><div class="lbl">المتبقي في ${esc(MONTHS[+m.slice(5)-1])}</div>
    <div class="big"><span class="num">${left<0?'−':''}${money(Math.abs(left))}</span> <small>${CUR}</small></div>
    <div class="row"><div class="cell"><span><span class="ar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 7 7 17M7 9v8h8"/></svg></span>الدخل</span><b class="num">${money(inc)}</b></div><div class="cell"><span><span class="ar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></span>المصاريف</span><b class="num">${money(exp)}</b></div></div></section>
-   ${carAlertsHtml()||docAlertsHtml()?'<div style="margin-top:14px">'+carAlertsHtml()+docAlertsHtml()+'</div>':''}${empty}${quickHtml()}<h2>أقسامي</h2>${dashHtml()}
+   ${carAlertsHtml()||docAlertsHtml()?'<div style="margin-top:14px">'+carAlertsHtml()+docAlertsHtml()+'</div>':''}${empty}${advHomeHtml()}${quickHtml()}${plansHomeHtml()}${repHomeHtml()}<h2>أقسامي</h2>${dashHtml()}
    ${recent.length?`<h2>آخر العمليات</h2><div class="panel" style="padding:6px 10px">${recent.map(txRow).join('')}</div><div style="margin-top:8px"><button class="chip" data-tab="log">عرض كل العمليات</button></div>`:''}
    ${cats.length?'<h2>أين ذهبت أموالك</h2>'+catHtml:''}`;
 }
@@ -294,7 +423,7 @@ function render(){
   const keepQ=document.activeElement&&document.activeElement.id==='q';
   const focusedB=document.activeElement&&document.activeElement.dataset&&document.activeElement.dataset.bcat;
   if(S.tab==='budget'&&(focusedB||document.activeElement?.id==='mb'))return; // don't clobber typing
-  v.innerHTML=S.tab==='home'?vHome():S.tab==='log'?vLog():S.tab==='budget'?vBudget():S.tab==='house'?vHouse():S.tab==='monthly'?vMonthly():S.tab==='cars'?vCars():S.tab==='debts'?vDebts():S.tab==='docs'?vDocs():vReports();
+  v.innerHTML=S.tab==='home'?vHome():S.tab==='log'?vLog():S.tab==='budget'?vBudget():S.tab==='house'?vHouse():S.tab==='monthly'?vMonthly():S.tab==='cars'?vCars():S.tab==='debts'?vDebts():S.tab==='docs'?vDocs():S.tab==='advisor'?vAdvisor():vReports();
   if(S.tab==='docs')setTimeout(hydrateDocs,0);
   document.querySelectorAll('nav.tabs [data-tab]').forEach(b=>b.setAttribute('aria-current',b.dataset.tab===S.tab?'page':'false'));
   if(keepQ){const q=document.getElementById('q');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length)}}
@@ -544,7 +673,7 @@ function goalsHtml(){
   const adds=['ramadan','fitr','adha','insurance','mulkiya'].filter(k=>!have.has(k)).map(k=>`<button class="chip" data-gadd="${k}">+ ${esc(GOAL_KINDS[k].n)}</button>`).join('');
   const cards=all.map(g=>{const c=goalCalc(g);
     const status=c.past?'حان موعده':c.days===0?'اليوم':'بعد '+daysWord(c.days);
-    return `<div class="goal${c.done?' done':''}"><div class="ghead"><div style="display:flex;gap:10px;align-items:flex-start;min-width:0">${goalBadge(g)}<div style="min-width:0"><b>${esc(g.name)}</b><small>${esc(goalDate(g))} · ${status}</small></div></div>
+    return `<div class="goal${c.done?' done':''}" id="goal-${esc(g.id)}"><div class="ghead"><div style="display:flex;gap:10px;align-items:flex-start;min-width:0">${goalBadge(g)}<div style="min-width:0"><b>${esc(g.name)}</b><small>${esc(goalDate(g))} · ${status}</small></div></div>
       <div class="gm">${!c.tgt?'<span>المبلغ المطلوب</span><b style="font-size:14px">لم يُحدَّد</b>':c.done?'<span>الحالة</span><b class="amt-inc" style="font-size:15px">اكتمل</b>':c.past?'<span>المتبقي</span><b class="num">'+money(c.rem)+'</b>':'<span>ادّخر شهريًا</span><b class="num">'+money(c.monthly)+'</b>'}</div></div>
       ${c.tgt?`<div class="meter"><i style="width:${c.pct}%;${c.done?'background:var(--inc)':''}"></i></div>
       <div class="budgetline" style="margin:0"><span>ادّخرت <b class="num">${money(c.sv)}</b> من <b class="num">${money(c.tgt)}</b></span><span>${c.past||c.done?'':c.stm&&c.left<0.0005?'حصة هذا الشهر مكتملة':c.stm?'باقٍ هذا الشهر '+money(c.left):'خلال '+monthsWord(c.months)}</span></div>`:''}
@@ -699,10 +828,11 @@ function avgSurplus(){const ms=[1,2,3].map(k=>shiftMonth(ym(new Date()),-k)).map
 function avgExpense(){const ms=[1,2,3].map(k=>shiftMonth(ym(new Date()),-k)).map(m=>{const a=inMonth(m);return a.length?sum(a,'exp'):null}).filter(v=>v!==null);return ms.length?ms.reduce((a,b)=>a+b,0)/ms.length:0}
 function addMonthsIso(n){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()+n);const dim=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();d.setDate(Math.min(new Date().getDate(),dim));return isoD(d)}
 function monthsUntil(iso){const d=new Date(iso+'T12:00'),n=new Date();return Math.max(1,(d.getFullYear()*12+d.getMonth())-(n.getFullYear()*12+n.getMonth())+1)}
-function openPlanWizard(id){
+function openPlanWizard(id,kind){
   const L=document.getElementById('layer');const G=S.settings.goals||(S.settings.goals=[]);const ex=id?G.find(x=>x.id===id):null;
-  let step=ex?2:1,askDel=false,p=null;
+  let step=ex?2:1,askDel=false,p=null;const kind0=!ex&&kind&&PLAN_T[kind]?kind:'';
   const init=k=>{const t=PLAN_T[k];p={id:uidGen(),kind:k,name:k==='custom'?'':t.n,target:'',saved:'',due:t.endOfYear?new Date().getFullYear()+'-12-31':addMonthsIso(11),repeat:t.repeat||'once',mode:'date',monthly:'',items:t.items.map(n=>({n,a:''})),log:{}}};
+  if(kind0){init(kind0);step=2;if(PLAN_T[kind0].smart==='emergency'){const ae=avgExpense()||sum(inMonth(ym(new Date())),'exp');if(ae)p.target=money(Math.round(ae*3))}}
   if(ex){p=JSON.parse(JSON.stringify(ex));p.items=(p.items||[]).map(i=>({n:i.n,a:i.a?money(i.a):''}));p.target=p.target?money(p.target):'';p.saved=p.saved?money(p.saved):'';p.monthly=p.monthly?money(p.monthly):'';p.mode=p.mode||'date'}
   const itemsTotal=()=>p.items.reduce((s,i)=>s+parseAmt(i.a),0);
   const tgt=()=>itemsTotal()||parseAmt(p.target);
@@ -1508,8 +1638,9 @@ function openLook(){const L=document.getElementById('layer');
 
 /* ---------- 21. الإصدار وما الجديد ---------- */
 const DEV={name:'ماجد الرميمي',title:'مهندس ومطور تقنية معلومات',country:'سلطنة عُمان',phone:'95134234',intl:'96895134234'};
-const APP_VERSION='2.0.0';
+const APP_VERSION='2.1.0';
 const CHANGELOG=[
+ {v:'2.1.0',d:'2026-10-13',items:['«مستشاري الذكي»: يحلّل دخلك ومصاريفك وخططك وديونك داخل هاتفك ويعطيك درجة لصحتك المالية من 100','«أولوياتك الآن»: ترتيب تلقائي لما يجب أن تبدأ به (دفعات متأخرة، تجاوز الميزانية، خطط أكبر من قدرتك، تسريع سداد الديون...) مع زر للتنفيذ','«خطة دخلك المقترحة»: توزيع دخلك على الالتزامات والخطط والطوارئ والمصروف اليومي','«قد تكون نسيت»: قائمة بالأشياء المهمة الناقصة مثل صندوق الطوارئ وخطط رمضان والعيدين وتواريخ التأمين والنسخة الاحتياطية','لوحة «خططي» في الرئيسية: كل خططك مع المتبقي لتحقيق كل خطة ونسبة الإنجاز وموعدها، واضغط على أي خطة لتفتحها مباشرة','إجمالي ما ادّخرته والمتبقي لكل الخطط وما تحتاج ادخاره هذا الشهر','«ملخص التقارير» في الرئيسية: مصاريف الشهر ومقارنتها بالشهر الماضي، نسبة التوفير، أكثر فئة صرف، وحصيلة السنة','رسم للدخل والمصاريف لآخر 6 أشهر، وأزرار مباشرة للتقرير الشهري والسنوي والطباعة']},
  {v:'2.0.0',d:'2026-10-13',items:['«حساب الادخار»: حساب بنكي واحد موزّع داخل التطبيق على خططك، مع نسبة ومبلغ كل خطة','«أودعت مبلغًا»: تكتب مبلغًا واحدًا فيوزّعه التطبيق على الخطط تلقائيًا، ويمكنك تعديله','مطابقة رصيد البنك مع مجموع الخطط، وتوزيع أي زيادة بضغطة','«صرفت منها»: الصرف من خطة يخصم من مدّخرها ومن رصيد الحساب ويُسجَّل كمصروف']},
  {v:'1.9.2',d:'2026-10-13',items:['خيار إظهار أو إخفاء بيانات المطوّر في التقارير المطبوعة']},
  {v:'1.9.1',d:'2026-10-13',items:['بيانات صاحب التطبيق ومطوّره في «عن التطبيق» وفي التقارير المطبوعة']},
@@ -1595,6 +1726,12 @@ document.addEventListener('click',async e=>{
   const b=e.target.closest('button');if(!b||b.closest('#layer'))return;
   if(b.dataset.tab){S.tab=b.dataset.tab;render();window.scrollTo(0,0);return}
   if(b.dataset.go){S.tab=b.dataset.go;render();return}
+  if(b.dataset.advplan){openPlanWizard(null,b.dataset.advplan);return}
+  if(b.dataset.advdep){openSavDeposit(null,false);return}
+  if(b.dataset.advinc){openSheet(null,{type:'inc',cat:'salary'});return}
+  if(b.dataset.advbak){S.tab='reports';render();setTimeout(()=>{const x=document.getElementById('fileBackup');x&&x.scrollIntoView({block:'center'})},50);return}
+  if(b.dataset.goplan){S.tab='budget';render();const el=document.getElementById('goal-'+b.dataset.goplan);if(el){el.scrollIntoView({block:'center'});el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),1600)}else window.scrollTo(0,0);return}
+  if(b.dataset.gorep){S.rmode=b.dataset.gorep==='year'?'year':'month';S.tab='reports';render();window.scrollTo(0,0);if(b.dataset.gorep==='print')setTimeout(printReport,60);return}
   if(b.id==='addBtn'||b.hasAttribute('data-open-add')){openSheet();return}
   if(b.id==='openImp2'){openImport();return}
   if(b.id==='sync'){if(Sync.linked())Sync.now();else{S.tab='reports';render();setTimeout(()=>{const x=document.getElementById('syncCid');x&&x.scrollIntoView({block:'center'})},50)}return}
@@ -1662,6 +1799,7 @@ document.addEventListener('click',async e=>{
   if(b.id==='wipeAsk'){document.getElementById('wipeArea').innerHTML=`<div class="confirm"><span>سيُحذف كل ما سجلته من عمليات وميزانيات. لا يمكن التراجع.</span><div class="row2"><button class="btn danger" id="wipe">احذف الكل</button><button class="btn ghost" id="wipeNo">تراجع</button></div></div>`;return}
   if(b.id==='wipeNo'){render();return}
   if(b.id==='wipe'){for(const t of list())await delTx(t.id);S.settings={monthlyBudget:0,budgets:{}};await putSettings();render();toast('حُذفت كل البيانات');return}
+  if(b.id==='copyBackup'||b.id==='fileBackup'){try{localStorage.setItem('masareef:lastBackup',today())}catch(e){}}
   if(b.id==='copyBackup'){const txt=backupText();
     try{await navigator.clipboard.writeText(txt);toast('نُسخت النسخة الاحتياطية، الصقها في ملاحظاتك أو أرسلها لنفسك')}
     catch(err){const ta=document.getElementById('restoreTxt');ta.closest('details').open=true;ta.value=txt;ta.select();toast('حدّد النص الظاهر وانسخه يدويًا')}return}
