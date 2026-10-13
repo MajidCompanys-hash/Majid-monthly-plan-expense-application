@@ -549,10 +549,11 @@ function goalsHtml(){
       ${c.tgt?`<div class="meter"><i style="width:${c.pct}%;${c.done?'background:var(--inc)':''}"></i></div>
       <div class="budgetline" style="margin:0"><span>ادّخرت <b class="num">${money(c.sv)}</b> من <b class="num">${money(c.tgt)}</b></span><span>${c.past||c.done?'':c.stm&&c.left<0.0005?'حصة هذا الشهر مكتملة':c.stm?'باقٍ هذا الشهر '+money(c.left):'خلال '+monthsWord(c.months)}</span></div>`:''}
       ${(g.items||[]).length?`<details><summary class="note" style="cursor:pointer">البنود (${g.items.length})</summary><div style="margin-top:6px">${g.items.map(i=>`<div class="sumrow"><span>${esc(i.n)}</span><b class="num">${money(i.a)}</b></div>`).join('')}</div></details>`:''}
-      <div class="gbtns">${c.tgt?`<button class="chip" data-gdep="${esc(g.id)}">+ أضفت مبلغًا للادخار</button>`:''}<button class="chip" data-gedit="${esc(g.id)}">${c.tgt?'تعديل':'تحديد المبلغ'}</button>${c.past&&g.repeat!=='once'?`<button class="chip" data-gnext="${esc(g.id)}">ابدأ خطة العام القادم</button>`:''}</div></div>`}).join('');
+      <div class="gbtns">${c.tgt?`<button class="chip" data-gdep="${esc(g.id)}">+ أضفت مبلغًا للادخار</button>`:''}${+g.saved>0?`<button class="chip" data-gspend="${esc(g.id)}">صرفت منها</button>`:''}<button class="chip" data-gedit="${esc(g.id)}">${c.tgt?'تعديل':'تحديد المبلغ'}</button>${c.past&&g.repeat!=='once'?`<button class="chip" data-gnext="${esc(g.id)}">ابدأ خطة العام القادم</button>`:''}</div></div>`}).join('');
   return `<div class="backrow" style="margin-top:4px"><h2 style="margin:0">خططي وأهدافي</h2><button class="chip pay" data-plannew="1">+ خطة جديدة</button></div>
   ${all.length?`<div class="planbox"><span class="note" style="color:var(--fg)">${leftNow>0.0005?"المتبقي لتدّخره هذا الشهر لكل أهدافك":"ادّخرت حصة هذا الشهر لكل أهدافك"}</span><span class="big2"><span class="num">${money(leftNow)}</span> <small style="font-size:14px;font-weight:400">${CUR}</small></span>${advice}</div>
-  <div class="stack" style="margin-top:10px">${cards}</div>`:`<div class="panel empty" style="padding:18px 12px"><b>خطط لأهدافك قبل وقتها</b>اضغط «خطة جديدة» واختر: خطة سنوية، تعديل المنزل، شراء سيارة، سفر، زواج وغيرها. وسأحسب لك كم تدّخر كل شهر وهل الخطة مريحة لميزانيتك.</div>`}
+  ${savingsHtml()?'<h2>حساب الادخار</h2>'+savingsHtml():''}
+  <h2>الخطط</h2><div class="stack">${cards}</div>`:`<div class="panel empty" style="padding:18px 12px"><b>خطط لأهدافك قبل وقتها</b>اضغط «خطة جديدة» واختر: خطة سنوية، تعديل المنزل، شراء سيارة، سفر، زواج وغيرها. وسأحسب لك كم تدّخر كل شهر وهل الخطة مريحة لميزانيتك.</div>`}
   ${adds?`<div class="note" style="margin:12px 2px 6px">المناسبات (المواعيد تُحسب تلقائيًا):</div><div class="chips">${adds}</div>`:''}`;
 }
 function openGoal(id,kind){
@@ -591,6 +592,73 @@ function openGoal(id,kind){
   };
   draw();
 }
+
+/* savings account: one bank account split into plan "envelopes" */
+const SPEND_CAT={ramadan:'food',fitr:'family',adha:'family',insurance:'car',mulkiya:'car',house:'home',carbuy:'car',wedding:'family',travel:'fun',hajj:'charity',edu:'edu',device:'shop',emergency:'other',annual:'other',custom:'other'};
+function savAcc(){return Object.assign({name:'حساب الادخار',balance:null,at:''},S.settings.savingsAcc||{})}
+function savTotal(){return (S.settings.goals||[]).reduce((x,g)=>x+(+g.saved||0),0)}
+function savingsHtml(){const G=(S.settings.goals||[]).filter(g=>+g.saved>0||goalCalc(g).tgt>0);if(!G.length)return '';
+  const acc=savAcc(),tot=savTotal();const has=acc.balance!==null&&acc.balance!=='';const diff=has?Math.round(((+acc.balance)-tot)*1000)/1000:0;
+  const rows=G.filter(g=>+g.saved>0).sort((a,b)=>(+b.saved)-(+a.saved)).map(g=>{const p=tot?(+g.saved)/tot*100:0;const ic=PLAN_T[g.kind]?PLAN_T[g.kind].c:(GOAL_ICON[g.kind]||['', '#7A8494'])[1];
+    return `<div class="catrow">${goalBadge(g)}<div class="name">${esc(g.name)} <small class="num">${Math.round(p)}%</small><div class="meter"><i style="width:${p}%;background:${ic}"></i></div></div><span class="num">${money(g.saved)}</span></div>`}).join('');
+  const status=!has?'<div class="note">اكتب رصيد الحساب الفعلي من تطبيق البنك لنتأكد أنه مطابق لخططك.</div>'
+    :Math.abs(diff)<0.001?`<div class="okbox">رصيد البنك <b class="num">${money(acc.balance)}</b> مطابق لمجموع خططك.</div>`
+    :diff>0?`<div class="warnbox" style="background:var(--accent-soft)">في البنك <b class="num">${money(diff)}</b> زيادة غير موزّعة على الخطط.</div><button class="chip pay" id="savSplit" data-amt="${diff}">وزّع الزيادة على الخطط</button>`
+    :`<div class="warnbox">رصيد البنك أقل من مجموع خططك بـ <b class="num">${money(-diff)}</b>. ربما صرفت منه ولم تسجّل ذلك، استخدم «صرفت من الخطة».</div>`;
+  return `<div class="savcard"><div class="savhead"><span class="cbadge" style="background:#ffffff26;color:#fff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${CI.loan}</svg></span><div style="min-width:0"><span class="lbl">${esc(acc.name)}</span><div class="big"><span class="num">${money(tot)}</span> <small>${CUR}</small></div><span class="lbl">المفروض أن يكون في الحساب حسب خططك</span></div></div>
+    <div class="row2" style="margin-top:12px"><button class="btn light" id="savDep">أودعت مبلغًا</button><button class="btn light ghost2" id="savBal">تحديث رصيد البنك</button></div></div>
+    <div class="panel stack" style="margin-top:10px"><div class="note" style="display:flex;justify-content:space-between;gap:8px"><span>توزيع الحساب على الخطط</span>${has&&acc.at?'<span>رصيد البنك حُدّث '+fmtD(acc.at)+'</span>':''}</div>${rows||'<div class="note">لم تدّخر شيئًا بعد. اضغط «أودعت مبلغًا» وسأوزّعه على خططك.</div>'}${status}</div>`}
+function splitPlan(amount){const G=(S.settings.goals||[]).map(g=>({g,c:goalCalc(g)})).filter(x=>!x.c.past&&!x.c.done&&x.c.rem>0).sort((a,b)=>a.g.due.localeCompare(b.g.due));
+  const out={};let left=Math.round(amount*1000)/1000;
+  for(const x of G){if(left<=0)break;const v=Math.min(left,x.c.left,x.c.rem);if(v>0){out[x.g.id]=v;left-=v}}
+  if(left>0.0005){const need=G.map(x=>({id:x.g.id,r:x.c.rem-(out[x.g.id]||0)})).filter(x=>x.r>0);const tr=need.reduce((a,x)=>a+x.r,0);
+    if(tr>0){const pool=Math.min(left,tr);let given=0;need.forEach(x=>{const v=Math.floor(pool*x.r/tr*1000)/1000;out[x.id]=(out[x.id]||0)+v;given+=v});
+      const dust=Math.round((pool-given)*1000)/1000;if(dust>0){const t=need.slice().sort((a,b)=>b.r-a.r)[0];out[t.id]+=dust;given+=dust}left-=given}}
+  Object.keys(out).forEach(k=>out[k]=Math.round(out[k]*1000)/1000);return{out,left:Math.max(0,Math.round(left*1000)/1000),G}}
+function openSavDeposit(pre,fromSurplus){const L=document.getElementById('layer');const G=(S.settings.goals||[]).filter(g=>!goalCalc(g).past);
+  let amt=pre!=null?pre:Math.round(goalsSummary().total*1000)/1000;let parts={};
+  const calc=()=>{parts=splitPlan(amt).out};calc();
+  const draw=()=>{const used=Object.values(parts).reduce((a,v)=>a+(+v||0),0);const rest=Math.round((amt-used)*1000)/1000;
+   L.innerHTML=`<div class="scrim" data-close></div><div class="sheet" role="dialog" aria-modal="true" aria-label="إيداع"><div class="in"><div class="grab"></div>
+    <h2 style="margin-top:0">${fromSurplus?'توزيع الزيادة على الخطط':'أودعت في '+esc(savAcc().name)}</h2>
+    <div class="amtbox"><input id="sdAmt" inputmode="decimal" value="${money(amt)}" aria-label="المبلغ" ${fromSurplus?'readonly':''}><span>${CUR}</span></div>
+    <p class="note" style="text-align:center;margin:0 0 10px">وزّعتُه تلقائيًا: أولًا حصة هذا الشهر لكل خطة حسب أقرب موعد، والباقي بنسبة ما تحتاجه كل خطة. يمكنك تعديل أي مبلغ.</p>
+    <div class="panel" style="padding-block:4px">${G.map(g=>`<div class="brow"><div style="display:flex;gap:8px;align-items:center;min-width:0">${goalBadge(g)}<div style="min-width:0"><b style="font-weight:500">${esc(g.name)}</b><div class="note">متبقٍ ${money(goalCalc(g).rem)}</div></div></div><input class="inp num" data-sp="${esc(g.id)}" inputmode="decimal" value="${parts[g.id]?money(parts[g.id]):''}" placeholder="0.000"></div>`).join('')}</div>
+    <div class="sumrow" style="margin-top:6px"><span>غير موزّع</span><b class="num ${Math.abs(rest)>0.0005?'amt-exp':''}" id="sdRest">${money(rest)}</b></div>
+    <div class="actions"><button class="btn block" id="sdSave">حفظ التوزيع</button><button class="btn ghost block" data-close>إلغاء</button></div></div></div>`};
+  const sync=()=>{const used=[...L.querySelectorAll('[data-sp]')].reduce((a,e)=>a+parseAmt(e.value),0);const r=document.getElementById('sdRest');if(r){const rest=Math.round((amt-used)*1000)/1000;r.textContent=money(rest);r.className='num '+(Math.abs(rest)>0.0005?'amt-exp':'')}};
+  L.oninput=e=>{if(e.target.id==='sdAmt'){amt=parseAmt(e.target.value);calc();L.querySelectorAll('[data-sp]').forEach(i=>i.value=parts[i.dataset.sp]?money(parts[i.dataset.sp]):'');sync()}else if(e.target.dataset.sp!==undefined)sync()};
+  L.onchange=null;
+  L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;
+    if(x.hasAttribute('data-close')){L.innerHTML='';return}
+    if(x.id==='sdSave'){const mk=ym(new Date());let n=0,sumv=0;L.querySelectorAll('[data-sp]').forEach(i=>{const v=parseAmt(i.value);if(!v)return;const g=(S.settings.goals||[]).find(y=>y.id===i.dataset.sp);if(!g)return;
+        g.saved=Math.round(((+g.saved||0)+v)*1000)/1000;g.log=Object.assign({},g.log||{});g.log[mk]=Math.round(((+g.log[mk]||0)+v)*1000)/1000;n++;sumv+=v});
+      const acc=savAcc();if(!fromSurplus&&acc.balance!==null&&acc.balance!==''){acc.balance=Math.round(((+acc.balance)+amt)*1000)/1000;acc.at=today()}S.settings.savingsAcc=acc;
+      L.innerHTML='';await putSettings();render();toast(n?'وُزّع '+money(sumv)+' على '+n+(n===1?' خطة':' خطط'):'لم يُوزَّع شيء')}};
+  draw()}
+function openSavBalance(){const L=document.getElementById('layer');const acc=savAcc();
+  L.innerHTML=`<div class="scrim" data-close></div><div class="sheet" role="dialog" aria-modal="true" aria-label="رصيد البنك"><div class="in"><div class="grab"></div>
+   <h2 style="margin-top:0">رصيد حساب الادخار</h2><div class="stack">
+   <div class="field"><label for="sbName">اسم الحساب</label><input class="inp" id="sbName" value="${esc(acc.name)}" maxlength="40" placeholder="مثال: حساب التوفير"></div>
+   <div class="field"><label for="sbBal">الرصيد الحالي كما يظهر في تطبيق البنك</label><input class="inp num" id="sbBal" inputmode="decimal" value="${acc.balance!==null&&acc.balance!==''?money(acc.balance):''}" placeholder="0.000" style="text-align:left"></div>
+   <p class="note" style="margin:0">مجموع خططك الآن <b class="num">${money(savTotal())}</b>. إذا كان رصيد البنك أكبر، توزّع الزيادة على الخطط بضغطة.</p>
+   <div class="actions"><button class="btn block" id="sbSave">حفظ</button><button class="btn ghost block" data-close>إلغاء</button></div></div></div></div>`;
+  L.oninput=L.onchange=null;
+  L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
+    if(x.id==='sbSave'){const v=document.getElementById('sbBal').value.trim();S.settings.savingsAcc=Object.assign(savAcc(),{name:document.getElementById('sbName').value.trim()||'حساب الادخار',balance:v===''?null:parseAmt(v),at:today()});L.innerHTML='';await putSettings();render();toast('حُفظ رصيد الحساب')}}}
+function openSpend(id){const g=(S.settings.goals||[]).find(x=>x.id===id);if(!g)return;const L=document.getElementById('layer');const cat=SPEND_CAT[g.kind]||'other';
+  L.innerHTML=`<div class="scrim" data-close></div><div class="sheet" role="dialog" aria-modal="true" aria-label="صرفت من الخطة"><div class="in"><div class="grab"></div>
+   <h2 style="margin-top:0">صرفت من «${esc(g.name)}»</h2>
+   <div class="amtbox"><input id="spAmt" inputmode="decimal" placeholder="0.000" value="" aria-label="المبلغ"><span>${CUR}</span></div>
+   <p class="note" style="text-align:center;margin:0 0 10px">المدّخر في هذه الخطة <b class="num">${money(g.saved)}</b>. يُخصم المبلغ منها ومن رصيد حساب الادخار.</p>
+   <div class="stack"><label class="toggle"><input type="checkbox" id="spTx" checked><span>سجّله كمصروف في فئة «${esc(catOf(cat).n)}»</span></label>
+   <div class="actions"><button class="btn block" id="spSave">حفظ</button><button class="btn ghost block" data-close>إلغاء</button></div></div></div></div>`;
+  L.oninput=L.onchange=null;
+  L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
+    if(x.id==='spSave'){const v=parseAmt(document.getElementById('spAmt').value);if(!v){L.innerHTML='';return}const asTx=document.getElementById('spTx').checked;
+      g.saved=Math.max(0,Math.round(((+g.saved||0)-v)*1000)/1000);const acc=savAcc();if(acc.balance!==null&&acc.balance!==''){acc.balance=Math.max(0,Math.round(((+acc.balance)-v)*1000)/1000);acc.at=today();S.settings.savingsAcc=acc}
+      L.innerHTML='';await putSettings();if(asTx)await putTx({id:uidGen(),type:'exp',amount:v,cat,date:today(),method:'transfer',note:g.name,createdAt:new Date().toISOString()});else render();toast('خُصم '+money(v)+' من '+g.name)}}}
+
 function openDeposit(id){
   const L=document.getElementById('layer');const g=(S.settings.goals||[]).find(x=>x.id===id);if(!g)return;const c=goalCalc(g);
   L.innerHTML=`<div class="scrim" data-close></div><div class="sheet" role="dialog" aria-modal="true" aria-label="إضافة للادخار"><div class="in"><div class="grab"></div>
@@ -602,7 +670,7 @@ function openDeposit(id){
   L.onclick=e=>{const x=e.target.closest('button,[data-close]');if(!x)return;
     if(x.hasAttribute('data-close')){L.innerHTML='';return}
     if(x.id==='dSave'){const v=parseAmt(document.getElementById('dAmt').value);if(!v){L.innerHTML='';return}
-      g.saved=Math.round(((+g.saved||0)+v)*1000)/1000;g.log=Object.assign({},g.log||{});const mk=ym(new Date());g.log[mk]=Math.round(((+g.log[mk]||0)+v)*1000)/1000;L.innerHTML='';putSettings();render();
+      g.saved=Math.round(((+g.saved||0)+v)*1000)/1000;g.log=Object.assign({},g.log||{});const mk=ym(new Date());g.log[mk]=Math.round(((+g.log[mk]||0)+v)*1000)/1000;{const acc=savAcc();if(acc.balance!==null&&acc.balance!==''){acc.balance=Math.round(((+acc.balance)+v)*1000)/1000;acc.at=today();S.settings.savingsAcc=acc}}L.innerHTML='';putSettings();render();
       toast(g.saved>=g.target?'اكتمل ادخار '+g.name:'أُضيف '+money(v)+' إلى '+g.name)}};
 }
 function nextCycle(id){const g=(S.settings.goals||[]).find(x=>x.id===id);if(!g)return;const k=GOAL_KINDS[g.kind]||{};
@@ -1440,8 +1508,9 @@ function openLook(){const L=document.getElementById('layer');
 
 /* ---------- 21. الإصدار وما الجديد ---------- */
 const DEV={name:'ماجد الرميمي',title:'مهندس ومطور تقنية معلومات',country:'سلطنة عُمان',phone:'95134234',intl:'96895134234'};
-const APP_VERSION='1.9.2';
+const APP_VERSION='2.0.0';
 const CHANGELOG=[
+ {v:'2.0.0',d:'2026-10-13',items:['«حساب الادخار»: حساب بنكي واحد موزّع داخل التطبيق على خططك، مع نسبة ومبلغ كل خطة','«أودعت مبلغًا»: تكتب مبلغًا واحدًا فيوزّعه التطبيق على الخطط تلقائيًا، ويمكنك تعديله','مطابقة رصيد البنك مع مجموع الخطط، وتوزيع أي زيادة بضغطة','«صرفت منها»: الصرف من خطة يخصم من مدّخرها ومن رصيد الحساب ويُسجَّل كمصروف']},
  {v:'1.9.2',d:'2026-10-13',items:['خيار إظهار أو إخفاء بيانات المطوّر في التقارير المطبوعة']},
  {v:'1.9.1',d:'2026-10-13',items:['بيانات صاحب التطبيق ومطوّره في «عن التطبيق» وفي التقارير المطبوعة']},
  {v:'1.9.0',d:'2026-10-13',items:['إرسال مستندات الخزنة كملفات عادية عبر واتساب أو البريد بعد موافقتك، مع اختيار الملفات وأسماء واضحة لها','طباعة التقرير الشهري أو السنوي أو حفظه PDF بشكل مرتب مع التواريخ: الملخص، الفئات، الأشخاص، المصاريف الشهرية، الديون، الخطط، وكل العمليات','حفظ التقرير كملف يُفتح ويُطبع من أي جهاز','قسم جديد «الشهرية» في الشريط السفلي: مصاريفك الثابتة وأقساط ديونك في قائمة واحدة تتكرر كل شهر','القائمة مقسومة إلى «بانتظار الدفع» و«تم الدفع»، وكل ما تدفعه ينتقل تلقائيًا','زر الإضافة صار عائمًا، والشريط السفلي: الرئيسية، الشهرية، السجل، الخطة، التقارير. والأهل من لوحة «أقسامي»']},
@@ -1578,6 +1647,10 @@ document.addEventListener('click',async e=>{
   if(b.dataset.plannew){openPlanWizard();return}
   if(b.id==='lookBtn'){openLook();return}
   if(b.dataset.gdep){openDeposit(b.dataset.gdep);return}
+  if(b.dataset.gspend){openSpend(b.dataset.gspend);return}
+  if(b.id==='savDep'){openSavDeposit(null,false);return}
+  if(b.id==='savBal'){openSavBalance();return}
+  if(b.id==='savSplit'){openSavDeposit(+b.dataset.amt,true);return}
   if(b.dataset.gnext){nextCycle(b.dataset.gnext);return}
   if(b.id==='mPrev'){S.month=shiftMonth(S.month,-1);render();return}
   if(b.id==='mNext'){S.month=shiftMonth(S.month,1);render();return}
