@@ -201,7 +201,7 @@ function vBudget(){
   <div style="margin-top:14px"><button class="btn block" id="saveBudget">حفظ الميزانية</button></div>`;
 }
 
-function vReports(){const seg=`<div class="row2" style="margin-bottom:10px"><button class="btn" id="printRep">طباعة أو حفظ PDF</button><button class="btn ghost" id="saveRep">حفظ التقرير كملف</button></div><div class="seg" style="margin-bottom:4px"><button class="n" data-rmode="month" aria-pressed="${S.rmode!=='year'}">تقرير شهري</button><button class="n" data-rmode="year" aria-pressed="${S.rmode==='year'}">تقرير سنوي</button></div>`;
+function vReports(){const seg=`<div class="row2" style="margin-bottom:10px"><button class="btn" id="printRep">طباعة أو حفظ PDF</button><button class="btn ghost" id="saveRep">حفظ التقرير كملف</button></div><label class="toggle" style="margin-bottom:12px"><input type="checkbox" id="printDev" ${S.settings.printDev===false?'':'checked'}><span>إظهار بيانات المطوّر في التقارير المطبوعة</span></label><div class="seg" style="margin-bottom:4px"><button class="n" data-rmode="month" aria-pressed="${S.rmode!=='year'}">تقرير شهري</button><button class="n" data-rmode="year" aria-pressed="${S.rmode==='year'}">تقرير سنوي</button></div>`;
   const mm=vReportsMonth();const i=mm.indexOf('<h2>بياناتك</h2>');
   return seg+(S.rmode==='year'?vYear():mm.slice(0,i)+reportsMonthExtras())+mm.slice(i)+versionHtml()}
 function vReportsMonth(){
@@ -1440,8 +1440,9 @@ function openLook(){const L=document.getElementById('layer');
 
 /* ---------- 21. الإصدار وما الجديد ---------- */
 const DEV={name:'ماجد الرميمي',title:'مهندس ومطور تقنية معلومات',country:'سلطنة عُمان',phone:'95134234',intl:'96895134234'};
-const APP_VERSION='1.9.1';
+const APP_VERSION='1.9.2';
 const CHANGELOG=[
+ {v:'1.9.2',d:'2026-10-13',items:['خيار إظهار أو إخفاء بيانات المطوّر في التقارير المطبوعة']},
  {v:'1.9.1',d:'2026-10-13',items:['بيانات صاحب التطبيق ومطوّره في «عن التطبيق» وفي التقارير المطبوعة']},
  {v:'1.9.0',d:'2026-10-13',items:['إرسال مستندات الخزنة كملفات عادية عبر واتساب أو البريد بعد موافقتك، مع اختيار الملفات وأسماء واضحة لها','طباعة التقرير الشهري أو السنوي أو حفظه PDF بشكل مرتب مع التواريخ: الملخص، الفئات، الأشخاص، المصاريف الشهرية، الديون، الخطط، وكل العمليات','حفظ التقرير كملف يُفتح ويُطبع من أي جهاز','قسم جديد «الشهرية» في الشريط السفلي: مصاريفك الثابتة وأقساط ديونك في قائمة واحدة تتكرر كل شهر','القائمة مقسومة إلى «بانتظار الدفع» و«تم الدفع»، وكل ما تدفعه ينتقل تلقائيًا','زر الإضافة صار عائمًا، والشريط السفلي: الرئيسية، الشهرية، السجل، الخطة، التقارير. والأهل من لوحة «أقسامي»']},
  {v:'1.8.0',d:'2026-10-13',items:['خزنة «مستنداتي» مرتبة في مجلدات: البطاقات الشخصية، جوازات السفر، رخص القيادة، السير الذاتية، الشهادات وغيرها','أكثر من مستند في كل مجلد لك ولأفراد أسرتك، مع اسم صاحب المستند تلقائيًا','عرض الخزنة «حسب النوع» أو «حسب الشخص»']},
@@ -1500,7 +1501,7 @@ function reportDoc(){
     h+=`<section><h2>الديون</h2>${T(['الدين','المتبقي','القسط','الفائدة','ينتهي في'],Ds.map(d=>`<tr><td>${esc(d.name)}</td><td>${N(d.balance)}</td><td>${N(d.payment)}</td><td>${+d.rate?d.rate+'%':'—'}</td><td>${pl.finish[d.id]?monthLabel(pl.finish[d.id]):'—'}</td></tr>`),['المجموع',N(Ds.reduce((x,d)=>x+(+d.balance),0)),N(Ds.reduce((x,d)=>x+(+d.payment),0)),'',pl.months?monthLabel(pl.months):''])}</section>`}
   const G=(S.settings.goals||[]);if(G.length)h+=`<section><h2>الخطط والأهداف</h2>${T(['الخطة','المطلوب','المدّخر','الموعد','ادّخر شهريًا'],G.slice().sort((a,b)=>a.due.localeCompare(b.due)).map(g=>{const c=goalCalc(g);return `<tr><td>${esc(g.name)}</td><td>${N(c.tgt)}</td><td>${N(c.sv)}</td><td>${fmtD(g.due)}</td><td>${c.done?'مكتمل':N(c.monthly)}</td></tr>`}))}</section>`;
   h+=`<section class="tx"><h2>العمليات (${A.length})</h2>${A.length?T(['التاريخ','النوع','الفئة','البيان','الدفع','المبلغ'],A.map(t=>`<tr><td class="nw">${fmtD(t.date)}</td><td>${t.type==='inc'?'دخل':'مصروف'}</td><td>${esc(catOf(t.cat).n)}</td><td>${esc(t.note||'')}${t.person?' <small>(لـ'+esc(personName(t.person))+')</small>':''}</td><td>${esc((METHODS.find(x=>x[0]===t.method)||['',''])[1])}</td><td class="${t.type==='inc'?'ok':''}">${t.type==='inc'?'+':'−'}${N(t.amount)}</td></tr>`),['','','','','المجموع',(net<0?'−':'+')+N(Math.abs(net))]):'<p>لا توجد عمليات في هذه الفترة.</p>'}</section>`;
-  h+=`<footer class="rf">تقرير من تطبيق «إدارة شؤوني» · ${esc(title)}<br>تصميم وتطوير: ${DEV.name}، ${DEV.title} · ${DEV.country} · <span class="n">+968 ${DEV.phone}</span></footer>`;
+  h+=`<footer class="rf">تقرير من تطبيق «إدارة شؤوني» · ${esc(title)}${S.settings.printDev===false?'':`<br>تصميم وتطوير: ${DEV.name}، ${DEV.title} · ${DEV.country} · <span class="n">+968 ${DEV.phone}</span>`}</footer>`;
   return {title,body:h};
 }
 const PRINT_CSS=`body{font-family:-apple-system,"SF Arabic","Segoe UI",Tahoma,sans-serif;color:#16202E;margin:0;direction:rtl;font-size:12px;line-height:1.5}
@@ -1600,7 +1601,8 @@ document.addEventListener('click',async e=>{
 });
 let debtT;document.addEventListener('input',e=>{if(e.target.id==='q'){S.q=e.target.value;render()}
   if(e.target.id==='debtExtra'){S.settings.debtPlan=Object.assign(debtPlan(),{extra:parseAmt(e.target.value)});const r=document.getElementById('debtRes');if(r)r.innerHTML=debtResHtml();clearTimeout(debtT);debtT=setTimeout(putSettings,800)}});
-document.addEventListener('change',e=>{if(e.target.id==='restoreFile'&&e.target.files[0]){const r=new FileReader();r.onload=()=>restoreFrom(r.result);r.readAsText(e.target.files[0]);e.target.value=''}});
+document.addEventListener('change',e=>{if(e.target.id==='printDev'){S.settings.printDev=e.target.checked;putSettings();toast(e.target.checked?'ستظهر بيانات المطوّر في التقارير':'لن تظهر بيانات المطوّر في التقارير');return}
+  if(e.target.id==='restoreFile'&&e.target.files[0]){const r=new FileReader();r.onload=()=>restoreFrom(r.result);r.readAsText(e.target.files[0]);e.target.value=''}});
 
 /* ---------- 25. التشغيل ---------- */
 checkVersion();cacheLoad();render();Sync.start();setTimeout(notifyCarAlerts,1500);vaultLoad();
