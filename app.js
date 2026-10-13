@@ -343,7 +343,7 @@ function vBudget(){
   <div style="margin-top:14px"><button class="btn block" id="saveBudget">حفظ الميزانية</button></div>`;
 }
 
-function vReports(){const seg=`<div class="row2" style="margin-bottom:10px"><button class="btn" id="printRep">طباعة أو حفظ PDF</button><button class="btn ghost" id="saveRep">حفظ التقرير كملف</button></div><label class="toggle" style="margin-bottom:12px"><input type="checkbox" id="printDev" ${S.settings.printDev===false?'':'checked'}><span>إظهار بيانات المطوّر في التقارير المطبوعة</span></label><div class="seg" style="margin-bottom:4px"><button class="n" data-rmode="month" aria-pressed="${S.rmode!=='year'}">تقرير شهري</button><button class="n" data-rmode="year" aria-pressed="${S.rmode==='year'}">تقرير سنوي</button></div>`;
+function vReports(){const seg=`<div class="row2" style="margin-bottom:12px"><button class="btn" id="printRep">طباعة التقرير وخياراته</button><button class="btn ghost" id="quickPrint">طباعة سريعة</button></div><div class="seg" style="margin-bottom:4px"><button class="n" data-rmode="month" aria-pressed="${S.rmode!=='year'}">تقرير شهري</button><button class="n" data-rmode="year" aria-pressed="${S.rmode==='year'}">تقرير سنوي</button></div>`;
   const mm=vReportsMonth();const i=mm.indexOf('<h2>بياناتك</h2>');
   return seg+(S.rmode==='year'?vYear():mm.slice(0,i)+reportsMonthExtras())+mm.slice(i)+versionHtml()}
 function vReportsMonth(){
@@ -1354,7 +1354,7 @@ async function vaultImport(txt){try{const o=JSON.parse(txt);if(!o||o.app!=='masa
     const rec=Object.assign({},d,{files,secret:sec});await VDB.put('docs',rec);Vault.docs.push(rec);n++}
   render();toast('استُورد '+n+' مستند');return true}catch(e){toast('هذا الملف ليس خزنة من إدارة شؤوني');return false}}
 
-/* ---------- 19. مستنداتي: الفتح ببصمة الوجه ---------- */
+/* ---------- 19. بصمة الوجه: فتح الخزنة وتأكيد العمليات الخطيرة ---------- */
 const BIO_SALT=te('masareef-vault-faceid-v1');
 const bioCapable=()=>!!(window.PublicKeyCredential&&navigator.credentials&&navigator.credentials.create);
 async function bioKeyFrom(prfOut){return crypto.subtle.importKey('raw',prfOut,{name:'AES-GCM'},false,['encrypt','decrypt'])}
@@ -1383,6 +1383,54 @@ function openBioSetup(){const L=document.getElementById('layer');
     if(x.id==='bGo'){const er=document.getElementById('bErr');x.disabled=true;const r=await bioEnable(document.getElementById('bPin').value);x.disabled=false;
       const msg={badpin:'الرمز غير صحيح',cancel:'أُلغيت بصمة الوجه. حاول مرة أخرى',noprf:'هاتفك أو متصفحك لا يدعم الفتح ببصمة الوجه هنا. حدّث الآيفون إلى iOS 18 أو أحدث، وافتح التطبيق من Safari',fail:'تعذّر التفعيل. تأكد أن بصمة الوجه مفعّلة في إعدادات الهاتف'};
       if(r==='ok'){L.innerHTML='';render();toast('فُعّل الفتح ببصمة الوجه')}else{er.hidden=false;er.textContent=msg[r]||msg.fail}}}}
+
+/* التحقق من هويتك ببصمة الوجه (أو رمز الجهاز) قبل العمليات الخطيرة مثل حذف كل البيانات */
+const GUARD_K='masareef:guard';
+function b64e(u8){let s='';u8.forEach(c=>s+=String.fromCharCode(c));return btoa(s)}
+function b64d(s){return Uint8Array.from(atob(s),c=>c.charCodeAt(0))}
+async function uvAvailable(){try{return bioCapable()&&!!PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable&&await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()}catch(e){return false}}
+function uvFlag(ad){try{return !!(new Uint8Array(ad)[32]&4)}catch(e){return false}}
+async function verifyUser(){if(!await uvAvailable())return 'unavailable';
+  const challenge=crypto.getRandomValues(new Uint8Array(32));const ids=[];
+  if(Vault.bio&&Vault.bio.credId)ids.push(new Uint8Array(Vault.bio.credId));
+  try{const g=localStorage.getItem(GUARD_K);if(g)ids.push(b64d(g))}catch(e){}
+  try{
+    if(ids.length){const a=await navigator.credentials.get({publicKey:{challenge,allowCredentials:ids.map(id=>({type:'public-key',id})),userVerification:'required',timeout:60000}});
+      return a&&uvFlag(a.response.authenticatorData)?'ok':'fail'}
+    const c=await navigator.credentials.create({publicKey:{rp:{name:'إدارة شؤوني'},user:{id:crypto.getRandomValues(new Uint8Array(16)),name:'تأكيد إدارة شؤوني',displayName:'تأكيد إدارة شؤوني'},
+      challenge,pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],timeout:60000,authenticatorSelection:{authenticatorAttachment:'platform',residentKey:'discouraged',userVerification:'required'}}});
+    if(!c)return 'fail';try{localStorage.setItem(GUARD_K,b64e(new Uint8Array(c.rawId)))}catch(e){}
+    const ad=c.response.getAuthenticatorData?c.response.getAuthenticatorData():null;return !ad||uvFlag(ad)?'ok':'fail'
+  }catch(e){return e&&(e.name==='NotAllowedError'||e.name==='AbortError')?'cancel':'fail'}}
+async function vaultPinOk(pin){if(!Vault.cfg||!pin)return false;try{const key=await vDerive(pin,Vault.cfg.salt);await vDec(key,Vault.cfg.check);return true}catch(e){return false}}
+async function wipeAll(){for(const t of list())await delTx(t.id);S.settings={monthlyBudget:0,budgets:{}};await putSettings();render();toast('حُذفت كل البيانات')}
+async function openWipe(){const L=document.getElementById('layer');const uv=await uvAvailable();const hasPin=!!Vault.cfg;let showPin=!uv&&hasPin,busy=false;
+  const word='احذف';const norm=s=>String(s||'').replace(/[ً-ْـ\s]/g,'').replace(/[أإآ]/g,'ا');
+  const draw=()=>{L.innerHTML=`${sheetTop('حذف كل البيانات')}
+   <h2 style="margin-top:0;color:var(--exp)">حذف كل البيانات</h2>
+   <div class="warnbox">سيُحذف نهائيًا من هذا الجهاز: كل العمليات، الميزانيات، الخطط وحساب الادخار، السيارات، الديون، الأهل والالتزامات الشهرية، والإعدادات.${Sync.linked()?' <b>والمزامنة مفعّلة، فسيُحذف أيضًا من أجهزتك الأخرى المرتبطة بنفس الحساب.</b>':''}</div>
+   <p class="note" style="margin:8px 0">خزنة «مستنداتي» لا تُحذف من هنا. لا يمكن التراجع عن الحذف.</p>
+   <button class="btn ghost block" id="wBak">احفظ نسخة احتياطية أولًا</button>
+   <div class="stack" style="margin-top:12px">
+    <div class="field"><label for="wWord">للتأكيد اكتب كلمة «<b>${word}</b>»</label><input class="inp" id="wWord" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+    ${showPin?`<div class="field"><label for="wPin">رمز خزنة «مستنداتي»</label><input class="inp num pin" id="wPin" type="password" inputmode="numeric" maxlength="8"></div>`:''}
+    <p class="note">${uv?'بعد كتابة الكلمة ستُطلب بصمة الوجه (أو رمز الهاتف) للتأكد أنك أنت.':hasPin?'جهازك لا يدعم بصمة الوجه هنا، لذلك يُطلب رمز الخزنة للتأكد أنك أنت.':'جهازك لا يدعم بصمة الوجه هنا. للحماية الأقوى فعّل الخزنة في «مستنداتي» ليُطلب رمزها قبل الحذف.'}</p>
+    <p class="note" id="wErr" hidden style="color:var(--exp);margin:0"></p>
+   </div>
+   <div class="actions"><button class="btn danger block" id="wGo" disabled>${showPin?'تأكيد بالرمز والحذف':uv?'تأكيد ببصمة الوجه والحذف':'حذف نهائي'}</button>${uv&&hasPin&&!showPin?'<button class="btn ghost block" id="wUsePin">استخدم رمز الخزنة بدل البصمة</button>':''}<button class="btn ghost block" data-close>إلغاء</button></div></div></div>`};
+  const err=m=>{const e=document.getElementById('wErr');if(e){e.hidden=!m;e.textContent=m||''}};
+  const ready=()=>{const ok=norm(document.getElementById('wWord').value)===norm(word);document.getElementById('wGo').disabled=!ok;return ok};
+  draw();
+  L.oninput=e=>{if(e.target.id==='wWord'){ready();err('')}};L.onchange=null;
+  L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x||busy)return;
+    if(x.hasAttribute('data-close')){L.innerHTML='';return}
+    if(x.id==='wBak'){if(saveFile('idarat-shuooni-backup-'+today()+'.json',backupText(),'application/json')){try{localStorage.setItem('masareef:lastBackup',today())}catch(e){}toast('حُفظت النسخة الاحتياطية في الملفات')}return}
+    if(x.id==='wUsePin'){const w=document.getElementById('wWord').value;showPin=true;draw();document.getElementById('wWord').value=w;ready();return}
+    if(x.id==='wGo'){if(!ready())return;busy=true;x.disabled=true;
+      if(showPin){if(!await vaultPinOk(document.getElementById('wPin').value)){busy=false;x.disabled=false;err('رمز الخزنة غير صحيح.');return}}
+      else if(uv){const r=await verifyUser();if(r!=='ok'){busy=false;x.disabled=false;err(r==='cancel'?'أُلغي التحقق ببصمة الوجه. لم يُحذف شيء.':'تعذّر التحقق من هويتك. لم يُحذف شيء.'+(hasPin?' يمكنك استخدام رمز الخزنة.':''));
+        if(hasPin&&!document.getElementById('wUsePin')){const b=document.createElement('button');b.className='btn ghost block';b.id='wUsePin';b.textContent='استخدم رمز الخزنة بدل البصمة';x.after(b)}return}}
+      L.innerHTML='';busy=false;await wipeAll()}}}
 
 /* ---------- 20. قراءة رسائل البنك ---------- */
 const KW={
@@ -1625,8 +1673,9 @@ function openLook(){const L=document.getElementById('layer');
 
 /* ---------- 23. الإصدار وما الجديد ---------- */
 const DEV={name:'ماجد الرميمي',title:'مهندس ومطور تقنية معلومات',country:'سلطنة عُمان',phone:'95134234',intl:'96895134234'};
-const APP_VERSION='2.2.0';
+const APP_VERSION='2.3.0';
 const CHANGELOG=[
+ {v:'2.3.0',d:'2026-10-13',items:['نافذة «طباعة التقرير» بخيارات كثيرة: شهر أو سنة أو فترة محددة، وقوالب جاهزة (مختصر، كامل، للمراجعة) أو اختيار الأقسام بنفسك','قسم «ملاحظات للمراجعة»: يكشف المبالغ الكبيرة والعمليات المكررة وما ليس له فئة، والالتزامات غير المدفوعة','قائمة العمليات: تصفية حسب النوع والفئة، ترتيب بالتاريخ أو المبلغ، تجميع حسب اليوم أو الفئة مع المجاميع، رصيد تراكمي، وعمود ☐ للمراجعة وعمود للملاحظات','أقسام جديدة في التقرير: السيارات والتجديدات، أولويات مستشاري، حساب الادخار، ومؤشرات إضافية في الملخص','معاينة التقرير داخل التطبيق قبل الطباعة، وخط كبير، وصفحة أفقية، وطباعة أبيض وأسود لتوفير الحبر','«طباعة سريعة» بآخر خيارات استخدمتها','حماية «حذف كل البيانات»: كتابة كلمة «احذف» ثم التأكيد ببصمة الوجه، أو برمز الخزنة إذا لم تتوفر البصمة، مع زر لحفظ نسخة احتياطية قبل الحذف']},
  {v:'2.2.0',d:'2026-10-13',items:['إعادة صياغة شاملة: دوال مشتركة واحدة بدل الكود المكرر (التواريخ، الأيقونات، النوافذ، المتوسطات، صيغ العدد)','بلا تكرار في الشاشات: ملخص التقارير والرسم البياني مكوّن واحد في الرئيسية وصفحة التقارير','«أين ذهبت أموالك» انتقلت إلى التقرير الشهري، وأُزيلت من «أقسامي» الخانات الموجودة أصلًا في الرئيسية أو الشريط السفلي','مستشاري لا يكرر ما يظهر في الرئيسية (تنبيهات السيارات والمستندات وحصة الخطط)','إصلاح شكل نقاط ألوان الأشخاص في البيت والسيارات','ترتيب ملفات الكود في 27 قسمًا والتصميم في 14 قسمًا مع فهرس محدّث']},
  {v:'2.1.0',d:'2026-10-13',items:['«مستشاري الذكي»: يحلّل دخلك ومصاريفك وخططك وديونك داخل هاتفك ويعطيك درجة لصحتك المالية من 100','«أولوياتك الآن»: ترتيب تلقائي لما يجب أن تبدأ به (دفعات متأخرة، تجاوز الميزانية، خطط أكبر من قدرتك، تسريع سداد الديون...) مع زر للتنفيذ','«خطة دخلك المقترحة»: توزيع دخلك على الالتزامات والخطط والطوارئ والمصروف اليومي','«قد تكون نسيت»: قائمة بالأشياء المهمة الناقصة مثل صندوق الطوارئ وخطط رمضان والعيدين وتواريخ التأمين والنسخة الاحتياطية','لوحة «خططي» في الرئيسية: كل خططك مع المتبقي لتحقيق كل خطة ونسبة الإنجاز وموعدها، واضغط على أي خطة لتفتحها مباشرة','إجمالي ما ادّخرته والمتبقي لكل الخطط وما تحتاج ادخاره هذا الشهر','«ملخص التقارير» في الرئيسية: مصاريف الشهر ومقارنتها بالشهر الماضي، نسبة التوفير، أكثر فئة صرف، وحصيلة السنة','رسم للدخل والمصاريف لآخر 6 أشهر، وأزرار مباشرة للتقرير الشهري والسنوي والطباعة']},
  {v:'2.0.0',d:'2026-10-13',items:['«حساب الادخار»: حساب بنكي واحد موزّع داخل التطبيق على خططك، مع نسبة ومبلغ كل خطة','«أودعت مبلغًا»: تكتب مبلغًا واحدًا فيوزّعه التطبيق على الخطط تلقائيًا، ويمكنك تعديله','مطابقة رصيد البنك مع مجموع الخطط، وتوزيع أي زيادة بضغطة','«صرفت منها»: الصرف من خطة يخصم من مدّخرها ومن رصيد الحساب ويُسجَّل كمصروف']},
@@ -1668,46 +1717,166 @@ function loadSample(){
 
 
 /* ---------- 25. التقارير للطباعة وحفظ PDF ---------- */
-function reportDoc(){
-  const yr=S.rmode==='year',y=S.month.slice(0,4);
-  const A=(yr?list().filter(t=>t.date&&t.date.slice(0,4)===y):inMonth(S.month)).slice().sort((a,b)=>a.date.localeCompare(b.date)||(a.createdAt||'').localeCompare(b.createdAt||''));
+/* الأقسام المتاحة في التقرير المطبوع، والقوالب الجاهزة */
+const PR_SECTIONS=[
+ ['summary','الملخص والأرقام الرئيسية'],['review','ملاحظات للمراجعة'],['months','تفصيل كل شهر'],['cats','المصاريف حسب الفئة'],
+ ['people','المصاريف حسب الأشخاص'],['monthly','الالتزامات الشهرية'],['debts','الديون وخطة السداد'],['plans','الخطط وحساب الادخار'],
+ ['cars','السيارات والتجديدات'],['advisor','أولويات مستشاري'],['tx','قائمة العمليات']];
+const PR_PRESETS={short:['summary','cats','advisor'],full:PR_SECTIONS.map(x=>x[0]),review:['summary','review','cats','monthly','tx']};
+const PR_PRESET_N={short:'مختصر',full:'كامل',review:'للمراجعة',custom:'مخصص'};
+function prDefaults(){return{period:'month',from:'',to:'',preset:'full',secs:PR_PRESETS.full.slice(),txType:'all',txCat:'',sort:'asc',group:'none',running:false,reviewCols:false,font:'normal',orient:'portrait',ink:'color'}}
+function prOpts(){const o=Object.assign(prDefaults(),JSON.parse(JSON.stringify(S.settings.printOpts||{})));o.dev=S.settings.printDev!==false;return o}
+function prRange(o){
+  if(o.period==='year'){const y=S.month.slice(0,4);return{from:y+'-01-01',to:y+'-12-31',label:'التقرير السنوي '+y,prev:[(+y-1)+'-01-01',(+y-1)+'-12-31']}}
+  if(o.period==='range'&&o.from&&o.to){const f=o.from<=o.to?o.from:o.to,t=o.from<=o.to?o.to:o.from;const days=Math.round((new Date(t)-new Date(f))/864e5)+1;
+    const pe=new Date(f+'T12:00');pe.setDate(pe.getDate()-1);const ps=new Date(pe);ps.setDate(ps.getDate()-days+1);
+    return{from:f,to:t,label:'تقرير من '+fmtD(f)+' إلى '+fmtD(t),prev:[isoD(ps),isoD(pe)]}}
+  const end=m=>{const [y,mm]=m.split('-').map(Number);return m+'-'+String(new Date(y,mm,0).getDate()).padStart(2,'0')};const pm=shiftMonth(S.month,-1);
+  return{from:S.month+'-01',to:end(S.month),label:'تقرير شهر '+monthName(S.month),prev:[pm+'-01',end(pm)]}}
+function inRange(f,t){return list().filter(x=>x.date&&x.date>=f&&x.date<=t)}
+/* ملاحظات المراجعة: عمليات تستحق نظرة ثانية */
+function prReviewFlags(A,oneMonth,m){const F=[];const E=A.filter(t=>t.type==='exp');
+  const avg=E.length?sum(E,'exp')/E.length:0;
+  E.filter(t=>avg&&+t.amount>=Math.max(avg*2.5,20)).sort((a,b)=>b.amount-a.amount).slice(0,6).forEach(t=>F.push(['مبلغ كبير',t]));
+  const seen={};A.forEach(t=>{const k=[t.date,t.type,t.cat,(+t.amount).toFixed(3)].join('|');(seen[k]=seen[k]||[]).push(t)});
+  Object.values(seen).filter(g=>g.length>1).forEach(g=>F.push(['قد تكون مكررة ('+g.length+' مرات)',g[0]]));
+  A.filter(t=>t.cat==='other'&&!t.note).forEach(t=>F.push(['بدون فئة ولا بيان',t]));
+  const out=F.map(([k,t])=>({k,date:t.date,name:t.note||catOf(t.cat).n,amt:+t.amount,type:t.type}));
+  if(oneMonth)recStatus(m).R.filter(i=>!i.isPaid).forEach(i=>out.push({k:'التزام لم يُدفع',date:recDate({day:i.day},m),name:i.name,amt:i.amount,type:'exp'}));
+  return out.sort((a,b)=>a.date.localeCompare(b.date))}
+function reportDoc(o){o=o||prOpts();const R=prRange(o),has=k=>o.secs.includes(k);
+  const A=inRange(R.from,R.to).sort((a,b)=>a.date.localeCompare(b.date)||(a.createdAt||'').localeCompare(b.createdAt||''));
   const inc=sum(A,'inc'),exp=sum(A,'exp'),net=inc-exp;const now=new Date();
-  const title=yr?'التقرير السنوي '+y:'تقرير شهر '+monthName(S.month);
-  const T=(head,rows,foot)=>`<table><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody>${foot?`<tfoot><tr>${foot.map(f=>`<td>${f}</td>`).join('')}</tr></tfoot>`:''}</table>`;
-  const N=v=>`<span class="n">${money(v)}</span>`;
-  let h=`<header class="rh"><div><div class="rapp">إدارة شؤوني</div><h1>${esc(title)}</h1></div><div class="rmeta">أُعدّ في ${fmtD(today())} الساعة ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}<br>العملة: الريال العُماني (ر.ع.)</div></header>`;
-  h+=`<section><h2>الملخص</h2><div class="kpis"><div><span>الدخل</span><b>${N(inc)}</b></div><div><span>المصاريف</span><b>${N(exp)}</b></div><div><span>الصافي</span><b>${net<0?'−':''}${N(Math.abs(net))}</b></div><div><span>نسبة الادخار</span><b>${inc?Math.round(net/inc*100)+'%':'—'}</b></div></div></section>`;
-  if(yr){const rows=[...Array(12)].map((_,i)=>{const m=y+'-'+String(i+1).padStart(2,'0');const a=inMonth(m);const ii=sum(a,'inc'),ee=sum(a,'exp');return a.length?`<tr><td>${MONTHS[i]}</td><td>${N(ii)}</td><td>${N(ee)}</td><td>${ii-ee<0?'−':''}${N(Math.abs(ii-ee))}</td></tr>`:''}).filter(Boolean);
-    if(rows.length)h+=`<section><h2>كل شهر</h2>${T(['الشهر','الدخل','المصاريف','الصافي'],rows,['المجموع',N(inc),N(exp),(net<0?'−':'')+N(Math.abs(net))])}</section>`}
-  const bc={};A.filter(t=>t.type==='exp').forEach(t=>bc[t.cat]=(bc[t.cat]||0)+(+t.amount));
-  const cats=Object.entries(bc).sort((a,b)=>b[1]-a[1]);
-  if(cats.length)h+=`<section><h2>المصاريف حسب الفئة</h2>${T(['الفئة','المبلغ','النسبة'],cats.map(([c,v])=>`<tr><td>${esc(catOf(c).n)}</td><td>${N(v)}</td><td>${exp?Math.round(v/exp*100):0}%</td></tr>`),['المجموع',N(exp),'100%'])}</section>`;
-  const bp=byPerson(A);const pe=Object.entries(bp).filter(([,v])=>v>0);
-  if(pe.length>1)h+=`<section><h2>المصاريف حسب الأشخاص</h2>${T(['الشخص','المبلغ','النسبة'],pe.sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k?esc(personName(k)):'لي وللبيت'}</td><td>${N(v)}</td><td>${exp?Math.round(v/exp*100):0}%</td></tr>`))}</section>`;
-  if(!yr){const st=recStatus(S.month);if(st.R.length)h+=`<section><h2>المصاريف والأقساط الشهرية</h2>${T(['البند','المبلغ','يوم الدفع','الحالة'],st.R.slice().sort((a,b)=>a.day-b.day).map(i=>`<tr><td>${esc(i.name)}</td><td>${N(i.isPaid?i.paidAmt:i.amount)}</td><td>${i.day}</td><td class="${i.isPaid?'ok':'no'}">${i.isPaid?'مدفوع':'لم يُدفع'}</td></tr>`),['المجموع',N(st.total),'',`مدفوع ${st.paid.length} من ${st.R.length}`])}</section>`}
-  const Ds=debts().filter(d=>+d.balance>0);if(Ds.length){const P=debtPlan();const pl=simDebts(Ds,P.extra,P.strategy,true);
-    h+=`<section><h2>الديون</h2>${T(['الدين','المتبقي','القسط','الفائدة','ينتهي في'],Ds.map(d=>`<tr><td>${esc(d.name)}</td><td>${N(d.balance)}</td><td>${N(d.payment)}</td><td>${+d.rate?d.rate+'%':'—'}</td><td>${pl.finish[d.id]?monthLabel(pl.finish[d.id]):'—'}</td></tr>`),['المجموع',N(Ds.reduce((x,d)=>x+(+d.balance),0)),N(Ds.reduce((x,d)=>x+(+d.payment),0)),'',pl.months?monthLabel(pl.months):''])}</section>`}
-  const G=(S.settings.goals||[]);if(G.length)h+=`<section><h2>الخطط والأهداف</h2>${T(['الخطة','المطلوب','المدّخر','الموعد','ادّخر شهريًا'],G.slice().sort((a,b)=>a.due.localeCompare(b.due)).map(g=>{const c=goalCalc(g);return `<tr><td>${esc(g.name)}</td><td>${N(c.tgt)}</td><td>${N(c.sv)}</td><td>${fmtD(g.due)}</td><td>${c.done?'مكتمل':N(c.monthly)}</td></tr>`}))}</section>`;
-  h+=`<section class="tx"><h2>العمليات (${A.length})</h2>${A.length?T(['التاريخ','النوع','الفئة','البيان','الدفع','المبلغ'],A.map(t=>`<tr><td class="nw">${fmtD(t.date)}</td><td>${t.type==='inc'?'دخل':'مصروف'}</td><td>${esc(catOf(t.cat).n)}</td><td>${esc(t.note||'')}${t.person?' <small>(لـ'+esc(personName(t.person))+')</small>':''}</td><td>${esc((METHODS.find(x=>x[0]===t.method)||['',''])[1])}</td><td class="${t.type==='inc'?'ok':''}">${t.type==='inc'?'+':'−'}${N(t.amount)}</td></tr>`),['','','','','المجموع',(net<0?'−':'+')+N(Math.abs(net))]):'<p>لا توجد عمليات في هذه الفترة.</p>'}</section>`;
-  h+=`<footer class="rf">تقرير من تطبيق «إدارة شؤوني» · ${esc(title)}${S.settings.printDev===false?'':`<br>تصميم وتطوير: ${DEV.name}، ${DEV.title} · ${DEV.country} · <span class="n">+968 ${DEV.phone}</span>`}</footer>`;
-  return {title,body:h};
+  const months=[];for(let m=R.from.slice(0,7);m<=R.to.slice(0,7);m=shiftMonth(m,1))months.push(m);
+  const oneMonth=months.length===1,m0=months[0];
+  const T=(head,rows,foot,cls)=>`<table${cls?` class="${cls}"`:''}><thead><tr>${head.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody>${foot?`<tfoot><tr>${foot.map(f=>`<td>${f}</td>`).join('')}</tr></tfoot>`:''}</table>`;
+  const N=(v,sg)=>`<span class="n">${sg||''}${money(v)}</span>`,SN=v=>N(Math.abs(v),v<0?'−':''),P=(v,t)=>t?Math.round(v/t*100)+'%':'—';
+  const parts=[];const sec=(id,title,body,cls)=>{parts.push({id,title});return `<section id="r-${id}"${cls?` class="${cls}"`:''}><h2>${title}</h2>${body}</section>`};
+  let h='';
+  if(has('summary')){const days=Math.max(1,Math.round((Math.min(new Date(R.to+'T12:00'),now)-new Date(R.from+'T12:00'))/864e5)+1);
+    const pA=inRange(R.prev[0],R.prev[1]),pexp=sum(pA,'exp');const big=A.filter(t=>t.type==='exp').sort((a,b)=>b.amount-a.amount)[0];
+    h+=sec('summary','الملخص',`<div class="kpis"><div><span>الدخل</span><b>${N(inc)}</b></div><div><span>المصاريف</span><b>${N(exp)}</b></div><div><span>الصافي</span><b class="${net<0?'no':'ok'}">${SN(net)}</b></div><div><span>نسبة الادخار</span><b>${inc?'<span class="n">'+Math.round(net/inc*100)+'%</span>':'—'}</b></div></div>
+     <div class="kpis k2"><div><span>عدد العمليات</span><b>${A.length}</b></div><div><span>متوسط الصرف اليومي</span><b>${N(exp/days)}</b></div><div><span>أكبر مصروف</span><b>${big?N(big.amount):'—'}</b>${big?`<small>${esc(big.note||catOf(big.cat).n)}</small>`:''}</div><div><span>مقارنة بالفترة السابقة</span><b class="${pexp&&exp>pexp?'no':'ok'}">${pexp?'<span class="n">'+(exp>=pexp?'+':'−')+Math.abs(Math.round((exp-pexp)/pexp*100))+'%</span>':'—'}</b>${pexp?`<small>كانت ${N(pexp)}</small>`:''}</div></div>`)}
+  if(has('review')){const F=prReviewFlags(A,oneMonth,m0);
+    h+=sec('review','ملاحظات للمراجعة',F.length?`<p class="hint">عمليات تستحق نظرة ثانية قبل اعتماد التقرير.</p>`+T(['الملاحظة','التاريخ','البيان','المبلغ','✓'],F.map(f=>`<tr><td><b>${esc(f.k)}</b></td><td class="nw">${fmtD(f.date)}</td><td>${esc(f.name)}</td><td>${N(f.amt,f.type==='inc'?'+':'−')}</td><td class="box">☐</td></tr>`)):'<p class="okline">لا توجد ملاحظات. لا مبالغ غير معتادة ولا عمليات مكررة.</p>')}
+  if(has('months')&&!oneMonth){const rows=months.map(m=>{const a=inMonth(m).filter(t=>t.date>=R.from&&t.date<=R.to);const ii=sum(a,'inc'),ee=sum(a,'exp');return a.length?`<tr><td>${esc(monthName(m))}</td><td>${N(ii)}</td><td>${N(ee)}</td><td>${SN(ii-ee)}</td><td>${P(ii-ee,ii)}</td><td>${a.length}</td></tr>`:''}).filter(Boolean);
+    if(rows.length)h+=sec('months','تفصيل كل شهر',T(['الشهر','الدخل','المصاريف','الصافي','الادخار','العمليات'],rows,['المجموع',N(inc),N(exp),SN(net),P(net,inc),A.length]))}
+  if(has('cats')){const bc={},bn={};A.filter(t=>t.type==='exp').forEach(t=>{bc[t.cat]=(bc[t.cat]||0)+(+t.amount);bn[t.cat]=(bn[t.cat]||0)+1});const cats=Object.entries(bc).sort((a,b)=>b[1]-a[1]);
+    if(cats.length)h+=sec('cats','المصاريف حسب الفئة',T(['الفئة','العمليات','المبلغ','النسبة',''],cats.map(([c,v])=>`<tr><td>${esc(catOf(c).n)}</td><td>${bn[c]}</td><td>${N(v)}</td><td>${P(v,exp)}</td><td class="barc"><i style="width:${exp?v/cats[0][1]*100:0}%"></i></td></tr>`),['المجموع',A.filter(t=>t.type==='exp').length,N(exp),'100%','']))}
+  if(has('people')){const pe=Object.entries(byPerson(A)).filter(([,v])=>v>0);
+    if(pe.length>1)h+=sec('people','المصاريف حسب الأشخاص',T(['الشخص','المبلغ','النسبة'],pe.sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k?esc(personName(k)):'لي وللبيت'}</td><td>${N(v)}</td><td>${P(v,exp)}</td></tr>`)))}
+  if(has('monthly')&&oneMonth){const st=recStatus(m0);if(st.R.length)h+=sec('monthly','المصاريف والأقساط الشهرية',T(['البند','المبلغ','يوم الدفع','الحالة','✓'],st.R.slice().sort((a,b)=>a.day-b.day).map(i=>`<tr><td>${esc(i.name)}</td><td>${N(i.isPaid?i.paidAmt:i.amount)}</td><td>${i.day}</td><td class="${i.isPaid?'ok':'no'}">${i.isPaid?'مدفوع':'لم يُدفع'}</td><td class="box">${i.isPaid?'☑':'☐'}</td></tr>`),['المجموع',N(st.total),'',`مدفوع ${st.paid.length} من ${st.R.length}`,'']))}
+  if(has('debts')){const Ds=debts().filter(d=>+d.balance>0);if(Ds.length){const Dp=debtPlan();const pl=simDebts(Ds,Dp.extra,Dp.strategy,true);
+    h+=sec('debts','الديون',T(['الدين','المتبقي','القسط','الفائدة','ينتهي في'],Ds.map(d=>`<tr><td>${esc(d.name)}</td><td>${N(d.balance)}</td><td>${N(d.payment)}</td><td>${+d.rate?d.rate+'%':'—'}</td><td>${pl.finish[d.id]?monthLabel(pl.finish[d.id]):'—'}</td></tr>`),['المجموع',N(Ds.reduce((x,d)=>x+(+d.balance),0)),N(Ds.reduce((x,d)=>x+(+d.payment),0)),'',pl.months?monthLabel(pl.months):'']))}}
+  if(has('plans')){const G=(S.settings.goals||[]);if(G.length){const acc=savAcc(),tot=savTotal();const hb=acc.balance!==null&&acc.balance!=='';
+    h+=sec('plans','الخطط والأهداف',T(['الخطة','المطلوب','المدّخر','المتبقي','الإنجاز','الموعد','ادّخر شهريًا'],G.slice().sort((a,b)=>a.due.localeCompare(b.due)).map(g=>{const c=goalCalc(g);return `<tr><td>${esc(g.name)}</td><td>${N(c.tgt)}</td><td>${N(c.sv)}</td><td>${N(c.rem)}</td><td>${c.tgt?Math.round(c.pct)+'%':'—'}</td><td class="nw">${fmtD(g.due)}</td><td>${c.done?'مكتمل':c.past?'حان موعدها':N(c.monthly)}</td></tr>`}),['المجموع',N(G.reduce((s,g)=>s+(+g.target||0),0)),N(tot),N(G.reduce((s,g)=>s+goalCalc(g).rem,0)),'','',N(goalsSummary().plan)])+
+     (tot||hb?`<p class="hint">${esc(acc.name)}: المفروض <b>${N(tot)}</b>${hb?` · رصيد البنك <b>${N(acc.balance)}</b> (${Math.abs(acc.balance-tot)<0.001?'مطابق':acc.balance>tot?'زيادة '+money(acc.balance-tot):'نقص '+money(tot-acc.balance)}) آخر تحديث ${fmtD(acc.at)}`:''}</p>`:''))}}
+  if(has('cars')){const C=cars();if(C.length){const st=d=>d===null?'—':d<0?`<span class="no">منتهٍ منذ ${daysWord(-d)}</span>`:d<=30?`<span class="no">بعد ${daysWord(d)}</span>`:`<span class="ok">ساري</span>`;
+    h+=sec('cars','السيارات والتجديدات',T(['السيارة','المالك','انتهاء التأمين','الحالة','انتهاء الملكية','الحالة'],C.map(c=>`<tr><td>${esc(c.name)}${c.plate?` <small>(${esc(c.plate)})</small>`:''}</td><td>${esc(ownerLabel(c))}</td><td class="nw">${fmtD(c.insExpiry)}</td><td>${st(daysTo(c.insExpiry))}</td><td class="nw">${fmtD(c.regExpiry)}</td><td>${st(daysTo(c.regExpiry))}</td></tr>`)))}}
+  if(has('advisor')){const c=advCtx(),Pr=advPriorities(c),CL=advChecklist(c),sc=advScore(c,Pr,CL);
+    h+=sec('advisor','أولويات مستشاري',`<p class="hint">صحتك المالية <b>${sc.total}/100</b> (${sc.lbl[0]}) حسب بيانات الشهر الحالي.</p>`+(Pr.length?T(['#','الأولوية','التفاصيل','✓'],Pr.map((p,i)=>`<tr><td>${i+1}</td><td><b>${p.t}</b></td><td>${p.s}</td><td class="box">☐</td></tr>`)):'<p class="okline">لا توجد أولويات عاجلة.</p>')+
+     (CL.some(x=>!x.done)?`<p class="hint" style="margin-top:6px">قد تكون نسيت: ${CL.filter(x=>!x.done).map(x=>esc(x.t)).join('، ')}.</p>`:''))}
+  if(has('tx')){let X=A.slice();if(o.txType!=='all')X=X.filter(t=>t.type===o.txType);if(o.txCat)X=X.filter(t=>t.cat===o.txCat);
+    if(o.sort==='desc')X.reverse();else if(o.sort==='amount')X.sort((a,b)=>b.amount-a.amount);
+    const run=o.running&&o.sort==='asc'&&o.txType==='all'&&!o.txCat;const rv=o.reviewCols;
+    const head=['#','التاريخ','النوع','الفئة','البيان','الدفع','المبلغ'].concat(run?['الرصيد']:[]).concat(rv?['✓','ملاحظات']:[]);const cols=head.length;
+    let bal=0,i=0;const row=t=>{i++;bal+=t.type==='inc'?+t.amount:-t.amount;return `<tr><td class="idx">${i}</td><td class="nw">${fmtD(t.date)}</td><td>${t.type==='inc'?'دخل':'مصروف'}</td><td>${esc(catOf(t.cat).n)}</td><td>${esc(t.note||'')}${t.person?' <small>(لـ'+esc(personName(t.person))+')</small>':''}</td><td>${esc((METHODS.find(x=>x[0]===t.method)||['',''])[1])}</td><td class="${t.type==='inc'?'ok':''}">${N(t.amount,t.type==='inc'?'+':'−')}</td>${run?`<td>${SN(bal)}</td>`:''}${rv?'<td class="box">☐</td><td class="note"></td>':''}</tr>`};
+    let rows=[];
+    if(o.group==='none')rows=X.map(row);
+    else{const key=o.group==='day'?(t=>t.date):(t=>t.cat);const lab=o.group==='day'?(k=>{const d=new Date(k+'T12:00');return DAYS[d.getDay()]+' '+fmtD(k)}):(k=>catOf(k).n);
+      const G={};const order=[];X.forEach(t=>{const k=key(t);if(!G[k]){G[k]=[];order.push(k)}G[k].push(t)});
+      if(o.group==='cat')order.sort((a,b)=>sum(G[b],'exp')+sum(G[b],'inc')-sum(G[a],'exp')-sum(G[a],'inc'));
+      order.forEach(k=>{const g=G[k];const gi=sum(g,'inc'),ge=sum(g,'exp');rows.push(`<tr class="grp"><td colspan="${cols}">${esc(lab(k))}<span>${g.length} ${g.length===1?'عملية':'عمليات'} · ${ge?'صرف '+money(ge):''}${gi&&ge?' · ':''}${gi?'دخل '+money(gi):''}</span></td></tr>`);g.forEach(t=>rows.push(row(t)))})}
+    const fi=sum(X,'inc'),fe=sum(X,'exp');const flt=[o.txType==='inc'?'الدخل فقط':o.txType==='exp'?'المصاريف فقط':'',o.txCat?'فئة '+catOf(o.txCat).n:'',o.sort==='amount'?'مرتبة حسب المبلغ':o.sort==='desc'?'الأحدث أولًا':'',o.group==='day'?'مجمّعة حسب اليوم':o.group==='cat'?'مجمّعة حسب الفئة':''].filter(Boolean).join(' · ');
+    const foot=['','','','','',`المجموع${fi&&fe?' (الصافي)':''}`,(fi&&fe?SN(fi-fe):fi?N(fi,'+'):N(fe,'−'))].concat(run?['']:[]).concat(rv?['','']:[]);
+    h+=sec('tx',`العمليات (${X.length})`,(flt?`<p class="hint">${esc(flt)}</p>`:'')+(X.length?T(head,rows,foot,rv?'review':''):'<p>لا توجد عمليات بهذه الخيارات.</p>'),'txs')}
+  const toc=parts.length>2?`<nav class="toc">${parts.map((p,i)=>`<span>${i+1}. ${p.title.replace(/\s*\(\d+\)$/,'')}</span>`).join('')}</nav>`:'';
+  const head=`<header class="rh"><div><div class="rapp">إدارة شؤوني</div><h1>${esc(R.label)}</h1><div class="rper">الفترة: ${fmtD(R.from)} – ${fmtD(R.to)}</div></div><div class="rmeta">أُعدّ في ${fmtD(today())} الساعة ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}<br>العملة: الريال العُماني (ر.ع.)${o.secs.includes('review')||o.reviewCols?'<br>راجعه: ____________':''}</div></header>`;
+  const foot=`<footer class="rf">تقرير من تطبيق «إدارة شؤوني» · ${esc(R.label)}${o.dev?`<br>تصميم وتطوير: ${DEV.name}، ${DEV.title} · ${DEV.country} · <span class="n">+968 ${DEV.phone}</span>`:''}</footer>`;
+  const cls=['rep',o.font==='lg'?'fs-lg':'',o.ink==='bw'?'ink-bw':''].filter(Boolean).join(' ');
+  return {title:R.label,cls,orient:o.orient,body:head+toc+(h||'<p>اختر قسمًا واحدًا على الأقل.</p>')+foot,count:parts.length,tx:A.length};
 }
-const PRINT_CSS=`body{font-family:-apple-system,"SF Arabic","Segoe UI",Tahoma,sans-serif;color:#16202E;margin:0;direction:rtl;font-size:12px;line-height:1.5}
-.rh{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;border-bottom:3px solid #163C74;padding-bottom:10px;margin-bottom:14px}
-.rapp{color:#2461AE;font-weight:700;font-size:13px}h1{margin:2px 0 0;font-size:22px}.rmeta{color:#5D6878;font-size:11px;text-align:left}
-section{margin-bottom:16px;break-inside:avoid}section.tx{break-inside:auto}h2{font-size:14px;margin:0 0 6px;color:#163C74}
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.kpis div{border:1px solid #D9DFE7;border-radius:8px;padding:8px 10px}.kpis span{display:block;color:#5D6878;font-size:11px}.kpis b{font-size:16px}
-table{width:100%;border-collapse:collapse}th,td{border:1px solid #D9DFE7;padding:5px 7px;text-align:right;vertical-align:top}th{background:#EEF3FA;font-weight:700}
-tfoot td{font-weight:700;background:#F6F8FB}thead{display:table-header-group}tr{break-inside:avoid}
-.n{font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate;white-space:nowrap}.ok{color:#1C7F55}.no{color:#B8423A}.nw{white-space:nowrap}small{color:#5D6878}
-.rf{margin-top:18px;border-top:1px solid #D9DFE7;padding-top:6px;color:#5D6878;font-size:10px;text-align:center}
-@page{size:A4;margin:14mm 12mm}`;
-function printReport(){const r=reportDoc();let el=document.getElementById('printArea');if(!el){el=document.createElement('div');el.id='printArea';document.body.appendChild(el)}
-  el.innerHTML=r.body;const old=document.title;document.title=r.title+' - إدارة شؤوني';
+/* تصميم التقرير: واحد للمعاينة والطباعة والملف المحفوظ */
+const PRINT_CSS=`.rep{font-family:-apple-system,"SF Arabic","Segoe UI",Tahoma,sans-serif;color:#16202E;background:#fff;direction:rtl;font-size:12px;line-height:1.55}
+.rep.fs-lg{font-size:14px}
+.rep .rh{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;border-bottom:3px solid #163C74;padding-bottom:10px;margin-bottom:12px}
+.rep .rapp{color:#2461AE;font-weight:700;font-size:1.08em}.rep h1{margin:2px 0 0;font-size:1.8em;line-height:1.3}.rep .rper{color:#5D6878;font-size:.92em;margin-top:2px}.rep .rmeta{color:#5D6878;font-size:.92em;text-align:left;line-height:1.7}
+.rep .toc{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.92em;color:#5D6878;border:1px solid #D9DFE7;border-radius:8px;padding:6px 10px;margin-bottom:14px}
+.rep section{margin-bottom:16px;break-inside:avoid}.rep section.txs{break-inside:auto}.rep h2{font-size:1.17em;margin:0 0 6px;color:#163C74;border-inline-start:4px solid #2461AE;padding-inline-start:8px}
+.rep .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.rep .kpis.k2{margin-top:8px}.rep .kpis div{border:1px solid #D9DFE7;border-radius:8px;padding:8px 10px}.rep .kpis span{display:block;color:#5D6878;font-size:.92em}.rep .kpis b{font-size:1.33em}.rep .kpis small{display:block}
+.rep table{width:100%;border-collapse:collapse}.rep th,.rep td{border:1px solid #D9DFE7;padding:5px 7px;text-align:right;vertical-align:top}.rep th{background:#EEF3FA;font-weight:700}
+.rep tbody tr:nth-child(even) td{background:#FAFBFD}.rep tfoot td{font-weight:700;background:#F2F5F9}.rep thead{display:table-header-group}.rep tr{break-inside:avoid}
+.rep tr.grp td{background:#E8EEF7!important;font-weight:700;color:#163C74}.rep tr.grp span{float:left;font-weight:400;color:#5D6878}
+.rep td.idx{color:#8A94A3;width:1%;white-space:nowrap}.rep td.box{text-align:center;font-size:1.25em;width:1%}.rep table.review td.note{min-width:90px}
+.rep td.barc{width:22%}.rep td.barc i{display:block;height:8px;border-radius:4px;background:#2461AE}
+.rep .n{font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate;white-space:nowrap}.rep .ok{color:#1C7F55}.rep .no{color:#B8423A}.rep .nw{white-space:nowrap}.rep small{color:#5D6878}
+.rep .hint{margin:0 0 6px;color:#5D6878}.rep .okline{margin:0;color:#1C7F55}
+.rep .rf{margin-top:18px;border-top:1px solid #D9DFE7;padding-top:6px;color:#5D6878;font-size:.85em;text-align:center}
+.rep.ink-bw,.rep.ink-bw *{color:#000!important;border-color:#999!important}.rep.ink-bw th,.rep.ink-bw tfoot td,.rep.ink-bw tr.grp td,.rep.ink-bw tbody tr td{background:#fff!important}.rep.ink-bw td.barc i{background:#555!important}.rep.ink-bw h2{border-color:#000!important}`;
+function prStyle(orient){let el=document.getElementById('prCss');if(!el){el=document.createElement('style');el.id='prCss';document.head.appendChild(el)}
+  el.textContent=PRINT_CSS+`\n@media print{html,body{background:#fff!important;padding:0!important}body>*:not(#printArea){display:none!important}#printArea{display:block!important}@page{size:A4 ${orient==='landscape'?'landscape':'portrait'};margin:14mm 12mm}}`}
+function printReport(o){const r=reportDoc(o);prStyle(r.orient);let el=document.getElementById('printArea');if(!el){el=document.createElement('div');el.id='printArea';document.body.appendChild(el)}
+  el.className=r.cls;el.innerHTML=r.body;const old=document.title;document.title=r.title+' - إدارة شؤوني';
   const done=()=>{document.title=old};window.addEventListener('afterprint',done,{once:true});
-  try{window.print()}catch(e){toast('تعذّرت الطباعة هنا. استخدم «حفظ التقرير كملف»')}setTimeout(done,3000)}
-function saveReportFile(){const r=reportDoc();const html=`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(r.title)}</title><style>${PRINT_CSS} body{max-width:900px;margin:0 auto;padding:20px}</style></head><body>${r.body}</body></html>`;
-  saveFile('idarat-shuooni-'+(S.rmode==='year'?S.month.slice(0,4):S.month)+'.html',html,'text/html');toast('حُفظ التقرير. افتحه في المتصفح واطبعه أو احفظه PDF')}
+  try{window.print()}catch(e){toast('تعذّرت الطباعة هنا. استخدم «حفظ كملف»')}setTimeout(done,3000)}
+function saveReportFile(o){const r=reportDoc(o);const html=`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(r.title)}</title><style>${PRINT_CSS} body{margin:0;background:#fff}.rep{max-width:900px;margin:0 auto;padding:20px}@page{size:A4 ${r.orient==='landscape'?'landscape':'portrait'};margin:14mm 12mm}@media print{.rep{padding:0;max-width:none}}</style></head><body><div class="${r.cls}">${r.body}</div></body></html>`;
+  const R=prRange(o||prOpts());saveFile('idarat-shuooni-report-'+R.from+'_'+R.to+'.html',html,'text/html');toast('حُفظ التقرير. افتحه في المتصفح واطبعه أو احفظه PDF')}
+/* نافذة خيارات الطباعة مع المعاينة */
+function openPrintSheet(preset){const L=document.getElementById('layer');const o=prOpts();
+  if(S.rmode==='year'&&o.period!=='range')o.period='year';else if(o.period==='year'&&S.rmode!=='year')o.period='month';
+  if(preset&&PR_PRESETS[preset]){o.preset=preset;o.secs=PR_PRESETS[preset].slice();if(preset==='review'){o.reviewCols=true;o.group='day'}}
+  if(!o.from){o.from=S.month+'-01';o.to=today()}
+  let preview=false;
+  const save=()=>{const k=Object.assign({},o);delete k.dev;S.settings.printOpts=k;S.settings.printDev=o.dev;putSettings()};
+  const seg=(name,val,opts)=>`<div class="seg${opts.length===3?' seg3':''}">${opts.map(([v,n])=>`<button class="n" data-pr="${name}" data-v="${v}" aria-pressed="${val===v}">${n}</button>`).join('')}</div>`;
+  const sel=(id,val,opts)=>`<select class="inp" id="${id}">${opts.map(([v,n])=>`<option value="${v}" ${val===v?'selected':''}>${n}</option>`).join('')}</select>`;
+  const draw=()=>{const r=reportDoc(o);const R=prRange(o);
+   L.innerHTML=`${sheetTop('خيارات الطباعة')}
+    <h2 style="margin-top:0">طباعة التقرير</h2>
+    <div class="stack">
+     <div class="field"><label>الفترة</label>${seg('period',o.period,[['month','شهر'],['year','سنة'],['range','فترة محددة']])}</div>
+     ${o.period==='range'?`<div class="row2"><div class="field"><label for="prFrom">من</label><input class="inp" type="date" id="prFrom" value="${esc(o.from)}"></div><div class="field"><label for="prTo">إلى</label><input class="inp" type="date" id="prTo" value="${esc(o.to)}"></div></div>`
+      :`<div class="prnav"><button class="iconbtn" data-prm="1" aria-label="التالي">›</button><b>${o.period==='year'?S.month.slice(0,4):esc(monthName(S.month))}</b><button class="iconbtn" data-prm="-1" aria-label="السابق">‹</button></div>`}
+     <div class="field"><label>نوع التقرير</label><div class="chips">${Object.entries(PR_PRESET_N).map(([k,n])=>`<button class="chip" data-prp="${k}" aria-pressed="${o.preset===k}">${n}</button>`).join('')}</div></div>
+     <div class="field"><label>الأقسام</label><div class="prsecs">${PR_SECTIONS.map(([k,n])=>`<label class="toggle"><input type="checkbox" data-prs="${k}" ${o.secs.includes(k)?'checked':''}><span>${n}</span></label>`).join('')}</div></div>
+     ${o.secs.includes('tx')?`<div class="panel stack prtx"><b>قائمة العمليات</b>
+      <div class="row2"><div class="field"><label for="prType">النوع</label>${sel('prType',o.txType,[['all','الكل'],['exp','المصاريف فقط'],['inc','الدخل فقط']])}</div>
+      <div class="field"><label for="prCat">الفئة</label>${sel('prCat',o.txCat,[['','كل الفئات']].concat(EXP_CATS.concat(INC_CATS).map(c=>[c.id,c.n])))}</div></div>
+      <div class="row2"><div class="field"><label for="prSort">الترتيب</label>${sel('prSort',o.sort,[['asc','التاريخ: الأقدم أولًا'],['desc','التاريخ: الأحدث أولًا'],['amount','المبلغ: الأكبر أولًا']])}</div>
+      <div class="field"><label for="prGroup">التجميع</label>${sel('prGroup',o.group,[['none','بدون'],['day','حسب اليوم'],['cat','حسب الفئة']])}</div></div>
+      <label class="toggle"><input type="checkbox" id="prRun" ${o.running?'checked':''}><span>عمود الرصيد التراكمي${o.sort!=='asc'||o.txType!=='all'||o.txCat?' (مع الترتيب من الأقدم وكل العمليات فقط)':''}</span></label>
+      <label class="toggle"><input type="checkbox" id="prRev" ${o.reviewCols?'checked':''}><span>عمود ☐ للمراجعة وعمود فارغ للملاحظات</span></label></div>`:''}
+     <div class="field"><label>شكل الصفحة</label>
+      ${seg('font',o.font,[['normal','خط عادي'],['lg','خط كبير']])}
+      <div style="height:6px"></div>${seg('orient',o.orient,[['portrait','عمودي'],['landscape','أفقي']])}
+      <div style="height:6px"></div>${seg('ink',o.ink,[['color','بالألوان'],['bw','أبيض وأسود']])}</div>
+     <label class="toggle"><input type="checkbox" id="prDev" ${o.dev?'checked':''}><span>إظهار بيانات المطوّر في التقرير</span></label>
+     <div class="note" id="prInfo">${esc(R.label)} · ${countWord(r.count,'قسم واحد','قسمان','أقسام','قسمًا')} · ${countWord(r.tx,'عملية واحدة','عمليتان','عمليات','عملية')}</div>
+     ${preview?`<div class="paperwrap" id="prPrev"><div class="${r.cls} paper">${r.body}</div></div>`:''}
+    </div>
+    <div class="actions"><div class="row2"><button class="btn" id="prPrint">طباعة / PDF</button><button class="btn ghost" id="prPreview">${preview?'إخفاء المعاينة':'معاينة'}</button></div><div class="row2"><button class="btn ghost" id="prFile">حفظ كملف</button><button class="btn ghost" data-close>إغلاق</button></div></div></div></div>`;
+   if(preview)fitPaper()};
+  const fitPaper=()=>{const w=document.getElementById('prPrev');if(!w)return;const p=w.firstElementChild;const z=Math.min(1,(w.clientWidth-20)/(o.orient==='landscape'?1040:740));p.style.width=(o.orient==='landscape'?1040:740)+'px';p.style.zoom=z};
+  const upd=()=>{save();const y=L.querySelector('.sheet')?.scrollTop||0;draw();const s=L.querySelector('.sheet');if(s)s.scrollTop=y};
+  prStyle(o.orient);draw();
+  L.onclick=e=>{const x=e.target.closest('button,[data-close]');if(!x)return;
+    if(x.hasAttribute('data-close')){L.innerHTML='';return}
+    if(x.dataset.pr){o[x.dataset.pr]=x.dataset.v;upd();return}
+    if(x.dataset.prm){S.month=shiftMonth(S.month,(o.period==='year'?12:1)*+x.dataset.prm);render();upd();return}
+    if(x.dataset.prp){o.preset=x.dataset.prp;if(PR_PRESETS[o.preset])o.secs=PR_PRESETS[o.preset].slice();if(o.preset==='review'){o.reviewCols=true;if(o.group==='none')o.group='day'}upd();return}
+    if(x.id==='prPreview'){preview=!preview;upd();if(preview)setTimeout(()=>document.getElementById('prPrev')?.scrollIntoView({block:'start',behavior:'smooth'}),30);return}
+    if(x.id==='prPrint'){save();printReport(o);return}
+    if(x.id==='prFile'){save();saveReportFile(o);return}};
+  L.onchange=e=>{const t=e.target;
+    if(t.dataset.prs){o.secs=PR_SECTIONS.map(s=>s[0]).filter(k=>k===t.dataset.prs?t.checked:o.secs.includes(k));o.preset=Object.keys(PR_PRESETS).find(k=>PR_PRESETS[k].length===o.secs.length&&PR_PRESETS[k].every(s=>o.secs.includes(s)))||'custom';upd();return}
+    const map={prFrom:'from',prTo:'to',prType:'txType',prCat:'txCat',prSort:'sort',prGroup:'group'};
+    if(map[t.id]){o[map[t.id]]=t.value;upd();return}
+    if(t.id==='prRun'){o.running=t.checked;upd();return}
+    if(t.id==='prRev'){o.reviewCols=t.checked;upd();return}
+    if(t.id==='prDev'){o.dev=t.checked;upd();return}};
+  L.oninput=null}
+/* طباعة سريعة بآخر خيارات حفظتها، لنفس الشهر أو السنة المعروضة */
+function quickPrint(){const o=prOpts();if(o.period!=='range')o.period=S.rmode==='year'?'year':'month';printReport(o)}
 
 /* ---------- 26. الأحداث (الضغط والكتابة) ---------- */
 document.addEventListener('click',async e=>{
@@ -1719,13 +1888,13 @@ document.addEventListener('click',async e=>{
   if(b.dataset.advinc){openSheet(null,{type:'inc',cat:'salary'});return}
   if(b.dataset.advbak){S.tab='reports';render();setTimeout(()=>{const x=document.getElementById('fileBackup');x&&x.scrollIntoView({block:'center'})},50);return}
   if(b.dataset.goplan){S.tab='budget';render();const el=document.getElementById('goal-'+b.dataset.goplan);if(el){el.scrollIntoView({block:'center'});el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),1600)}else window.scrollTo(0,0);return}
-  if(b.dataset.gorep){S.rmode=b.dataset.gorep==='year'?'year':'month';S.tab='reports';render();window.scrollTo(0,0);if(b.dataset.gorep==='print')setTimeout(printReport,60);return}
+  if(b.dataset.gorep){S.rmode=b.dataset.gorep==='year'?'year':'month';S.tab='reports';render();window.scrollTo(0,0);if(b.dataset.gorep==='print')openPrintSheet();return}
   if(b.id==='addBtn'||b.hasAttribute('data-open-add')){openSheet();return}
   if(b.id==='openImp2'){openImport();return}
   if(b.id==='sync'){if(Sync.linked())Sync.now();else{S.tab='reports';render();setTimeout(()=>{const x=document.getElementById('syncCid');x&&x.scrollIntoView({block:'center'})},50)}return}
   if(b.id==='syncNow'){Sync.now();return}
-  if(b.id==='printRep'){printReport();return}
-  if(b.id==='saveRep'){saveReportFile();return}
+  if(b.id==='printRep'){openPrintSheet();return}
+  if(b.id==='quickPrint'){quickPrint();return}
   if(b.id==='checkUpd'){if(!('serviceWorker' in navigator)){toast('أنت على آخر إصدار');return}toast('جارٍ البحث عن تحديث…');try{const r=await navigator.serviceWorker.getRegistration();if(r){await r.update();if(r.installing||r.waiting){toast('وُجد تحديث، جارٍ تحميله…');return}}toast('أنت على آخر إصدار ('+APP_VERSION+')')}catch(e){toast('تعذّر البحث، تأكد من الإنترنت')}return}
   if(b.id==='syncUnlink'){Sync.unlink();toast('أُلغي الربط على هذا الجهاز، وبياناتك باقية فيه');return}
   if(b.id==='syncLink'){const v=(document.getElementById('syncCid').value||'').trim();const er=document.getElementById('syncErr');if(!/\.apps\.googleusercontent\.com$/.test(v)){er.hidden=false;er.textContent='الرمز غير صحيح. يجب أن ينتهي بـ .apps.googleusercontent.com';return}await Sync.link(v);render();return}
@@ -1784,9 +1953,7 @@ document.addEventListener('click',async e=>{
   if(b.id==='loadSample'){loadSample();return}
   if(b.id==='saveBudget'){S.settings.monthlyBudget=parseAmt(document.getElementById('mb').value);const bb={};document.querySelectorAll('[data-bcat]').forEach(i=>{const v=parseAmt(i.value);if(v)bb[i.dataset.bcat]=v});S.settings.budgets=bb;document.activeElement.blur();await putSettings();render();toast('حُفظت الميزانية');return}
   if(b.id==='clearSample'){list().filter(t=>t.sample).forEach(t=>delTx(t.id));toast('حُذفت بيانات المثال');return}
-  if(b.id==='wipeAsk'){document.getElementById('wipeArea').innerHTML=`<div class="confirm"><span>سيُحذف كل ما سجلته من عمليات وميزانيات. لا يمكن التراجع.</span><div class="row2"><button class="btn danger" id="wipe">احذف الكل</button><button class="btn ghost" id="wipeNo">تراجع</button></div></div>`;return}
-  if(b.id==='wipeNo'){render();return}
-  if(b.id==='wipe'){for(const t of list())await delTx(t.id);S.settings={monthlyBudget:0,budgets:{}};await putSettings();render();toast('حُذفت كل البيانات');return}
+  if(b.id==='wipeAsk'){openWipe();return}
   if(b.id==='copyBackup'||b.id==='fileBackup'){try{localStorage.setItem('masareef:lastBackup',today())}catch(e){}}
   if(b.id==='copyBackup'){const txt=backupText();
     try{await navigator.clipboard.writeText(txt);toast('نُسخت النسخة الاحتياطية، الصقها في ملاحظاتك أو أرسلها لنفسك')}
@@ -1800,7 +1967,7 @@ document.addEventListener('click',async e=>{
 });
 let debtT;document.addEventListener('input',e=>{if(e.target.id==='q'){S.q=e.target.value;render()}
   if(e.target.id==='debtExtra'){S.settings.debtPlan=Object.assign(debtPlan(),{extra:parseAmt(e.target.value)});const r=document.getElementById('debtRes');if(r)r.innerHTML=debtResHtml();clearTimeout(debtT);debtT=setTimeout(putSettings,800)}});
-document.addEventListener('change',e=>{if(e.target.id==='printDev'){S.settings.printDev=e.target.checked;putSettings();toast(e.target.checked?'ستظهر بيانات المطوّر في التقارير':'لن تظهر بيانات المطوّر في التقارير');return}
+document.addEventListener('change',e=>{
   if(e.target.id==='restoreFile'&&e.target.files[0]){const r=new FileReader();r.onload=()=>restoreFrom(r.result);r.readAsText(e.target.files[0]);e.target.value=''}});
 
 /* ---------- 27. التشغيل ---------- */
