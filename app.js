@@ -607,18 +607,19 @@ function goalsHtml(){
     else if(total>avg)advice=`<div class="warnbox">تحتاج إلى ادخار <b class="num">${money(total)}</b> شهريًا، بينما متوسط ما تبقّى لك في آخر ${ms.length===1?'شهر':monthsWord(ms.length)} هو <b class="num">${money(avg)}</b>. خفّض مبلغ بعض الأهداف، أو قلّل الصرف في أكبر فئة عندك.</div>`;
     else advice=`<div class="okbox">خطتك ممكنة: يتبقى لك في المتوسط <b class="num">${money(avg)}</b> شهريًا، والخطة تحتاج منه <b class="num">${money(total)}</b> (${Math.round(total/avg*100)}%).</div>`}
   const have=new Set(all.map(g=>g.kind));
-  const adds=Object.entries(GOAL_KINDS).filter(([k])=>k==='custom'||!have.has(k)).map(([k,v])=>`<button class="chip" data-gadd="${k}">+ ${esc(v.n)}</button>`).join('');
+  const adds=['ramadan','fitr','adha','insurance','mulkiya'].filter(k=>!have.has(k)).map(k=>`<button class="chip" data-gadd="${k}">+ ${esc(GOAL_KINDS[k].n)}</button>`).join('');
   const cards=all.map(g=>{const c=goalCalc(g);
     const status=c.past?'حان موعده':c.days===0?'اليوم':'بعد '+daysWord(c.days);
-    return `<div class="goal${c.done?' done':''}"><div class="ghead"><div><b>${esc(g.name)}</b><small>${esc(goalDate(g))} · ${status}</small></div>
+    return `<div class="goal${c.done?' done':''}"><div class="ghead"><div style="display:flex;gap:10px;align-items:flex-start;min-width:0">${goalBadge(g)}<div style="min-width:0"><b>${esc(g.name)}</b><small>${esc(goalDate(g))} · ${status}</small></div></div>
       <div class="gm">${!c.tgt?'<span>المبلغ المطلوب</span><b style="font-size:14px">لم يُحدَّد</b>':c.done?'<span>الحالة</span><b class="amt-inc" style="font-size:15px">اكتمل</b>':c.past?'<span>المتبقي</span><b class="num">'+money(c.rem)+'</b>':'<span>ادّخر شهريًا</span><b class="num">'+money(c.monthly)+'</b>'}</div></div>
       ${c.tgt?`<div class="meter"><i style="width:${c.pct}%;${c.done?'background:var(--inc)':''}"></i></div>
       <div class="budgetline" style="margin:0"><span>ادّخرت <b class="num">${money(c.sv)}</b> من <b class="num">${money(c.tgt)}</b></span><span>${c.past||c.done?'':c.stm&&c.left<0.0005?'حصة هذا الشهر مكتملة':c.stm?'باقٍ هذا الشهر '+money(c.left):'خلال '+monthsWord(c.months)}</span></div>`:''}
+      ${(g.items||[]).length?`<details><summary class="note" style="cursor:pointer">البنود (${g.items.length})</summary><div style="margin-top:6px">${g.items.map(i=>`<div class="sumrow"><span>${esc(i.n)}</span><b class="num">${money(i.a)}</b></div>`).join('')}</div></details>`:''}
       <div class="gbtns">${c.tgt?`<button class="chip" data-gdep="${esc(g.id)}">+ أضفت مبلغًا للادخار</button>`:''}<button class="chip" data-gedit="${esc(g.id)}">${c.tgt?'تعديل':'تحديد المبلغ'}</button>${c.past&&g.repeat!=='once'?`<button class="chip" data-gnext="${esc(g.id)}">ابدأ خطة العام القادم</button>`:''}</div></div>`}).join('');
-  return `<h2 style="margin-top:4px">خطة الادخار للمناسبات</h2>
+  return `<div class="backrow" style="margin-top:4px"><h2 style="margin:0">خططي وأهدافي</h2><button class="chip pay" data-plannew="1">+ خطة جديدة</button></div>
   ${all.length?`<div class="planbox"><span class="note" style="color:var(--fg)">${leftNow>0.0005?"المتبقي لتدّخره هذا الشهر لكل أهدافك":"ادّخرت حصة هذا الشهر لكل أهدافك"}</span><span class="big2"><span class="num">${money(leftNow)}</span> <small style="font-size:14px;font-weight:400">${CUR}</small></span>${advice}</div>
-  <div class="stack" style="margin-top:10px">${cards}</div>`:`<div class="panel empty" style="padding:18px 12px"><b>خطط لمصاريف المناسبات قبل وقتها</b>اختر هدفًا، وحدّد المبلغ الذي تحتاجه، وسأحسب لك كم تدّخر كل شهر حتى موعده. مواعيد رمضان والعيدين تُحسب تلقائيًا.</div>`}
-  <div class="chips" style="margin-top:12px">${adds}</div>`;
+  <div class="stack" style="margin-top:10px">${cards}</div>`:`<div class="panel empty" style="padding:18px 12px"><b>خطط لأهدافك قبل وقتها</b>اضغط «خطة جديدة» واختر: خطة سنوية، تعديل المنزل، شراء سيارة، سفر، زواج وغيرها. وسأحسب لك كم تدّخر كل شهر وهل الخطة مريحة لميزانيتك.</div>`}
+  ${adds?`<div class="note" style="margin:12px 2px 6px">المناسبات (المواعيد تُحسب تلقائيًا):</div><div class="chips">${adds}</div>`:''}`;
 }
 function openGoal(id,kind){
   const L=document.getElementById('layer');const G=S.settings.goals||(S.settings.goals=[]);
@@ -674,6 +675,143 @@ function nextCycle(id){const g=(S.settings.goals||[]).find(x=>x.id===id);if(!g)r
   if(k.hijri){const d=new Date(g.due+'T12:00');d.setDate(d.getDate()+20);g.due=nextHijri(k.hijri[0],k.hijri[1],isoD(d))}
   else{const d=new Date(g.due+'T12:00');d.setFullYear(d.getFullYear()+1);g.due=isoD(d)}
   g.saved=0;g.log={};putSettings();render();toast('بدأت خطة '+g.name+' للعام القادم')}
+
+
+/* ---------- smart plan wizard ---------- */
+CI.calendar='<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M8 3v4M16 3v4M3.5 10h17"/><path d="M8 14h3v3H8z"/>';
+CI.shield='<path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>';
+CI.kaaba='<path d="M4 7l8-4 8 4v10l-8 4-8-4z"/><path d="M4 7l8 4 8-4M12 11v10M4 10.5l8 4 8-4"/>';
+CI.moon='<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>';
+CI.ring='<circle cx="12" cy="15" r="6"/><path d="M9 4h6l-1.5 3.5h-3z"/>';
+const PLAN_T={
+ annual:{n:'خطة سنوية',hint:'مبلغ تدّخره خلال السنة',icon:'calendar',c:'#24508C',items:[],repeat:'yearly',endOfYear:true},
+ house:{n:'تعديل المنزل',hint:'ترميم أو تجديد أو توسعة',icon:'home',c:'#2F7F7A',items:['المطبخ','الدهان','الأثاث','الكهرباء والسباكة','الحديقة']},
+ carbuy:{n:'شراء سيارة',hint:'الدفعة الأولى ورسوم الشراء',icon:'car',c:'#3E7CB1',items:['الدفعة الأولى','التأمين والتسجيل','إكسسوارات وتظليل']},
+ wedding:{n:'زواج',hint:'المهر والتجهيزات',icon:'ring',c:'#A0527B',items:['المهر','الذهب','القاعة والضيافة','الأثاث']},
+ travel:{n:'سفر',hint:'رحلة أو إجازة',icon:'fun',c:'#4E68C7',items:['التذاكر','الفندق','المصروف']},
+ hajj:{n:'حج أو عمرة',hint:'تكلفة الحملة والمصروف',icon:'kaaba',c:'#6B5C3A',items:['تكلفة الحملة','المصروف والهدايا']},
+ emergency:{n:'صندوق الطوارئ',hint:'احتياطي للظروف المفاجئة',icon:'shield',c:'#B8423A',items:[],smart:'emergency'},
+ edu:{n:'تعليم ودراسة',hint:'رسوم أو دورة',icon:'edu',c:'#3B8F5A',items:['الرسوم','الكتب والأدوات']},
+ device:{n:'جهاز أو مشتريات',hint:'هاتف، حاسوب، أثاث',icon:'shop',c:'#B0662F',items:[]},
+ custom:{n:'خطة أخرى',hint:'أي هدف تريده',icon:'iother',c:'#7A8494',items:[]}
+};
+Object.entries(PLAN_T).forEach(([k,v])=>{if(!GOAL_KINDS[k])GOAL_KINDS[k]={n:v.n,hint:v.hint}});
+const GOAL_ICON={ramadan:['moon','#2E8B72'],fitr:['gift','#7A6CC0'],adha:['family','#B0662F'],insurance:['car','#3E7CB1'],mulkiya:['car','#5B6F8A']};
+function goalBadge(g){const t=PLAN_T[g.kind];const ic=t?[t.icon,t.c]:GOAL_ICON[g.kind]||['iother','#7A8494'];
+  return `<span class="cbadge" style="background:${ic[1]}1f;color:${ic[1]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${CI[ic[0]]||CI.iother}</svg></span>`}
+function avgSurplus(){const ms=[1,2,3].map(k=>shiftMonth(ym(new Date()),-k)).map(m=>{const a=inMonth(m);return a.length?sum(a,'inc')-sum(a,'exp'):null}).filter(v=>v!==null);return ms.length?ms.reduce((a,b)=>a+b,0)/ms.length:null}
+function avgExpense(){const ms=[1,2,3].map(k=>shiftMonth(ym(new Date()),-k)).map(m=>{const a=inMonth(m);return a.length?sum(a,'exp'):null}).filter(v=>v!==null);return ms.length?ms.reduce((a,b)=>a+b,0)/ms.length:0}
+function addMonthsIso(n){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()+n);const dim=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();d.setDate(Math.min(new Date().getDate(),dim));return isoD(d)}
+function monthsUntil(iso){const d=new Date(iso+'T12:00'),n=new Date();return Math.max(1,(d.getFullYear()*12+d.getMonth())-(n.getFullYear()*12+n.getMonth())+1)}
+function openPlanWizard(id){
+  const L=document.getElementById('layer');const G=S.settings.goals||(S.settings.goals=[]);const ex=id?G.find(x=>x.id===id):null;
+  let step=ex?2:1,askDel=false,p=null;
+  const init=k=>{const t=PLAN_T[k];p={id:uidGen(),kind:k,name:k==='custom'?'':t.n,target:'',saved:'',due:t.endOfYear?new Date().getFullYear()+'-12-31':addMonthsIso(11),repeat:t.repeat||'once',mode:'date',monthly:'',items:t.items.map(n=>({n,a:''})),log:{}}};
+  if(ex){p=JSON.parse(JSON.stringify(ex));p.items=(p.items||[]).map(i=>({n:i.n,a:i.a?money(i.a):''}));p.target=p.target?money(p.target):'';p.saved=p.saved?money(p.saved):'';p.monthly=p.monthly?money(p.monthly):'';p.mode=p.mode||'date'}
+  const itemsTotal=()=>p.items.reduce((s,i)=>s+parseAmt(i.a),0);
+  const tgt=()=>itemsTotal()||parseAmt(p.target);
+  const others=()=>(S.settings.goals||[]).filter(g=>g.id!==p.id).map(g=>goalCalc(g)).filter(c=>!c.past).reduce((s,c)=>s+c.monthly,0);
+  const calc=()=>{const T=tgt(),sv=parseAmt(p.saved),rem=Math.max(0,T-sv);let months,due,monthly;
+    if(p.mode==='monthly'){monthly=parseAmt(p.monthly);months=monthly>0?Math.max(1,Math.ceil(rem/monthly)):0;due=months?addMonthsIso(months-1):''}
+    else{due=p.due;months=due?monthsUntil(due):0;monthly=months?rem/months:0}
+    return{T,sv,rem,months,due,monthly}};
+  const preview=()=>{const c=calc();if(!c.T)return '<div class="note">اكتب المبلغ المطلوب أو مبالغ البنود، وسأحسب لك الخطة.</div>';
+    if(c.rem<=0)return '<div class="okbox">ادّخرت المبلغ كاملًا. هذه الخطة مكتملة.</div>';
+    if(!c.months)return '<div class="note">'+(p.mode==='monthly'?'اكتب المبلغ الذي تستطيع ادخاره شهريًا.':'اختر موعد الهدف.')+'</div>';
+    const avg=avgSurplus(),free=avg===null?null:avg-others();
+    let s=`<div class="planpreview"><div><span class="note">ادّخر شهريًا</span><b class="num">${money(c.monthly)}</b></div><div><span class="note">المدة</span><b>${monthsWord(c.months)}</b></div><div><span class="note">يكتمل في</span><b>${fmtD(c.due)}</b></div></div>`;
+    if(free===null)s+='<div class="note">بعد تسجيل دخلك ومصاريفك لشهر كامل، سأخبرك هل الخطة مريحة لميزانيتك.</div>';
+    else if(free<=0)s+=`<div class="warnbox">بعد خططك الحالية لا يتبقى لك فائض شهري (المتوسط <b class="num">${money(avg)}</b>). خفّض بعض المصاريف أو أجّل خطة أخرى أولًا.</div>`;
+    else if(c.monthly<=free*0.7)s+=`<div class="okbox">خطة مريحة: تأخذ ${Math.round(c.monthly/free*100)}% مما يتبقى لك شهريًا بعد خططك الحالية (<b class="num">${money(free)}</b>).</div>`;
+    else{const comfy=free*0.6;const m2=Math.ceil(c.rem/comfy);s+=`<div class="warnbox">الخطة ${c.monthly>free?'أكبر من':'قريبة من'} فائضك الشهري بعد خططك الحالية (<b class="num">${money(free)}</b>). لتكون مريحة: ادّخر <b class="num">${money(comfy)}</b> شهريًا وتكتمل في ${fmtD(addMonthsIso(m2-1))}.</div><button class="chip" id="pComfy" data-m="${m2}">طبّق الاقتراح</button>`}
+    return s};
+  const T=()=>PLAN_T[p.kind]||PLAN_T.custom;
+  const draw=()=>{
+    if(step===1){L.innerHTML=`<div class="scrim" data-close></div><div class="sheet" role="dialog" aria-modal="true" aria-label="خطة جديدة"><div class="in"><div class="grab"></div>
+      <h2 style="margin-top:0">خطة جديدة</h2><p class="note" style="margin:-4px 0 12px">اختر نوع الخطة، وسأجهّز لك البنود وأحسب المبلغ الشهري.</p>
+      <div class="plangrid">${Object.entries(PLAN_T).map(([k,t])=>`<button class="pt" data-pt="${k}"><span class="cbadge" style="background:${t.c}1f;color:${t.c}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${CI[t.icon]}</svg></span><b>${esc(t.n)}</b><small>${esc(t.hint)}</small></button>`).join('')}</div>
+      <div class="actions"><button class="btn ghost block" data-close>إلغاء</button></div></div></div>`;return}
+    const t=T();const sm=t.smart==='emergency'?avgExpense():0;
+    L.innerHTML=`<div class="scrim" data-close></div><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(t.n)}"><div class="in"><div class="grab"></div>
+     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">${goalBadge(p)}<h2 style="margin:0">${ex?'تعديل الخطة':esc(t.n)}</h2>${ex?'':'<button class="chip" id="pBack" style="margin-inline-start:auto">تغيير النوع</button>'}</div>
+     <div class="stack">
+      <div class="field"><label for="pName">اسم الخطة</label><input class="inp" id="pName" value="${esc(p.name)}" placeholder="${esc(t.hint)}" maxlength="40"></div>
+      <div class="field"><label>بنود الخطة ${p.items.length?'':'(اختياري)'}</label>
+       <div class="items">${p.items.map((it,i)=>`<div class="itemrow"><input class="inp" data-in="${i}" value="${esc(it.n)}" placeholder="اسم البند" maxlength="30"><input class="inp num" data-ia="${i}" inputmode="decimal" value="${esc(it.a)}" placeholder="0.000" style="text-align:left"><button class="chip" data-irm="${i}" aria-label="حذف البند">✕</button></div>`).join('')}</div>
+       <button class="chip" id="pAddItem" style="align-self:flex-start">+ إضافة بند</button></div>
+      <div class="row2"><div class="field"><label for="pTarget">المبلغ المطلوب (${CUR})</label><input class="inp num" id="pTarget" inputmode="decimal" value="${itemsTotal()?money(itemsTotal()):esc(p.target)}" ${itemsTotal()?'readonly':''} placeholder="0.000" style="text-align:left"></div>
+       <div class="field"><label for="pSaved">ادّخرت منه حتى الآن</label><input class="inp num" id="pSaved" inputmode="decimal" value="${esc(p.saved)}" placeholder="0.000" style="text-align:left"></div></div>
+      ${sm?`<button class="chip" id="pSmart" data-v="${(sm*3).toFixed(3)}">المقترح: 3 أشهر من مصاريفك = ${money(sm*3)}</button>`:''}
+      <div class="seg" role="group" aria-label="طريقة الحساب"><button class="n" data-pmode="date" aria-pressed="${p.mode!=='monthly'}">أحدد الموعد</button><button class="n" data-pmode="monthly" aria-pressed="${p.mode==='monthly'}">أحدد المبلغ الشهري</button></div>
+      ${p.mode==='monthly'?`<div class="field"><label for="pMonthly">أستطيع ادخار شهريًا (${CUR})</label><input class="inp num" id="pMonthly" inputmode="decimal" value="${esc(p.monthly)}" placeholder="0.000" style="text-align:left"></div>`
+       :`<div class="chips">${[[6,'6 أشهر'],[12,'سنة'],[24,'سنتان'],[36,'3 سنوات']].map(([m,n])=>`<button class="chip" data-pdue="${m}">${n}</button>`).join('')}</div><div class="field"><label for="pDue">موعد الهدف</label><input class="inp" type="date" id="pDue" value="${esc(p.due)}"></div>`}
+      <div id="pPrev">${preview()}</div>
+      <div class="field"><label for="pRepeat">التكرار</label><select class="inp" id="pRepeat"><option value="once" ${p.repeat!=='yearly'?'selected':''}>مرة واحدة</option><option value="yearly" ${p.repeat==='yearly'?'selected':''}>تتكرر كل سنة</option></select></div>
+      <p class="note" id="pErr" hidden style="color:var(--exp);margin:0"></p>
+      <div class="actions"><button class="btn block" id="pSave">حفظ الخطة</button>
+      ${ex?(askDel?'<div class="confirm"><span>حذف هذه الخطة؟</span><div class="row2"><button class="btn danger" id="pDel">نعم، احذف</button><button class="btn ghost" id="pDelNo">تراجع</button></div></div>':'<button class="btn ghost block" id="pDelAsk" style="color:var(--exp)">حذف الخطة</button>'):'<button class="btn ghost block" data-close>إلغاء</button>'}</div>
+     </div></div></div>`};
+  const grab=()=>{const g=i=>document.getElementById(i);if(!g('pName'))return;p.name=g('pName').value;p.saved=g('pSaved').value;if(!itemsTotal())p.target=g('pTarget').value;
+    if(g('pMonthly'))p.monthly=g('pMonthly').value;if(g('pDue'))p.due=g('pDue').value;p.repeat=g('pRepeat').value;
+    L.querySelectorAll('[data-in]').forEach(e=>p.items[+e.dataset.in].n=e.value);L.querySelectorAll('[data-ia]').forEach(e=>p.items[+e.dataset.ia].a=e.value)};
+  const refresh=()=>{grab();const tg=document.getElementById('pTarget');if(tg){const it=itemsTotal();if(it){tg.value=money(it);tg.readOnly=true}else tg.readOnly=false}
+    const pv=document.getElementById('pPrev');if(pv)pv.innerHTML=preview()};
+  L.oninput=e=>{if(e.target.closest('.sheet'))refresh()};
+  L.onchange=e=>{if(e.target.id==='pDue'||e.target.id==='pRepeat')refresh()};
+  L.onclick=e=>{const x=e.target.closest('button,[data-close]');if(!x)return;
+    if(x.hasAttribute('data-close')){L.innerHTML='';L.oninput=L.onchange=null;return}
+    if(x.dataset.pt){init(x.dataset.pt);step=2;draw();return}
+    if(x.id==='pBack'){step=1;draw();return}
+    if(x.id==='pAddItem'){grab();p.items.push({n:'',a:''});draw();const ins=L.querySelectorAll('[data-in]');ins[ins.length-1].focus();return}
+    if(x.dataset.irm!==undefined){grab();p.items.splice(+x.dataset.irm,1);draw();return}
+    if(x.dataset.pmode){grab();p.mode=x.dataset.pmode;if(p.mode==='monthly'&&!parseAmt(p.monthly)){const c=calc();if(c.monthly)p.monthly=money(c.monthly)}draw();return}
+    if(x.dataset.pdue){grab();p.due=addMonthsIso(+x.dataset.pdue-1);document.getElementById('pDue').value=p.due;refresh();return}
+    if(x.id==='pSmart'){grab();p.items.forEach(i=>i.a='');p.target=money(+x.dataset.v);draw();return}
+    if(x.id==='pComfy'){grab();const m=+x.dataset.m;if(p.mode==='monthly'){const c=calc();p.monthly=money(c.rem/m)}else p.due=addMonthsIso(m-1);draw();return}
+    if(x.id==='pDelAsk'){grab();askDel=true;draw();return}
+    if(x.id==='pDelNo'){grab();askDel=false;draw();return}
+    if(x.id==='pDel'){S.settings.goals=G.filter(y=>y.id!==p.id);L.innerHTML='';L.oninput=L.onchange=null;putSettings();render();toast('حُذفت الخطة');return}
+    if(x.id==='pSave'){grab();const er=document.getElementById('pErr');const c=calc();
+      if(!p.name.trim()){er.hidden=false;er.textContent='اكتب اسمًا للخطة';return}
+      if(!c.T){er.hidden=false;er.textContent='اكتب المبلغ المطلوب أو مبالغ البنود';return}
+      if(!c.due){er.hidden=false;er.textContent=p.mode==='monthly'?'اكتب المبلغ الشهري':'اختر موعد الهدف';return}
+      const rec={id:p.id,kind:p.kind,name:p.name.trim(),target:c.T,saved:parseAmt(p.saved),due:c.due,repeat:p.repeat,log:p.log||{},mode:p.mode,monthly:p.mode==='monthly'?parseAmt(p.monthly):0,
+        items:p.items.filter(i=>i.n.trim()||parseAmt(i.a)).map(i=>({n:i.n.trim()||'بند',a:parseAmt(i.a)}))};
+      if(p.carRef)rec.carRef=p.carRef;
+      const i=G.findIndex(y=>y.id===rec.id);if(i>=0)G[i]=rec;else G.push(rec);
+      L.innerHTML='';L.oninput=L.onchange=null;S.tab='budget';putSettings();render();toast(ex?'حُفظ التعديل':'أُضيفت خطة '+rec.name)}
+  };
+  draw();
+}
+
+/* ---------- appearance (themes) ---------- */
+const SKINS={royal:['أزرق ملكي','#163C74','#2461AE','#178486'],emerald:['زمردي','#0B4D3C','#12805F','#1A9A8A'],burgundy:['عنابي','#5A1428','#8E2A44','#B5523A'],
+ gold:['ذهبي ليلي','#2B2416','#5A4416','#9A6B12'],violet:['بنفسجي','#2E1F66','#5B3FB0','#3F6FD0'],sand:['رملي','#5B3A1E','#8A5A2B','#B98545']};
+const Look=(()=>{const K='masareef:look';let v={skin:'royal',mode:'auto',text:'md',cards:'soft'};try{Object.assign(v,JSON.parse(localStorage.getItem(K)||'{}'))}catch(e){}
+  function apply(){const r=document.documentElement;r.dataset.skin=v.skin;r.dataset.text=v.text;r.dataset.cards=v.cards;
+    if(v.mode==='auto')r.removeAttribute('data-theme');else r.dataset.theme=v.mode;
+    const m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',(SKINS[v.skin]||SKINS.royal)[1])}
+  function set(k,val){v[k]=val;try{localStorage.setItem(K,JSON.stringify(v))}catch(e){}apply()}
+  return{get:()=>v,set,apply}})();
+Look.apply();
+function openLook(){const L=document.getElementById('layer');
+  const draw=()=>{const v=Look.get();
+   L.innerHTML=`<div class="scrim" data-close></div><div class="sheet" role="dialog" aria-modal="true" aria-label="المظهر"><div class="in"><div class="grab"></div>
+    <h2 style="margin-top:0">المظهر</h2>
+    <div class="field"><label>لون التطبيق</label><div class="skins">${Object.entries(SKINS).map(([k,s])=>`<button class="skin" data-skin="${k}" aria-pressed="${v.skin===k}"><span class="sw" style="background:linear-gradient(140deg,${s[1]},${s[2]} 60%,${s[3]})"></span>${s[0]}</button>`).join('')}</div></div>
+    <div class="field" style="margin-top:14px"><label>الوضع</label><div class="seg seg3">${[['auto','تلقائي'],['light','فاتح'],['dark','داكن']].map(([k,n])=>`<button class="n" data-lmode="${k}" aria-pressed="${v.mode===k}">${n}</button>`).join('')}</div></div>
+    <div class="field" style="margin-top:14px"><label>حجم الخط</label><div class="seg">${[['md','عادي'],['lg','كبير']].map(([k,n])=>`<button class="n" data-ltext="${k}" aria-pressed="${v.text===k}">${n}</button>`).join('')}</div></div>
+    <div class="field" style="margin-top:14px"><label>شكل البطاقات</label><div class="seg">${[['soft','ناعم بظلال'],['flat','مسطّح بسيط']].map(([k,n])=>`<button class="n" data-lcards="${k}" aria-pressed="${v.cards===k}">${n}</button>`).join('')}</div></div>
+    <p class="note" style="margin:12px 0 0">يُحفظ المظهر على هذا الجهاز، ويمكنك اختيار مظهر مختلف لكل جهاز.</p>
+    <div class="actions"><button class="btn block" data-close>تم</button></div></div></div>`};
+  L.oninput=L.onchange=null;
+  L.onclick=e=>{const x=e.target.closest('button,[data-close]');if(!x)return;
+    if(x.hasAttribute('data-close')){L.innerHTML='';return}
+    if(x.dataset.skin){Look.set('skin',x.dataset.skin);draw();return}
+    if(x.dataset.lmode){Look.set('mode',x.dataset.lmode);draw();return}
+    if(x.dataset.ltext){Look.set('text',x.dataset.ltext);draw();return}
+    if(x.dataset.lcards){Look.set('cards',x.dataset.lcards);draw();return}};
+  draw()}
 
 /* ---------- bank SMS import ---------- */
 const KW={
@@ -846,7 +984,9 @@ document.addEventListener('click',async e=>{
   if(b.dataset.rpay){payRec(b.dataset.rpay);return}
   if(b.id==='payAll'){await payAll();return}
   if(b.dataset.gadd){openGoal(null,b.dataset.gadd);return}
-  if(b.dataset.gedit){openGoal(b.dataset.gedit);return}
+  if(b.dataset.gedit){const g=(S.settings.goals||[]).find(x=>x.id===b.dataset.gedit);if(g&&PLAN_T[g.kind])openPlanWizard(g.id);else openGoal(b.dataset.gedit);return}
+  if(b.dataset.plannew){openPlanWizard();return}
+  if(b.id==='lookBtn'){openLook();return}
   if(b.dataset.gdep){openDeposit(b.dataset.gdep);return}
   if(b.dataset.gnext){nextCycle(b.dataset.gnext);return}
   if(b.id==='mPrev'){S.month=shiftMonth(S.month,-1);render();return}
@@ -963,8 +1103,9 @@ function syncHtml(){const c=Sync.cfg();
 
 
 /* ---------- version & what's new ---------- */
-const APP_VERSION='1.1.0';
+const APP_VERSION='1.2.0';
 const CHANGELOG=[
+ {v:'1.2.0',d:'2026-10-13',items:['«خطة جديدة» بقوالب جاهزة: خطة سنوية، تعديل المنزل، شراء سيارة، زواج، سفر، حج أو عمرة، صندوق الطوارئ، تعليم، جهاز','تقسيم الخطة إلى بنود يُجمع مبلغها تلقائيًا','حساب ذكي: بتاريخ محدد أو بمبلغ شهري ثابت، مع تقييم هل الخطة مريحة لميزانيتك واقتراح بديل','زر المظهر في الأعلى: 6 ألوان، والوضع الفاتح أو الداكن، وحجم الخط، وشكل البطاقات']},
  {v:'1.1.0',d:'2026-10-13',items:['خانة الإصدار و«ما الجديد» في صفحة التقارير','إشعار بعد كل تحديث، وزر «البحث عن تحديث»','تحميل النسخة الجديدة تلقائيًا عند فتح التطبيق']},
  {v:'1.0.0',d:'2026-10-13',items:['تسجيل المصاريف والدخل مع أيقونة لكل فئة، والتسجيل السريع والتراجع','الميزانية الشهرية وحدود الفئات','خطة الادخار لرمضان والعيدين والتأمين','البيت: الالتزامات الشهرية والأهل','السيارات: التأمين والملكية والصيانة','التقارير الشهرية والسنوية وتنزيل Excel','قراءة رسائل البنك','المزامنة بين أجهزتك عبر Google Drive']}
 ];
