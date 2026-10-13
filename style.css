@@ -7,10 +7,10 @@
  *   4. الأساس
  *   5. الهيكل: الرأس، شريط الشهر، الشريط السفلي
  *   6. عناصر مشتركة: البطاقات، الأزرار، الحقول، الأشرطة
- *   7. الرئيسية: البطاقة الكبرى، التسجيل السريع، أقسامي، التنبيهات
+ *   7. الرئيسية: البطاقة الكبرى، مستشاري، خططي، ملخص التقارير، أقسامي، التنبيهات
  *   8. السجل والعمليات
  *   9. النوافذ المنبثقة
- *  10. البيت والخطط والسيارات والديون
+ *  10. البيت والخطط وحساب الادخار والسيارات والديون
  *  11. مستنداتي
  *  12. المظهر وقراءة رسائل البنك
  *  13. الحركة
@@ -221,6 +221,68 @@ body:has(.sheet) .toast{bottom:auto;top:calc(12px + env(safe-area-inset-top,0px)
 .alertrow.late .adot{background:var(--exp)}
 .alertrow.late small{color:var(--exp)}
 
+/* الرئيسية: مستشاري، خططي، ملخص التقارير */
+.backrow h2+div .chip,.backrow>.chip{white-space:nowrap}
+.hplans{padding:12px}
+.hp-sum{display:grid;grid-template-columns:76px 1fr;gap:12px;align-items:center}
+.hp-ring{width:76px;height:76px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--inc) calc(var(--p)*1%),var(--surface-2) 0)}
+.hp-ring span{width:58px;height:58px;border-radius:50%;background:var(--surface);display:grid;place-items:center;font-weight:700;font-size:15px}
+.hp-cells{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+.hp-cells div{display:flex;flex-direction:column;min-width:0}
+.hp-cells span{font-size:11.5px;color:var(--muted)}
+.hp-cells b{font-size:15px}
+.hp-meta{margin:10px 2px 2px}
+.hp-list{margin-top:6px}
+.hprow{border:0;color:inherit;font:inherit;border-radius:0;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;padding:10px 2px;border-top:1px solid var(--line);text-align:right;background:none;cursor:pointer}
+.hp-list .hprow:first-child{border-top:none}
+.hprow:active{background:var(--surface-2)}
+.hp-main{display:flex;flex-direction:column;min-width:0;gap:2px}
+.hp-main b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hp-main small,.hp-side small{font-size:11.5px;color:var(--muted)}
+.hp-main .meter{height:5px;margin-top:4px}
+.hp-side{display:flex;flex-direction:column;align-items:flex-end;text-align:left}
+.hp-amt{font-size:15px}
+.hprow.late .hp-main small{color:var(--warn)}
+.hplan-empty{display:flex;gap:10px;align-items:center;justify-content:space-between}
+.hplan-empty span{font-size:13.5px;color:var(--muted)}
+.hplan-empty .chip{white-space:nowrap;flex:none}
+.hstats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.hstat{background:var(--surface-2);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.hstat span{font-size:11.5px;color:var(--muted)}
+.hstat b{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hstat small{font-size:11px;color:var(--muted)}
+.hchart{margin-top:12px}
+.hrep-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.adv-ring{background:conic-gradient(var(--rc,var(--inc)) calc(var(--p)*1%),var(--surface-2) 0);width:62px;height:62px}
+.adv-ring span{width:48px;height:48px;font-size:17px}
+.adv-ring.big{width:84px;height:84px}.adv-ring.big span{width:66px;height:66px;font-size:24px}
+.advhead{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center}
+.advhead>div:last-child{display:flex;flex-direction:column;gap:1px;min-width:0}
+.advhead b{font-size:17px}
+.advlist{margin-top:6px}
+.advrow,.chk{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.advlist .advrow:first-child,.meter+.chk{border-top:none}
+.advic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+.advic svg{width:19px;height:19px}
+.advrow.high .advic{background:var(--exp-soft);color:var(--exp)}
+.advrow.mid .advic{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+.advtx{display:flex;flex-direction:column;gap:2px;min-width:0}
+.advtx b{font-weight:600;font-size:14px;line-height:1.45}
+.advtx small{font-size:12.5px;color:var(--muted);line-height:1.5}
+.advtx small b{font-weight:600;color:var(--fg);font-size:12.5px}
+.advn{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--surface-2);font-size:11px;margin-inline-end:6px;vertical-align:1px}
+.advrow .chip,.chk .chip{white-space:nowrap}
+.advparts{margin-top:12px;display:grid;gap:7px}
+.advpart{display:grid;grid-template-columns:110px 1fr 44px;gap:8px;align-items:center;font-size:12.5px}
+.advpart .meter{height:6px}.advpart b{font-size:12px;text-align:left}
+.allocbar{display:flex;height:14px;border-radius:99px;overflow:hidden;background:var(--surface-2);gap:2px}
+.allocbar i{display:block;height:100%}
+.swatch{display:inline-block;width:9px;height:9px;border-radius:3px;margin-inline-end:6px;vertical-align:middle}
+.chkbox{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-size:14px;font-weight:700;color:#fff;justify-self:center}
+.chk.done .chkbox{background:var(--inc);border-color:var(--inc)}
+.chk.done .advtx b{color:var(--muted);text-decoration:line-through}
+.dash .tile:last-child:nth-child(odd){grid-column:1/-1;min-height:0}
+
 /* ---------- 8. السجل والعمليات ---------- */
 .tx{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 4px;border:0;background:transparent;width:100%;text-align:right;border-radius:10px}
 .tx:hover{background:var(--surface-2)}
@@ -310,68 +372,6 @@ body:has(.sheet) .toast{bottom:auto;top:calc(12px + env(safe-area-inset-top,0px)
 .btn.light{background:rgb(255 255 255 / .95);color:var(--hero-b)}
 .btn.light.ghost2{background:rgb(255 255 255 / .16);color:#fff;border:1px solid rgb(255 255 255 / .3)}
 
-/* لوحة الخطط وملخص التقارير في الرئيسية */
-.backrow h2+div .chip,.backrow>.chip{white-space:nowrap}
-.hplans{padding:12px}
-.hp-sum{display:grid;grid-template-columns:76px 1fr;gap:12px;align-items:center}
-.hp-ring{width:76px;height:76px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--inc) calc(var(--p)*1%),var(--surface-2) 0)}
-.hp-ring span{width:58px;height:58px;border-radius:50%;background:var(--surface);display:grid;place-items:center;font-weight:700;font-size:15px}
-.hp-cells{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
-.hp-cells div{display:flex;flex-direction:column;min-width:0}
-.hp-cells span{font-size:11.5px;color:var(--muted)}
-.hp-cells b{font-size:15px}
-.hp-meta{margin:10px 2px 2px}
-.hp-list{margin-top:6px}
-.hprow{border:0;color:inherit;font:inherit;border-radius:0;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;padding:10px 2px;border-top:1px solid var(--line);text-align:right;background:none;cursor:pointer}
-.hp-list .hprow:first-child{border-top:none}
-.hprow:active{background:var(--surface-2)}
-.hp-main{display:flex;flex-direction:column;min-width:0;gap:2px}
-.hp-main b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hp-main small,.hp-side small{font-size:11.5px;color:var(--muted)}
-.hp-main .meter{height:5px;margin-top:4px}
-.hp-side{display:flex;flex-direction:column;align-items:flex-end;text-align:left}
-.hp-amt{font-size:15px}
-.hprow.late .hp-main small{color:var(--warn)}
-.hplan-empty{display:flex;gap:10px;align-items:center;justify-content:space-between}
-.hplan-empty span{font-size:13.5px;color:var(--muted)}
-.hstats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.hstat{background:var(--surface-2);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:2px;min-width:0}
-.hstat span{font-size:11.5px;color:var(--muted)}
-.hstat b{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hstat small{font-size:11px;color:var(--muted)}
-.hchart{margin-top:12px}
-.hleg{display:flex;gap:12px;align-items:center;font-size:12px;margin-bottom:6px}
-.hleg i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-inline-end:4px;vertical-align:middle}
-.hleg .note{margin-inline-start:auto}
-.hrep-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
-.adv-ring{background:conic-gradient(var(--rc,var(--inc)) calc(var(--p)*1%),var(--surface-2) 0);width:62px;height:62px}
-.adv-ring span{width:48px;height:48px;font-size:17px}
-.adv-ring.big{width:84px;height:84px}.adv-ring.big span{width:66px;height:66px;font-size:24px}
-.advhead{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center}
-.advhead>div:last-child{display:flex;flex-direction:column;gap:1px;min-width:0}
-.advhead b{font-size:17px}
-.advlist{margin-top:6px}
-.advrow,.chk{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
-.advlist .advrow:first-child,.meter+.chk{border-top:none}
-.advic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
-.advic svg{width:19px;height:19px}
-.advrow.high .advic{background:var(--exp-soft);color:var(--exp)}
-.advrow.mid .advic{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
-.advtx{display:flex;flex-direction:column;gap:2px;min-width:0}
-.advtx b{font-weight:600;font-size:14px;line-height:1.45}
-.advtx small{font-size:12.5px;color:var(--muted);line-height:1.5}
-.advtx small b{font-weight:600;color:var(--fg);font-size:12.5px}
-.advn{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--surface-2);font-size:11px;margin-inline-end:6px;vertical-align:1px}
-.advrow .chip,.chk .chip{white-space:nowrap}
-.advparts{margin-top:12px;display:grid;gap:7px}
-.advpart{display:grid;grid-template-columns:110px 1fr 44px;gap:8px;align-items:center;font-size:12.5px}
-.advpart .meter{height:6px}.advpart b{font-size:12px;text-align:left}
-.allocbar{display:flex;height:14px;border-radius:99px;overflow:hidden;background:var(--surface-2);gap:2px}
-.allocbar i{display:block;height:100%}
-.dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-inline-end:6px;vertical-align:middle}
-.chkbox{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-size:14px;font-weight:700;color:#fff;justify-self:center}
-.chk.done .chkbox{background:var(--inc);border-color:var(--inc)}
-.chk.done .advtx b{color:var(--muted);text-decoration:line-through}
 .goal.flash{animation:gflash 1.6s ease}
 @keyframes gflash{0%,60%{box-shadow:0 0 0 3px var(--accent)}100%{box-shadow:var(--shadow)}}
 
