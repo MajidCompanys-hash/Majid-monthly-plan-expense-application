@@ -419,6 +419,50 @@ a.chip{color:inherit;text-decoration:none}
 .toggle{display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--muted);cursor:pointer}
 .toggle input{width:20px;height:20px;accent-color:var(--accent);margin:0}
 
+/* اليوم وخطة الصرف اليومية والمستشار التفاعلي */
+.today{margin-top:12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;box-shadow:var(--shadow)}
+.today.over{border-color:var(--exp)}
+.tdh{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.tdm{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:8px;margin-bottom:8px}.tdm div{display:flex;flex-direction:column;min-width:0}.tdm span{font-size:11.5px;color:var(--muted)}.tdm b{font-size:15px}.tdm div:first-child b{font-size:20px}
+.dphero{background:linear-gradient(140deg,var(--hero-a),var(--hero-b));color:#fff;border-radius:18px;padding:14px 16px;display:flex;flex-direction:column}
+.dphero span{font-size:12.5px;opacity:.8}.dphero b{font-size:30px}.dphero small{opacity:.8}
+.sumrow.total{border-top:1px solid var(--line);margin-top:4px;padding-top:8px;font-weight:600}
+.dplist{padding:4px 12px}
+.dprow{display:grid;grid-template-columns:86px 1fr auto;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--line);font-size:13px}
+.dplist .dprow:first-child{border-top:none}
+.dpbar{height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden}.dpbar i{display:block;height:100%;border-radius:3px;background:var(--accent)}
+.dprow.ok .dpbar i{background:var(--inc)}.dprow.over .dpbar i{background:var(--exp)}.dprow.over b{color:var(--exp)}
+.dprow.next{color:var(--muted)}.dprow.next .dpbar i{background:var(--line)}
+.dprow.today{background:var(--accent-soft);margin:0 -12px;padding:8px 12px;font-weight:600}
+.asklog{display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow-y:auto;padding:2px}
+.bub{max-width:90%;padding:10px 12px;border-radius:16px;line-height:1.7;font-size:14px}
+.bub p{margin:0 0 6px}.bub p:last-child{margin:0}
+.bub.bot{align-self:flex-start;background:var(--surface);border:1px solid var(--line);border-start-start-radius:4px}
+.bub.me{align-self:flex-end;background:var(--accent);color:var(--on-accent);border-start-end-radius:4px}
+.bub .chips{margin:8px 0 0}
+.verdict{font-weight:700;padding:6px 10px;border-radius:10px;margin-bottom:6px;display:inline-block}
+.verdict.ok{background:var(--inc-soft);color:var(--inc)}.verdict.mid{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}.verdict.bad{background:var(--exp-soft);color:var(--exp)}
+.tips{margin:6px 0;padding-inline-start:18px}.tips li{margin-bottom:4px}
+.askq{margin:10px 0 6px}
+.askin{display:grid;grid-template-columns:1fr auto;gap:8px}
+.gcount{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0 6px}
+.gcount div{background:var(--surface-2);border-radius:12px;padding:8px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.gcount b{font-size:17px}.gcount span{font-size:11.5px;color:var(--muted)}
+
+.bankbox .bkh{display:flex;flex-direction:column;margin-bottom:6px}.bkh span{font-size:12.5px;color:var(--muted)}.bkh b{font-size:24px}.bkh small{color:var(--muted)}
+.tdbank{display:flex;justify-content:space-between;align-items:baseline;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-size:13px}.tdbank span{color:var(--muted)}
+
+/* الويدجت */
+.wnudge{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding:8px 12px;border-radius:12px;background:var(--accent-soft);font-size:13px}
+.wnudge .chip{white-space:nowrap}
+.wprev{background:linear-gradient(135deg,#1F5AA6,#163C74);color:#fff;border-radius:22px;padding:14px 16px;box-shadow:0 10px 24px #163C7440}
+.wp-h{display:flex;justify-content:space-between;align-items:baseline;font-size:13px}.wp-h span{opacity:.72;font-size:11px}
+.wp-b{display:grid;grid-template-columns:1fr auto;gap:10px;margin-top:8px;align-items:end}.wp-b div{display:flex;flex-direction:column}.wp-b span{font-size:11px;opacity:.72}
+.wp-b div:first-child b{font-size:24px}.wp-b div:last-child{text-align:left}.wp-b div:last-child b{color:#7EE0B0;font-size:15px}
+.wp-bar{height:6px;border-radius:3px;background:#ffffff2e;margin-top:8px;overflow:hidden}.wp-bar i{display:block;height:100%;background:#7EE0B0;border-radius:3px}
+.wp-f{display:flex;justify-content:space-between;gap:8px;font-size:11px;opacity:.85;margin-top:6px}.wp-f span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%}
+.wsteps{padding:10px 12px}.wsteps summary{cursor:pointer}.wsteps ol{margin:8px 0 0;padding-inline-start:20px;line-height:1.9;font-size:13.5px}.wsteps a{color:var(--accent)}
+
 /* نافذة الطباعة والمعاينة */
 .prnav{display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px}
 .prnav b{font-size:15px}
