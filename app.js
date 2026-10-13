@@ -99,7 +99,7 @@ function vBudget(){
 
 function vReports(){const seg=`<div class="seg" style="margin-bottom:4px"><button class="n" data-rmode="month" aria-pressed="${S.rmode!=='year'}">تقرير شهري</button><button class="n" data-rmode="year" aria-pressed="${S.rmode==='year'}">تقرير سنوي</button></div>`;
   const mm=vReportsMonth();const i=mm.indexOf('<h2>بياناتك</h2>');
-  return seg+(S.rmode==='year'?vYear():mm.slice(0,i)+reportsMonthExtras())+mm.slice(i)}
+  return seg+(S.rmode==='year'?vYear():mm.slice(0,i)+reportsMonthExtras())+mm.slice(i)+versionHtml()}
 function vReportsMonth(){
   const months=[];for(let k=5;k>=0;k--)months.push(shiftMonth(S.month,-k));
   const data=months.map(m=>{const a=inMonth(m);return{m,inc:sum(a,'inc'),exp:sum(a,'exp')}});
@@ -826,6 +826,7 @@ document.addEventListener('click',async e=>{
   if(b.id==='openImp2'){openImport();return}
   if(b.id==='sync'){if(Sync.linked())Sync.now();else{S.tab='reports';render();setTimeout(()=>{const x=document.getElementById('syncCid');x&&x.scrollIntoView({block:'center'})},50)}return}
   if(b.id==='syncNow'){Sync.now();return}
+  if(b.id==='checkUpd'){if(!('serviceWorker' in navigator)){toast('أنت على آخر إصدار');return}toast('جارٍ البحث عن تحديث…');try{const r=await navigator.serviceWorker.getRegistration();if(r){await r.update();if(r.installing||r.waiting){toast('وُجد تحديث، جارٍ تحميله…');return}}toast('أنت على آخر إصدار ('+APP_VERSION+')')}catch(e){toast('تعذّر البحث، تأكد من الإنترنت')}return}
   if(b.id==='syncUnlink'){Sync.unlink();toast('أُلغي الربط على هذا الجهاز، وبياناتك باقية فيه');return}
   if(b.id==='syncLink'){const v=(document.getElementById('syncCid').value||'').trim();const er=document.getElementById('syncErr');if(!/\.apps\.googleusercontent\.com$/.test(v)){er.hidden=false;er.textContent='الرمز غير صحيح. يجب أن ينتهي بـ .apps.googleusercontent.com';return}await Sync.link(v);render();return}
   if(b.dataset.quick!==undefined){quickAdd(b.dataset.quick);return}
@@ -960,7 +961,25 @@ function syncHtml(){const c=Sync.cfg();
       وإن لم يكن عندك: ادخل console.cloud.google.com ← أنشئ مشروعًا ← فعّل Google Drive API ← APIs &amp; Services ← Credentials ← Create credentials ← OAuth client ID ← النوع Web application ← في Authorized JavaScript origins أضف رابط موقعك مثل https://اسمك.github.io ← انسخ الرمز والصقه هنا.</div></details></div>`;
 }
 
-cacheLoad();render();Sync.start();
+
+/* ---------- version & what's new ---------- */
+const APP_VERSION='1.1.0';
+const CHANGELOG=[
+ {v:'1.1.0',d:'2026-10-13',items:['خانة الإصدار و«ما الجديد» في صفحة التقارير','إشعار بعد كل تحديث، وزر «البحث عن تحديث»','تحميل النسخة الجديدة تلقائيًا عند فتح التطبيق']},
+ {v:'1.0.0',d:'2026-10-13',items:['تسجيل المصاريف والدخل مع أيقونة لكل فئة، والتسجيل السريع والتراجع','الميزانية الشهرية وحدود الفئات','خطة الادخار لرمضان والعيدين والتأمين','البيت: الالتزامات الشهرية والأهل','السيارات: التأمين والملكية والصيانة','التقارير الشهرية والسنوية وتنزيل Excel','قراءة رسائل البنك','المزامنة بين أجهزتك عبر Google Drive']}
+];
+function versionHtml(){
+  return `<h2>عن التطبيق</h2><div class="panel stack">
+   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><b>مصاريفي</b><div class="note">الإصدار <span class="num">${APP_VERSION}</span> · ${fmtD(CHANGELOG[0].d)}</div></div><button class="chip" id="checkUpd">البحث عن تحديث</button></div>
+   <details${S.showNew?' open':''}><summary class="note" style="cursor:pointer">ما الجديد</summary><div style="margin-top:8px">${CHANGELOG.map(c=>`<div style="padding-block:6px"><b class="num" style="font-size:13px">${c.v}</b> <span class="note">${fmtD(c.d)}</span><ul style="margin:4px 0 0;padding-inline-start:18px;font-size:13px;line-height:1.7">${c.items.map(i=>`<li>${esc(i)}</li>`).join('')}</ul></div>`).join('')}</div></details></div>`;
+}
+function checkVersion(){let last=null;try{last=localStorage.getItem('masareef:ver')}catch(e){}
+  if(last&&last!==APP_VERSION){S.showNew=true;setTimeout(()=>toast('تم التحديث إلى الإصدار '+APP_VERSION+'. اطّلع على الجديد في التقارير'),600)}
+  try{localStorage.setItem('masareef:ver',APP_VERSION)}catch(e){}}
+
+checkVersion();cacheLoad();render();Sync.start();
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
-if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))}
+if('serviceWorker' in navigator&&location.protocol!=='file:'){const hadCtl=!!navigator.serviceWorker.controller;let reloaded=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{if(hadCtl&&!reloaded){reloaded=true;location.reload()}});
+  window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').then(r=>r.update()).catch(()=>{}))}
 })();
