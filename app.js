@@ -80,7 +80,7 @@ function amtH(v){return money(v)+'<small class="cur"> '+CUR+'</small>'}
 function amtIn(v){const n=r3(Number(v)||0);return Math.abs(n-Math.round(n))<0.0005?String(Math.round(n)):n.toFixed(3)}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 /* قراءة المبالغ: تقبل الأرقام العربية، والفاصلة العشرية العربية، وفاصل الآلاف مثل 1,636.000 */
-function parseAmt(s){s=String(s||'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[٬\s]/g,m=>m==='٬'?',':'').replace(/ر\.ع\.?/g,'');
+function parseAmt(s){s=String(s||'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/٫/g,'.').replace(/[٬\s]/g,m=>m==='٬'?',':'').replace(/ر\.ع\.?|OMR|RO/gi,'');
   if(/^\d{1,3}(,\d{3})+(\.\d*)?$/.test(s))s=s.replace(/,/g,'');
   s=s.replace(/[٫,،]/g,'.').replace(/[^\d.]/g,'');const i=s.indexOf('.');if(i>=0)s=s.slice(0,i+1)+s.slice(i+1).replace(/\./g,'');
   const n=parseFloat(s);return isFinite(n)?r3(n):0}
@@ -248,6 +248,24 @@ async function openDataCenter(){const L=document.getElementById('layer');L.inner
     if(x.dataset.snaprest){const s=(await snapList()).find(y=>y.id===x.dataset.snaprest);if(s)openRestore(s.data,'لقطة '+fmtD(s.at.slice(0,10)));return}}}
 async function saveBackupFile(){const r=await shareFile('idarat-shuooni-backup-'+today()+'.json',backupText(),'application/json');
   if(r!=='cancel'){try{localStorage.setItem('masareef:lastBackup',today())}catch(e){}toast(r==='shared'?'اختر «حفظ في الملفات» أو iCloud Drive لحفظ النسخة':'حُفظت النسخة الاحتياطية في الملفات')}}
+
+
+/* أسماء الخانات: الاسم القصير ثابت، والطويل يتحرك تلقائيًا ليظهر كاملًا */
+const MQ_SEL=['.tile>b','.tx .t>b','.ghead b','.hp-main>b','.wd-main>b','.alertrow b','.folder>b','.qbtn .qn','.hstat b','.recrow>div>b','.dbsec>div>b','.dgcell>span','.apvrow b','.filerow>span','.dbsnap b','.dghead>b','.cardocs b'].join(',');
+const MQ_RM=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+function fitLabels(root){if(MQ_RM)return;(root||document).querySelectorAll(MQ_SEL).forEach(el=>{if(el.closest('.gm,.paperwrap,#printArea'))return;
+  if(el.dataset.mq==='1'&&el.firstElementChild&&el.firstElementChild.classList.contains('mq-in')){mqMeasure(el);return}
+  if(el.dataset.mq||el.querySelector('br,.meter,.pill'))return;if(!el.clientWidth)return;
+  el.classList.add('mq-on');const over=el.scrollWidth-el.clientWidth;el.dataset.mq='1';
+  if(over<=2){return}
+  const inn=document.createElement('span');inn.className='mq-in';while(el.firstChild)inn.appendChild(el.firstChild);el.appendChild(inn);mqMeasure(el)})}
+function mqMeasure(el){const inn=el.firstElementChild;const d=inn.scrollWidth-el.clientWidth;
+  if(d<=2){el.classList.remove('mq-run');inn.style.removeProperty('--mq-d');return}
+  el.classList.add('mq-run');inn.style.setProperty('--mq-d',(d+6)+'px');inn.style.setProperty('--mq-t',Math.max(5,(d+6)/22+3).toFixed(1)+'s')}
+let mqT;function fitSoon(){clearTimeout(mqT);mqT=setTimeout(()=>fitLabels(),60)}
+try{new MutationObserver(fitSoon).observe(document.body,{childList:true,subtree:true})}catch(e){}
+window.addEventListener('resize',()=>{document.querySelectorAll('[data-mq]').forEach(el=>{if(!el.querySelector('.mq-in'))delete el.dataset.mq});fitSoon()});
+document.addEventListener('toggle',fitSoon,true);
 
 let tt;function toast(msg,undo,dur){let el=document.querySelector('.toast');if(!el){el=document.createElement('div');el.className='toast';el.setAttribute('role','status');document.body.appendChild(el)}el.innerHTML='';const s=document.createElement('span');s.textContent=msg;el.appendChild(s);if(undo){const b=document.createElement('button');b.textContent='تراجع';b.onclick=()=>{el.hidden=true;undo()};el.appendChild(b)}el.hidden=false;clearTimeout(tt);tt=setTimeout(()=>el.hidden=true,dur||(undo?6000:2600))}
 
@@ -639,12 +657,14 @@ function txRow(t){const c=catOf(t.cat);const cls=t.type==='inc'?'amt-inc':'amt-e
   <span class="num ${cls}">${t.type==='inc'?'+':'−'}${amtH(t.amount)}</span></button>`}
 
 function vHome(){
-  const m=S.month,a=inMonth(m),inc=sum(a,'inc'),exp=sum(a,'exp'),left=inc-exp;
+  const m=S.month,pc=m===ym(new Date())?payCycle():null,a=pc?inRange(pc.start,pc.end):inMonth(m),inc=sum(a,'inc'),exp=sum(a,'exp'),left=inc-exp;
+  const lastInc=!pc&&!inc?list().filter(t=>t.type==='inc'&&t.date<m+'-01'&&t.date>=shiftMonth(m,-1)+'-15').sort((x,y)=>y.date.localeCompare(x.date))[0]:null;
   const recent=a.slice().sort((x,y)=>(y.date+y.createdAt).localeCompare(x.date+x.createdAt)).slice(0,5);
   const empty=!list().length?`<div class="panel empty"><b>ابدأ بتسجيل أول عملية</b>اضغط زر + في الأسفل وسجّل راتبك أو أول مصروف. يمكنك أيضًا تجربة التطبيق ببيانات مثال ثم حذفها.<div style="margin-top:14px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button class="btn" data-open-add>إضافة عملية</button><button class="btn ghost" id="loadSample">تجربة ببيانات مثال</button></div></div>`:'';
-  return `${duaTickerHtml()}${spiritHtml('top')}<section class="hero"><div class="lbl">المتبقي في ${esc(MONTHS[+m.slice(5)-1])}</div>
+  return `${duaTickerHtml()}${spiritHtml('top')}<section class="hero"><div class="lbl">${pc?'المتبقي من راتب هذه الدورة':'المتبقي في '+esc(MONTHS[+m.slice(5)-1])}</div>
    <div class="big"><span class="num">${left<0?'−':''}${money(Math.abs(left))}</span> <small>${CUR}</small></div>
-   <div class="row"><div class="cell"><span><span class="ar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 7 7 17M7 9v8h8"/></svg></span>الدخل</span><b class="num">${amtH(inc)}</b></div><div class="cell"><span><span class="ar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></span>المصاريف</span><b class="num">${amtH(exp)}</b></div></div></section>${todayHtml()}
+   <div class="row"><div class="cell"><span><span class="ar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 7 7 17M7 9v8h8"/></svg></span>الدخل</span><b class="num">${amtH(inc)}</b></div><div class="cell"><span><span class="ar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></span>المصاريف</span><b class="num">${amtH(exp)}</b></div></div>${pc?`<div class="lbl" style="margin-top:10px;font-size:12.5px">دورة الراتب: ${fmtD(pc.start)} – ${fmtD(pc.end)}</div>`:''}</section>
+   ${lastInc?`<div class="infobox"><span>💡 آخر دخل «${esc(lastInc.note||catOf(lastInc.cat).n)}» <b class="num">${amtH(lastInc.amount)}</b> مسجّل بتاريخ ${fmtD(lastInc.date)}، فيُحسب في شهر ${esc(MONTHS[+lastInc.date.slice(5,7)-1])}. حدّد يوم نزول الراتب ليُحسب دخلك ومصاريفك من يوم نزوله.</span><button class="chip pay" data-dayplan="pay">حدّد يوم الراتب</button></div>`:''}${todayHtml()}
    ${pendHtml()||billAlertsHtml()||trustAlertsHtml()||carAlertsHtml()||docAlertsHtml()?'<div style="margin-top:14px">'+pendHtml()+billAlertsHtml()+trustAlertsHtml()+carAlertsHtml()+docAlertsHtml()+'</div>':''}${spiritHtml('mid')}${widgetNudgeHtml()}${empty}${advHomeHtml()}${quickHtml()}${plansHomeHtml()}${repHomeHtml()}<h2>أقسامي</h2>${dashHtml()}
    ${recent.length?`<h2>آخر العمليات</h2><div class="panel" style="padding:6px 10px">${recent.map(txRow).join('')}</div><div style="margin-top:8px"><button class="chip" data-tab="log">عرض كل العمليات</button></div>`:''}${debtHomeHtml()}${spiritHtml('bottom')}`;
 }
@@ -2525,6 +2545,13 @@ function pickMerchant(t){
     if(v.length>=2&&!/account|a\/c|acct|card|حساب|بطاقت|your|customer|عميل|xx/i.test(v)&&!/^\d/.test(v))return v}}
   return '';
 }
+/* اتجاه العملية: إيداع (دخل) أو خصم (مصروف)، بموازنة كلمات الإيداع والخصم في الرسالة */
+const SMS_CR=[[/\bcredited\b/i,2],[/\bcredit(?:ed)?\s+(?:to|in|into)\b/i,2],[/\bdeposit/i,2],[/\breceived\b/i,2],[/\bincoming\b/i,2],[/\breversal\b/i,1],[/\bCr\.?(?=\s|$|[,:])/,1],
+  [/(?:to|into|in)\s+your\s+(?:a\/c|acc|acct|account)/i,2],[/إيداع|ايداع|أودع|اودع|أُودع/,2],[/إضافة|اضافة|أضيف|اضيف|أُضيف/,1],[/استلام|استلمت|وارد/,2],[/(?:إلى|الى|في|لـ|ل)\s*حسابك/,2],[/دائن/,1]];
+const SMS_DR=[[/\bdebited\b/i,2],[/\bdebit\b/i,1],[/\bpurchase/i,2],[/\bspent\b/i,2],[/\bwithdraw/i,2],[/\bpaid\b/i,1],[/\bpayment\b/i,1],[/\bPOS\b/,2],[/\bDr\.?(?=\s|$|[,:])/,1],
+  [/from\s+your\s+(?:a\/c|acc|acct|account|card)/i,2],[/خصم|مخصوم/,2],[/شراء|مشتريات/,2],[/سحب/,2],[/\bدفع|سداد/,1],[/من\s*(?:حسابك|بطاقتك)/,2],[/مدين/,1]];
+function smsDirection(t){if(/salary|payroll|راتب|رواتب|refund|استرداد|مسترد/i.test(t))return 'inc';
+  const sc=L=>L.reduce((s,[r,w])=>s+(r.test(t)?w:0),0);const c=sc(SMS_CR),d=sc(SMS_DR);return c>d?'inc':'exp'}
 function parseSms(raw){
   const t=normDigits(raw).replace(/‏|‎/g,'');
   const key=hashStr(t);
@@ -2536,9 +2563,7 @@ function parseSms(raw){
     amount=parseFloat((m[1]||m[2]).replace(/,/g,''));if(amount)break}
   if(!amount){const f=t.match(/(?:amount|amt|مبلغ|بمبلغ)\s*:?\s*([0-9][0-9,]*\.[0-9]{1,3})/i)||t.match(/\b([0-9][0-9,]*\.[0-9]{3})\b/);if(f)amount=parseFloat(f[1].replace(/,/g,''))}
   if(!amount)return Object.assign(base,{reason:'لم أجد مبلغًا في الرسالة'});
-  const isDebit=/debit|purchase|spent|withdraw|paid|payment|\bPOS\b|خصم|شراء|سحب|دفع|مشتريات/i.test(t);
-  const isCredit=/\bcredited\b|deposit|received|salary|payroll|refund|reversal|إيداع|ايداع|إضافة|اضافة|أضيف|اضيف|استلام|راتب|استرداد|مسترد|حوالة واردة|تحويل وارد/i.test(t);
-  const type=isCredit&&!(isDebit&&!/salary|راتب|refund|استرداد/i.test(t))?'inc':'exp';
+  const type=smsDirection(t);
   const atm=/\bATM\b|صراف|cash withdrawal|سحب نقدي/i.test(t);
   const method=atm?'cash':(type==='inc'||/transfer|تحويل|حوالة/i.test(t))?'transfer':'card';
   let merchant=atm?'':pickMerchant(t);
@@ -2588,7 +2613,8 @@ function openImport(){
         <input class="inp num" data-i="${i}" data-f="amount" inputmode="decimal" value="${esc(it.amount)}" aria-label="المبلغ" style="text-align:left"></div>
         <div class="row2"><select class="inp" data-i="${i}" data-f="cat" aria-label="الفئة">${cats.map(c=>`<option value="${c.id}" ${it.cat===c.id?'selected':''}>${esc(c.n)}</option>`).join('')}</select>
         <input class="inp" type="date" data-i="${i}" data-f="date" value="${esc(it.date)}" aria-label="التاريخ"></div>
-        <input class="inp" data-i="${i}" data-f="note" value="${esc(it.note)}" placeholder="ملاحظة" aria-label="ملاحظة" maxlength="80"></div>`}).join('')+
+        <input class="inp" data-i="${i}" data-f="note" value="${esc(it.note)}" placeholder="ملاحظة" aria-label="ملاحظة" maxlength="80">
+        ${it.date&&it.date.slice(0,7)!==ym(new Date())?`<div class="note impwarn">تاريخها ${fmtD(it.date)}، فتُحسب في شهر ${esc(monthName(it.date.slice(0,7)))}. عدّل التاريخ إن كان غير صحيح.</div>`:''}</div>`}).join('')+
     `<button class="btn block" id="iAdd">إضافة العمليات المحددة</button><button class="btn ghost block" id="iBack">رجوع للصق رسائل أخرى</button></div>`};
   const draw=()=>{L.innerHTML=`${sheetTop('استيراد من رسائل البنك')}
     <h2 style="margin-top:0">استيراد من رسائل البنك</h2>${IMP.items.length?itemsHtml():pasteHtml()}</div></div>`};
@@ -2603,14 +2629,15 @@ function openImport(){
     if(x.id==='iParse'){const v=(document.getElementById('iTxt').value||'').trim();IMP.text=v;
       if(!v){const er=document.getElementById('iErr');er.hidden=false;er.textContent='الصق رسالة البنك أولًا';return}
       IMP.items=splitMsgs(v).map(parseSms);draw();return}
-    if(x.id==='iAdd'){let n=0;const mc=Object.assign({},S.settings.merchantCats||{});
+    if(x.id==='iAdd'){let n=0;const IMP_added=[];const mc=Object.assign({},S.settings.merchantCats||{});
       for(const it of IMP.items){if(!it.ok||!it.on)continue;const amt=parseAmt(it.amount);if(!amt)continue;
         const rec={id:uidGen(),type:it.type,amount:amt,cat:it.cat,date:it.date||today(),method:it.method,note:(it.note||'').trim(),createdAt:new Date().toISOString(),src:it.key};
         if(it.merchant)mc[mkey(it.merchant)]=it.cat;
-        await putTx(rec);n++}
+        await putTx(rec);IMP_added.push(rec.date);n++}
       S.settings.merchantCats=mc;putSettings();
       L.innerHTML='';L.onchange=L.oninput=null;IMP={text:'',items:[]};
-      toast(n?'أُضيفت '+n+' عملية':'لم تُحدَّد أي عملية');return}
+      const mons=[...new Set(IMP_added.map(d=>d.slice(0,7)))];
+      toast(n?'أُضيفت '+countWord(n,'عملية واحدة','عمليتان','عمليات','عملية')+(mons.length===1&&mons[0]!==ym(new Date())?' في شهر '+monthName(mons[0]):mons.length>1?' في '+mons.map(monthName).join(' و'):''):'لم تُحدَّد أي عملية',null,5000);return}
   };
   draw();
 }
@@ -2726,8 +2753,10 @@ function openLook(){const L=document.getElementById('layer');
 
 /* ---------- 24. الإصدار وما الجديد ---------- */
 const DEV={name:'ماجد الرميمي',title:'مهندس ومطور تقنية معلومات',country:'سلطنة عُمان',phone:'95134234',intl:'96895134234'};
-const APP_VERSION='2.15.0';
+const APP_VERSION='2.16.0';
 const CHANGELOG=[
+ {v:'2.16.0',d:'2026-10-14',items:['إصلاح: رسائل التحويل الواردة (مثل «تم تحويل مبلغ إلى حسابك» و«transferred to your account» و«payment received») كانت تُقرأ مصروفًا، وصارت تُقرأ دخلًا','قراءة اتجاه الرسالة صارت بموازنة كلمات الإيداع والخصم، والراتب والاسترداد دخل دائمًا','إصلاح: المبلغ المكتوب بالأرقام العربية مع الفاصلة العربية (مثل ١٬٢٥٠٫٥٠٠) كان يُقرأ خطأ، وصار يُقرأ 1,250.5','عند تحديد يوم الراتب: الرئيسية تعرض دخل ومصاريف دورة الراتب الحالية (من يوم نزوله) بدل الشهر الميلادي','تنبيه في الرئيسية إذا كان الراتب مسجّلًا في آخر الشهر السابق، مع زر «حدّد يوم الراتب»','عند استيراد رسالة بتاريخ شهر آخر يظهر تنبيه بالشهر الذي ستُحسب فيه']},
+ {v:'2.15.1',d:'2026-10-14',items:['أسماء الخانات الطويلة تتحرك تلقائيًا ذهابًا وإيابًا لتظهر كاملة، والقصيرة تبقى ثابتة','يشمل: أقسام الرئيسية، العمليات، الالتزامات، الديون، الخطط، التنبيهات، المستندات، وغيرها']},
  {v:'2.15.0',d:'2026-10-14',items:['زر سورة الملك وبجانبه «أذكار الصباح والمساء» تحت شريط الأدعية مباشرة، مع خيار المكان: تحت الشريط، بعد التنبيهات، أسفل الرئيسية، أو مخفي (من وضع المدير)','بعد السورة قسم «🤲 أدعية طلب الرزق والبركة»: آيات الرزق والتيسير من المصحف، وأدعية قضاء الدين والهم والكرب من حصن المسلم، ويعدّلها المدير','أذكار الصباح والمساء من حصن المسلم مع عدّاد لكل ذكر بالضغط، ويختار الصباح أو المساء حسب الوقت','قسم الأدعية في قسم الديون صار شريطًا متحركًا مثل الرئيسية، وتعديله من وضع المدير','خط Amiri Quran المخصص للمصحف داخل التطبيق ليظهر الرسم العثماني بعلاماته كاملة وبدون إنترنت','التحقق من نص السورة بمقارنته حرفًا حرفًا مع مصحف مجمع الملك فهد (حفص) ومصادر أخرى']},
  {v:'2.14.0',d:'2026-10-14',items:['شريط متحرك في أعلى الرئيسية بأدعية التيسير وقضاء الدين من خانة «تذكير»، يتوقف عند لمسه، وبالضغط تقرؤها كاملة بخط كبير','زر «📖 سورة الملك» في الرئيسية: قارئ مريح بخط كبير قابل للتكبير، والشاشة لا تنطفئ أثناء القراءة','«أتممت القراءة» يسجّل الليلة ويعرض عدد الليالي المتتالية','نص السورة من مشروع تنزيل الموثوق، بالرسم الإملائي أو العثماني','إعدادات الزر (الاسم، الظهور، الرسم، ملاحظة بعد القراءة) من وضع المدير فقط']},
  {v:'2.13.0',d:'2026-10-14',items:['قاعدة بيانات داخلية ثانية مقسّمة: كل عملية سجل مستقل، وكل قسم (الديون، الالتزامات، الخطط، الأمانات، السيارات، الأهل) في خانة مستقلة، تُحدَّث تلقائيًا بعد كل حفظ','استعادة تلقائية من قاعدة البيانات الداخلية إذا تلفت ذاكرة التطبيق أو فرغت','لقطات تلقائية: يومية لآخر 14 يومًا، وقبل كل تحديث أو استعادة أو حذف شامل، مع استعادتها أو حفظها كملف','«🗄️ قاعدة البيانات» في التقارير: أين تُحفظ بياناتك، عدد السجلات في كل قسم، فحص السلامة، بصمة البيانات، والتصدير لكل قسم','نسخة احتياطية جديدة مقسّمة إلى أقسام واضحة مع عدد السجلات وبصمة تتحقق من سلامة الملف','الاستعادة صارت بمعاينة: تقارن ما في الملف بما عندك، وتختار استبدالًا كاملًا أو دمجًا، مع «تراجع»']},

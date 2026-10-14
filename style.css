@@ -470,6 +470,16 @@ body:has(.sheet) .toast{bottom:auto;top:calc(12px + env(safe-area-inset-top,0px)
 .dnote-tk{display:flex;align-items:center;gap:8px;margin-top:12px}
 .dnote-tk .ticker{margin:0;flex:1;min-width:0}
 .dnote-tk .chip{flex:none;white-space:nowrap}
+/* الأسماء الطويلة المتحركة */
+.mq-on{white-space:nowrap!important;overflow:hidden!important;text-overflow:clip!important;max-width:100%;min-width:0}
+.tile>.mq-on{align-self:stretch}
+.mq-in{display:inline-block;white-space:nowrap}
+.mq-run .mq-in{animation:mqMove var(--mq-t,6s) ease-in-out 1.2s infinite alternate;will-change:transform}
+.mq-run{-webkit-mask-image:linear-gradient(to left,transparent,#000 8px,#000 calc(100% - 12px),transparent);mask-image:linear-gradient(to left,transparent,#000 8px,#000 calc(100% - 12px),transparent)}
+@keyframes mqMove{0%,18%{transform:translateX(0)}82%,100%{transform:translateX(var(--mq-d,0))}}
+.infobox{display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--surface);font-size:13px;line-height:1.7}
+.infobox .chip{flex:none}
+.impwarn{color:#B07A12;margin:2px 2px 0}
 .duaread p{margin:0;padding:14px 4px;border-bottom:1px dashed #D9C98F;text-align:center;font-size:19px;line-height:2;white-space:pre-line}
 .plangrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .pt{border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:12px;display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:right;box-shadow:var(--shadow)}
