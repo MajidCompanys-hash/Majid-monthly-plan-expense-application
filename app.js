@@ -30,8 +30,9 @@
  *  25. بيانات المثال
  *  26. التقارير: الطباعة وPDF وExcel / Numbers
  *  27. ويدجت الآيفون والماك
- *  28. الأحداث (الضغط والكتابة)
- *  29. التشغيل
+ *  28. أدوات احترافية: الحسابات، الراتب المتوقع، التوقعات، القفل، التقويم، الزكاة
+ *  29. الأحداث (الضغط والكتابة)
+ *  30. التشغيل
  * ========================================================================== */
 'use strict';
 (function(){
@@ -177,7 +178,7 @@ async function applyBackup(B,mode){const now=Date.now();
   S.settings=mode==='replace'?Object.assign({},B.settings):Object.assign({},S.settings,B.settings,(()=>{const o={};DATA_SECS.forEach(([k])=>{const a=S.settings[k]||[],b=B.settings[k]||[];const m=new Map(a.map(x=>[x.id,x]));b.forEach(x=>m.set(x.id,x));o[k]=[...m.values()]});return o})());
   S.settings._u=now;cacheSave();migrateRecs();render();Sync.soon()}
 /* نافذة الاستعادة: معاينة ما في الملف ومقارنته بما عندك قبل أي تغيير */
-function openRestore(txt,label){const L=document.getElementById('layer');const B=parseBackup(txt);if(B.err){toast(B.err);return}let mode='replace';
+function openRestore(txt,label){try{const o=JSON.parse(txt);if(o&&o.app==='masareef'&&o.enc){openDecrypt(o,label);return}}catch(e){}const L=document.getElementById('layer');const B=parseBackup(txt);if(B.err){toast(B.err);return}let mode='replace';
   const cur=dataCounts(),nw=Object.assign(dataCounts(B.settings),{tx:B.tx.length,inc:B.tx.filter(t=>t.type==='inc').length,exp:B.tx.filter(t=>t.type==='exp').length});
   const rows=[['العمليات','tx'],['الديون','debts'],['دفعات الديون','debtPays'],['الالتزامات الشهرية','recurring'],['الخطط','goals'],['الأمانات','trusts'],['السيارات','cars'],['الأهل','people']];
   const draw=()=>{L.innerHTML=`${sheetTop('استعادة')}<h2 style="margin-top:0">استعادة ${esc(label||'نسخة احتياطية')}</h2>
@@ -232,15 +233,18 @@ async function openDataCenter(){const L=document.getElementById('layer');L.inner
     <button class="btn ghost block" id="snapNow" style="margin-top:8px">أخذ لقطة الآن</button></div>
    <h3>الحفظ والاستخراج</h3><div class="stack">
     <button class="btn block" id="dcBackup">💾 حفظ نسخة احتياطية كاملة (ملف)</button>
+    <button class="btn ghost block" id="dcEnc">🔐 نسخة احتياطية مشفّرة بكلمة سر</button>
+    <div class="panel storbox" id="dcStor"></div>
     <label class="btn ghost block" for="restoreFile2" id="dcRestoreLbl" style="text-align:center;cursor:pointer">📂 استعادة من ملف نسخة احتياطية</label><input type="file" id="restoreFile2" accept=".json,application/json" hidden>
     <div class="row2"><button class="btn ghost" id="dcXlsx">📊 Excel / Numbers</button><button class="btn ghost" id="dcPrint">🖨️ طباعة / PDF</button></div></div>
    <p class="note">بياناتك لا تغادر هاتفك إلا إلى ملف تحفظه أنت، أو إلى Google Drive الخاص بك إن ربطته.</p>
    <div class="actions"><button class="btn ghost block" data-close>إغلاق</button></div></div></div>`};
-  draw();L.oninput=null;
+  draw();fillStorage(document.getElementById('dcStor'));L.oninput=null;
   L.onchange=e=>{if(e.target.id==='restoreFile2'&&e.target.files[0]){const r=new FileReader();r.onload=()=>openRestore(r.result,'من ملف');r.readAsText(e.target.files[0]);e.target.value=''}};
   L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
     if(x.id==='dcBackup'){await saveBackupFile();openDataCenter();return}
     if(x.id==='dcXlsx'){openExport();return}
+    if(x.id==='dcEnc'){openEncBackup();return}
     if(x.id==='dcPrint'){openPrintSheet('full');return}
     if(x.id==='snapNow'){x.disabled=true;await snapTake('لقطة يدوية');toast('أُخذت لقطة من بياناتك');openDataCenter();return}
     if(x.dataset.dbx){const m={tx:['summary','tx'],debts:['summary','debts'],monthly:['monthly'],plans:['plans'],trusts:['trusts']}[x.dataset.dbx];exportXlsx(m,'all');return}
@@ -321,6 +325,9 @@ const TI={
  docs:CI.idcard,
  widget:'<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="18" height="8" rx="2"/>',
  trust:'<path d="M3 13h3l3 2h4a1.5 1.5 0 0 1 0 3H9"/><path d="M13 18l5-2.5a1.6 1.6 0 0 1 2 2.4L14 21H8l-5-2"/><circle cx="15" cy="7" r="3"/>',
+ acc:'<rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18M16 15h2"/><path d="M6 6l9-3 1.5 3"/>',
+ zakat:'<path d="M12 3l8 4v2H4V7z"/><path d="M6 9v8M10 9v8M14 9v8M18 9v8M3 20h18"/>',
+ cal:CI.calendar,
  adv:'<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0 0 12 3z"/>'
 };
 function tile(o){return `<button class="tile${o.st?' '+o.st:''}" ${o.attr}><span class="ti" style="background:${o.c}22;color:${o.c}">${svgI(TI[o.i])}</span><b>${o.t}</b><small>${o.s}</small></button>`}
@@ -339,6 +346,9 @@ function dashHtml(){
   const B=+S.settings.monthlyBudget||0;let bs='حدّد سقفًا شهريًا لمصاريفك',bst='';
   if(B){const d=new Date();const dl=new Date(d.getFullYear(),d.getMonth()+1,0).getDate()-d.getDate()+1;bs=exp>B?'تجاوزت بـ <span class="num">'+amtH(exp-B)+'</span>':'صرفت '+Math.round(exp/B*100)+'%'+(m===ym(d)?' · يوميًا <span class="num">'+amtH(dailyPlan().daily)+'</span>':'');bst=exp>B?'alert':''}
   T.push({i:'budget',c:'#B0662F',attr:'data-tab="budget"',t:'الميزانية',st:bst,s:bs});
+  {const AT=accTotals();T.push({i:'acc',c:'#1F6B55',attr:'data-accopen="1"',t:'حساباتي',s:AT.known?'مجموع أرصدتك <span class="num">'+amtH(AT.total)+'</span>':'أرصدة الجاري والكاش والبطاقات، والتحويل بينها'})}
+  T.push({i:'cal',c:'#C9881E',attr:'data-paycal="1"',t:'تقويم المدفوعات',s:'مواعيد الفواتير والأقساط والراتب والخطط'});
+  T.push({i:'zakat',c:'#2E8B72',attr:'data-zakat="1"',t:'حاسبة الزكاة',s:S.settings.zakat&&S.settings.zakat.hawl?'الحول '+fmtD(addDays(S.settings.zakat.hawl,354)):'احسب زكاة مالك بدقة'});
   T.push({i:'sms',c:'#7A6CC0',attr:'id="openImp2"',t:'رسائل البنك',s:'الصق رسالة الخصم لتسجيلها'});
   {const at=widgetAt();T.push({i:'widget',c:'#1F5AA6',attr:'data-wopen="1"',t:'ويدجت الآيفون والماك',st:at&&dataChangedAt()>at?'alert':'',s:at?(dataChangedAt()>at?'بياناته قديمة، حدّثها':'حُدّث '+fmtD(isoD(new Date(at)))):'ملخصك على الشاشة الرئيسية وسطح المكتب'})}
   return `<div class="dash">${T.map(tile).join('')}</div>`;
@@ -377,6 +387,7 @@ function advPriorities(c){const P=[];const add=(w,ic,t,s,act,kind)=>P.push({w,ic
   if(c.prev.length){const avg={};c.prev.forEach(x=>x.filter(t=>t.type==='exp').forEach(t=>avg[t.cat]=(avg[t.cat]||0)+(+t.amount)/c.prev.length));const now={};c.a.filter(t=>t.type==='exp').forEach(t=>now[t.cat]=(now[t.cat]||0)+(+t.amount));
     Object.entries(now).filter(([k,v])=>avg[k]&&v>avg[k]*1.4&&v-avg[k]>=10).sort((x,y)=>(y[1]-avg[y[0]])-(x[1]-avg[x[0]])).slice(0,2).forEach(([k,v])=>add(50,'up','صرفك على «'+esc(catOf(k).n)+'» ارتفع','هذا الشهر <b class="num">'+amtH(v)+'</b> ومعدلك <b class="num">'+amtH(avg[k])+'</b> (أعلى بـ <span dir="ltr">'+Math.round((v/avg[k]-1)*100)+'%</span>).',['السجل','data-tab="log"']))}
   if(!c.inc&&c.day>=7&&c.avgInc>0)add(45,'bulb','لم تسجّل دخل هذا الشهر','سجّل راتبك ليكون التحليل دقيقًا.',['سجّل الدخل','data-advinc="1"']);
+  proAdvice(add);
   return P.sort((a,b)=>b.w-a.w)}
 function advChecklist(c){const L=[];const add=(done,t,s,act)=>L.push({done:!!done,t,s,act});const has=k=>c.G.some(x=>x.g.kind===k);
   const em=c.G.find(x=>x.g.kind==='emergency');
@@ -653,7 +664,7 @@ function repHomeHtml(){if(!list().length)return '';
 /* ---------- 8. الشاشات: الرئيسية، السجل، الميزانية، التقارير ---------- */
 function txRow(t){const c=catOf(t.cat);const cls=t.type==='inc'?'amt-inc':'amt-exp';
   return `<button class="tx" data-edit="${esc(t.id)}"><span class="ic" style="background:${c.c}1f;color:${c.c}">${catIcon(t.cat)}</span>
-  <span class="t"><b>${esc(t.note||c.n)}</b><small>${esc(c.n)} · ${esc((METHODS.find(m=>m[0]===t.method)||['',''])[1])}${t.person?' · لـ'+esc(personName(t.person)):''}${t.sample?' · مثال':''}${t.pend?' · <span class="pendtag">⏳ بانتظار الاعتماد</span>':''}</small></span>
+  <span class="t"><b>${esc(t.note||c.n)}</b><small>${esc(c.n)} · ${esc((METHODS.find(m=>m[0]===t.method)||['',''])[1])}${t.person?' · لـ'+esc(personName(t.person)):''}${t.sample?' · مثال':''}${t.pend?' · <span class="pendtag">⏳ بانتظار الاعتماد</span>':''}${Vault.docs.some(d=>d.tx===t.id)?' · 📎':''}${t.acc&&t.acc!=='main'&&t.acc!=='cash'?' · '+esc(accName(t.acc)):''}</small></span>
   <span class="num ${cls}">${t.type==='inc'?'+':'−'}${amtH(t.amount)}</span></button>`}
 
 function vHome(){
@@ -664,7 +675,7 @@ function vHome(){
   return `${duaTickerHtml()}${spiritHtml('top')}<section class="hero"><div class="lbl">${pc?'المتبقي من راتب هذه الدورة':'المتبقي في '+esc(MONTHS[+m.slice(5)-1])}</div>
    <div class="big"><span class="num">${left<0?'−':''}${money(Math.abs(left))}</span> <small>${CUR}</small></div>
    <div class="row"><div class="cell"><span><span class="ar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 7 7 17M7 9v8h8"/></svg></span>الدخل</span><b class="num">${amtH(inc)}</b></div><div class="cell"><span><span class="ar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></span>المصاريف</span><b class="num">${amtH(exp)}</b></div></div>${pc?`<div class="lbl" style="margin-top:10px;font-size:12.5px">دورة الراتب: ${fmtD(pc.start)} – ${fmtD(pc.end)}</div>`:''}</section>
-   ${lastInc?`<div class="infobox"><span>💡 آخر دخل «${esc(lastInc.note||catOf(lastInc.cat).n)}» <b class="num">${amtH(lastInc.amount)}</b> مسجّل بتاريخ ${fmtD(lastInc.date)}، فيُحسب في شهر ${esc(MONTHS[+lastInc.date.slice(5,7)-1])}. حدّد يوم نزول الراتب ليُحسب دخلك ومصاريفك من يوم نزوله.</span><button class="chip pay" data-dayplan="pay">حدّد يوم الراتب</button></div>`:''}${todayHtml()}
+   ${salaryDueHtml()}${backupNudgeHtml()}${lastInc?`<div class="infobox"><span>💡 آخر دخل «${esc(lastInc.note||catOf(lastInc.cat).n)}» <b class="num">${amtH(lastInc.amount)}</b> مسجّل بتاريخ ${fmtD(lastInc.date)}، فيُحسب في شهر ${esc(MONTHS[+lastInc.date.slice(5,7)-1])}. حدّد يوم نزول الراتب ليُحسب دخلك ومصاريفك من يوم نزوله.</span><button class="chip pay" data-dayplan="pay">حدّد يوم الراتب</button></div>`:''}${todayHtml()}
    ${pendHtml()||billAlertsHtml()||trustAlertsHtml()||carAlertsHtml()||docAlertsHtml()?'<div style="margin-top:14px">'+pendHtml()+billAlertsHtml()+trustAlertsHtml()+carAlertsHtml()+docAlertsHtml()+'</div>':''}${spiritHtml('mid')}${widgetNudgeHtml()}${empty}${advHomeHtml()}${quickHtml()}${plansHomeHtml()}${repHomeHtml()}<h2>أقسامي</h2>${dashHtml()}
    ${recent.length?`<h2>آخر العمليات</h2><div class="panel" style="padding:6px 10px">${recent.map(txRow).join('')}</div><div style="margin-top:8px"><button class="chip" data-tab="log">عرض كل العمليات</button></div>`:''}${debtHomeHtml()}${spiritHtml('bottom')}`;
 }
@@ -700,10 +711,11 @@ function vReports(){const seg=`<div class="row2" style="margin-bottom:12px"><but
   const mm=vReportsMonth();const i=mm.indexOf('<h2>بياناتك</h2>');
   return seg+(S.rmode==='year'?vYear():mm.slice(0,i)+reportsMonthExtras())+mm.slice(i)+versionHtml()}
 function vReportsMonth(){
-  return `<h2 style="margin-top:4px">آخر ستة أشهر</h2><div class="panel">${trendChart(S.month)}</div>
-  <h2>ملخص ${esc(monthName(S.month))}</h2>${monthStatsHtml(S.month)}${catBreakdownHtml(S.month)}
+  return `${S.month===ym(new Date())?forecastHtml():''}<h2 style="margin-top:4px">آخر ستة أشهر</h2><div class="panel">${trendChart(S.month)}</div>
+  <h2>ملخص ${esc(monthName(S.month))}</h2>${monthStatsHtml(S.month)}${catBreakdownHtml(S.month)}${yearCmpHtml(S.month)}${catTrendHtml(S.month)}
   <h2>بياناتك</h2>${syncHtml()}
   <div class="panel stack">
+   <div class="storbox" id="storBox"><div class="sumrow"><span>المساحة المستخدمة على جهازك</span><b class="note">جارٍ الحساب…</b></div></div>
    <button class="btn block" id="dbOpen">🗄️ قاعدة البيانات: الحفظ والفحص والاستعادة</button>
    <button class="btn ghost block" id="expOpen">تصدير Excel / Numbers / PDF</button>
    <button class="btn ghost block" id="csvBtn" data-x="1">${S.rmode==='year'?'تنزيل عمليات السنة كملف Excel (CSV)':'تنزيل عمليات الشهر كملف Excel (CSV)'}</button>
@@ -716,6 +728,8 @@ function vReportsMonth(){
      <div class="stack" style="margin-top:10px"><textarea class="inp" id="restoreTxt" placeholder="الصق النسخة الاحتياطية هنا"></textarea><button class="btn ghost" id="restoreBtn">استعادة</button></div></details>
    ${list().some(t=>t.sample)?'<button class="btn ghost block" id="clearSample">حذف بيانات المثال</button>':''}
    ${admHtml()}
+   ${securityHtml()}
+   <button class="btn ghost block" id="scGuide">⚡ تسجيل رسائل البنك تلقائيًا (اختصارات الآيفون)</button>
    <div id="wipeArea"><button class="btn ghost block" id="wipeAsk" style="color:var(--exp)">حذف كل البيانات</button></div>
    <p class="note" style="margin:0">${Sync.linked()?'بياناتك محفوظة في جهازك، وتُنسخ إلى مجلد خفي خاص بالتطبيق في Google Drive الخاص بك فقط. لا يتصل التطبيق بأي جهة غير Google Drive الخاص بك.':'التطبيق لا يتصل بالإنترنت ولا يرسل بياناتك لأي جهة، وكل شيء محفوظ داخل هاتفك فقط. لذلك احفظ نسخة احتياطية كملف بين حين وآخر، لأن حذف التطبيق من الهاتف يحذف بياناته.'}</p>
   </div>`;
@@ -764,7 +778,7 @@ function reportsMonthExtras(){const m=S.month,a=inMonth(m),st=recStatus(m);
   return personSplitHtml(a,'المصاريف حسب الأشخاص')+(st.R.length?`<h2>الالتزامات الشهرية</h2><div class="panel"><div class="sumrow"><span>المدفوع</span><b class="num">${amtH(st.paidAmt)}</b></div><div class="sumrow"><span>عدد المدفوع</span><b>${st.paid.length} من ${st.R.length}</b></div><div class="sumrow"><span>المتوقع شهريًا</span><b class="num">${amtH(st.total)}</b></div></div>`:'')}
 
 /* ---------- 10. العرض ---------- */
-function render(){admChip();
+function render(){admChip();setTimeout(()=>fillStorage(document.getElementById('storBox')),50);
   document.getElementById('mLabel').textContent=monthName(S.month);
   document.getElementById('monthbar').hidden=false;
   const v=document.getElementById('view');
@@ -810,6 +824,8 @@ function openSheet(t,pre){
      <div class="chips" role="group" aria-label="التاريخ" style="align-items:center"><button class="chip" data-dset="${td}" aria-pressed="${t.date===td}">اليوم</button><button class="chip" data-dset="${yd}" aria-pressed="${t.date===yd}">أمس</button><input class="inp" type="date" id="fDate" value="${esc(t.date)}" style="width:auto;flex:1;min-width:130px;padding:6px 10px" aria-label="تاريخ آخر"></div>
      <div class="seg seg3" role="group" aria-label="طريقة الدفع">${METHODS.map(m=>`<button class="n" data-meth="${m[0]}" aria-pressed="${t.method===m[0]}">${m[1]}</button>`).join('')}</div>
      ${t.type==='exp'&&P.length?`<div class="chips" role="group" aria-label="لمن هذا المصروف"><button class="chip" data-person="" aria-pressed="${!t.person}">لي / للبيت</button>${P.map(p=>`<button class="chip" data-person="${esc(p.id)}" aria-pressed="${t.person===p.id}"><span class="dot" style="background:${personColor(p.id)}"></span>${esc(p.name)}</button>`).join('')}</div>`:''}
+     ${accList().length>2?`<div class="chips" role="group" aria-label="الحساب"><span class="note">الحساب:</span>${accList().map(a=>`<button class="chip" data-facc="${esc(a.id)}" aria-pressed="${accOf(t)===a.id}">${esc(a.name)}</button>`).join('')}</div>`:''}
+     ${!isNew?`<div class="chips"><button class="chip" id="fRcpt">📎 إرفاق صورة الإيصال</button>${Vault.docs.filter(d=>d.tx===t.id).map(d=>`<button class="chip" data-frcv="${esc(d.id)}">📎 ${esc(d.title)}</button>`).join('')}</div>`:''}
      <p class="note" id="fErr" hidden style="color:var(--exp);margin:0"></p>
      ${isNew?`<div class="actions"><div class="row2"><button class="btn" id="fSave">حفظ</button><button class="btn ghost" id="fSaveMore">حفظ وإضافة أخرى</button></div>
        <div class="row2"><button class="btn ghost" id="openImp">لصق رسالة البنك</button><button class="btn ghost" data-close>إلغاء</button></div></div>`
@@ -825,7 +841,7 @@ function openSheet(t,pre){
     if(!amt){err.hidden=false;err.textContent='اكتب المبلغ أولًا، مثل 3.500';return}
     if(!t.cat){err.hidden=false;err.textContent='اختر الفئة';return}
     const rec={id:t.id,type:t.type,amount:amt,cat:t.cat,date:t.date||today(),method:t.method,note:(t.note||'').trim(),createdAt:t.createdAt||new Date().toISOString()};
-    if(t.sample)rec.sample=true; if(t.type==='exp'&&t.person)rec.person=t.person; ['rec','src','car','debt','pend','apv'].forEach(k=>{if(t[k])rec[k]=t[k]});
+    if(t.sample)rec.sample=true; if(t.type==='exp'&&t.person)rec.person=t.person; ['rec','src','car','debt','pend','apv','acc'].forEach(k=>{if(t[k])rec[k]=t[k]});
     let setChanged=false;
     if(S.settings.lastMethod!==t.method){S.settings.lastMethod=t.method;setChanged=true}
     if(rec.note&&manualCat){const k=mkey(rec.note);if(k&&(S.settings.merchantCats||{})[k]!==rec.cat){S.settings.merchantCats=Object.assign({},S.settings.merchantCats||{},{[k]:rec.cat});setChanged=true}}
@@ -841,7 +857,10 @@ function openSheet(t,pre){
     if(x.id==='catMore'){grab();showAll=true;draw();return}
     if(x.dataset.cat){t.cat=x.dataset.cat;manualCat=true;press('.cg',b=>b===x);return}
     if(x.dataset.dset){t.date=x.dataset.dset;document.getElementById('fDate').value=t.date;press('[data-dset]',b=>b===x);return}
-    if(x.dataset.meth){t.method=x.dataset.meth;press('[data-meth]',b=>b===x);return}
+    if(x.dataset.meth){t.method=x.dataset.meth;press('[data-meth]',b=>b===x);if(!t.accSet)press('[data-facc]',b=>b.dataset.facc===accOf(t));return}
+    if(x.dataset.facc){t.acc=x.dataset.facc;t.accSet=1;press('[data-facc]',b=>b===x);return}
+    if(x.id==='fRcpt'){const pre={type:'receipt',tx:t.id,title:'إيصال - '+(t.note||catOf(t.cat).n)+' '+fmtD(t.date)};L.innerHTML='';L.oninput=L.onchange=null;withVault(()=>openDoc(null,pre),Vault.cfg?'افتح الخزنة لإرفاق الإيصال':'أنشئ خزنة المستندات أولًا لحفظ الإيصالات مشفّرة');return}
+    if(x.dataset.frcv){const id=x.dataset.frcv;L.innerHTML='';L.oninput=L.onchange=null;withVault(()=>viewDoc(id));return}
     if(x.dataset.person!==undefined){t.person=x.dataset.person;press('[data-person]',b=>b===x);return}
     if(x.id==='fDelAsk'){grab();askDel=true;draw();return}
     if(x.id==='fDelNo'){grab();askDel=false;draw();return}
@@ -920,12 +939,20 @@ function vMonthly(){
     const pill=i.isPaid?`<span class="pill paid">دُفع <span class="num">${amtH(i.paidAmt)}</span></span>`:late?'<span class="pill late">متأخر</span>':i.paidAmt?'<span class="pill soon">دُفع جزء</span>':`<span class="pill soon">يوم ${i.day}</span>`;
     const pay=i.isPaid?'':`<button class="chip pay" ${i.kind==='debt'?'data-dpay':'data-rpay'}="${esc(i.id)}">دفعت</button>`;
     const edit=`<button class="chip" ${i.kind==='debt'?'data-dedit':'data-redit'}="${esc(i.id)}" aria-label="تعديل ${esc(i.name)}"><span class="lk">🔒 </span>تعديل</button>`;
-    return `<div class="recrow rec2${i.isPaid?' done':''}">${i.kind==='debt'?debtBadge(i.ref):recBadge(i.ref)}<div><b>${i.kind==='debt'?'<span class="tag">دين</span>':''}${esc(i.name)}</b><small>${i.tracked?`فاتورة <span class="num">${amtH(i.bill)}</span>${i.prev>0.0005?' + متأخرات سابقة <span class="num amt-exp">'+amtH(i.prev)+'</span>':i.prev<-0.0005?' − رصيد لك <span class="num">'+amtH(-i.prev)+'</span>':''}${Math.abs(i.prev)>0.0005?' = <span class="num">'+amtH(i.amount)+'</span>':''}${i.paidAmt&&!i.isPaid?' · دفعت <span class="num">'+amtH(i.paidAmt)+'</span> · المتبقي <b class="num">'+amtH(i.amount-i.paidAmt)+'</b>'+((i.ref.later||{})[m]?' · تذكير '+fmtD(i.ref.later[m]):''):''}<br>`:`<span class="num">${money(i.amount)}</span> ${CUR}${i.variable?' تقريبًا':''} · `}يوم الدفع ${i.day}${i.kind==='rec'?' · تذكير يوم '+remindDay(i.ref)+' · 🔁 '+(i.ref.until?'حتى '+monthName(i.ref.until):'شهريًا مستمر'):''}${i.person?' · لـ'+esc(personName(i.person)):''}${i.kind==='debt'?' · متبقٍ <span class="num">'+amtH(i.ref.balance)+'</span>':''}</small></div>
+    const rem=r3(Math.max(0,i.amount-(i.paidAmt||0)));const pm0=shiftMonth(m,-1);
+    const prevTag=i.prev>0.0005?`<span class="prevtag">+ متبقٍ من الشهر الماضي <span class="num">${amtH(i.prev)}</span></span>`:i.kind==='debt'&&+i.ref.balance>0&&!debtPaidIn(i.ref,pm0)&&(!i.ref.start||i.ref.start.slice(0,7)<=pm0)&&i.ref.mode!=='once'?'<span class="prevtag">لم يُسجَّل قسط الشهر الماضي</span>':'';
+    const amtBox=`<div class="rec-amt${i.isPaid?' ok':i.paidAmt?' part':''}">${i.isPaid?`<small>مدفوع ✓</small><b class="num">${money(i.paidAmt)}</b>`:`<small>${i.paidAmt?'باقٍ':'المقرر'}</small><b class="num">${money(rem)}</b>`}</div>`;
+    return `<div class="recrow rec2${i.isPaid?' done':''}">${i.kind==='debt'?debtBadge(i.ref):recBadge(i.ref)}<div><b>${i.kind==='debt'?'<span class="tag">دين</span>':''}${esc(i.name)}</b><small>${i.tracked?`فاتورة <span class="num">${amtH(i.bill)}</span>${i.prev>0.0005?' + متأخرات سابقة <span class="num amt-exp">'+amtH(i.prev)+'</span>':i.prev<-0.0005?' − رصيد لك <span class="num">'+amtH(-i.prev)+'</span>':''}${Math.abs(i.prev)>0.0005?' = <span class="num">'+amtH(i.amount)+'</span>':''}${i.paidAmt&&!i.isPaid?' · دفعت <span class="num">'+amtH(i.paidAmt)+'</span> · المتبقي <b class="num">'+amtH(i.amount-i.paidAmt)+'</b>'+((i.ref.later||{})[m]?' · تذكير '+fmtD(i.ref.later[m]):''):''}<br>`:`<span class="num">${money(i.amount)}</span> ${CUR}${i.variable?' تقريبًا':''} · `}يوم الدفع ${i.day}${i.kind==='rec'?' · تذكير يوم '+remindDay(i.ref)+' · 🔁 '+(i.ref.until?'حتى '+monthName(i.ref.until):'شهريًا مستمر'):''}${i.person?' · لـ'+esc(personName(i.person)):''}${i.kind==='debt'?' · متبقٍ <span class="num">'+amtH(i.ref.balance)+'</span>':''}</small>${prevTag}</div>${amtBox}
       <div class="recact">${pill}${pay}${i.paidAmt>0.0005?`<button class="chip unpay" data-unpay="${i.kind}|${esc(i.id)}|${m}" aria-label="إلغاء دفع ${esc(i.name)}"><span class="lk">🔒 </span>إلغاء الدفع</button>`:''}${edit}</div>${i.kind==='rec'?recHistHtml(i.ref,m):debtHistHtml(i.ref)}</div>`};
-  const pending=st.R.filter(i=>!i.isPaid).sort((x,y)=>x.day-y.day),done=st.R.filter(i=>i.isPaid).sort((x,y)=>x.day-y.day);
-  const recRows=(pending.length?`<div class="grouphead">بانتظار الدفع <span class="num">(${pending.length})</span></div><div class="panel" style="padding-block:4px">${pending.map(row).join('')}</div>`:'<div class="okbox" style="margin-top:10px">دفعت كل مصاريفك وأقساطك الثابتة لهذا الشهر.</div>')
-    +(done.length?`<div class="grouphead">تم الدفع <span class="num">(${done.length})</span></div><div class="panel" style="padding-block:4px">${done.map(row).join('')}</div>`:'');
-  return `<div class="backrow" style="margin-top:4px"><h2 style="margin:0">المصاريف والأقساط الشهرية</h2><button class="chip pay" data-recpick="1"><span class="lk">🔒 </span>+ إضافة التزام</button></div>
+  /* الأقسام: الفواتير، مصروف العائلة، أقساط الديون، وأخرى */
+  const secOf=i=>{const k=i.ref.kind;if(i.kind==='debt'||k==='loan')return 'debt';if(['wifi','phone','elec','water','rent'].includes(k)||i.ref.cat==='bills')return 'bills';if(['family','maid'].includes(k)||i.ref.cat==='family'||i.person)return 'family';return 'other'};
+  const SECS=[['bills','🧾 الفواتير والسكن'],['family','👨‍👩‍👧 مصروف العائلة والرواتب'],['debt','🏦 أقساط الديون'],['other','📌 التزامات أخرى']];
+  const recRows=SECS.map(([k,title])=>{const I=st.R.filter(i=>secOf(i)===k);if(!I.length)return '';
+    const tot=I.reduce((s,i)=>s+i.amount,0),pd=I.reduce((s,i)=>s+Math.min(i.amount,i.paidAmt||0),0),left=r3(Math.max(0,tot-pd)),np=I.filter(i=>i.isPaid).length;
+    const rows=I.slice().sort((x,y)=>(x.isPaid-y.isPaid)||(x.day-y.day));
+    return `<div class="recsec"><div class="recsec-h"><div><b>${title}</b><small>${np} من ${I.length} مدفوع · المقرر <span class="num">${amtH(tot)}</span></small></div><div class="recsec-left ${left<=0.0005?'ok':''}">${left<=0.0005?'<b>✓ مدفوع بالكامل</b>':`<small>المتبقي</small><b class="num">${money(left)}</b>`}</div></div>
+     <div class="panel" style="padding-block:4px">${rows.map(row).join('')}</div></div>`}).join('');
+  return `<div class="backrow" style="margin-top:4px"><h2 style="margin:0">الالتزامات الشهرية</h2><span style="display:flex;gap:6px"><button class="chip" data-paycal="1">📅 التقويم</button><button class="chip pay" data-recpick="1"><span class="lk">🔒 </span>+ إضافة التزام</button></span></div>
   ${st.R.length?`<div class="planbox"><span class="note" style="color:var(--fg)">${st.left?'دفعت '+st.paid.length+' من '+st.R.length+' هذا الشهر'+(st.partial.length?' · '+countWord(st.partial.length,'واحدة مدفوعة جزئيًا','اثنتان مدفوعتان جزئيًا','مدفوعة جزئيًا','مدفوعة جزئيًا'):'')+' · باقٍ عليك '+money(st.dueLeft):'دفعت كل مصاريفك الثابتة هذا الشهر'}</span>
     <span class="big2"><span class="num">${amtH(st.paidAmt)}</span> <small style="font-size:14px;font-weight:400">من <span class="num">${money(st.total)}</span> ${CUR}</small></span></div>
     ${recRows}
@@ -933,6 +960,7 @@ function vMonthly(){
     <div class="chips" style="margin-top:10px"><button class="chip" data-xopen="monthly">📊 تصدير الالتزامات Excel / PDF</button></div>`
    :`<div class="panel empty" style="padding:18px 12px"><b>رتّب فواتيرك الشهرية في مكان واحد</b>أضف الإنترنت والكهرباء والإيجار وأي مصروف يتكرر كل شهر، وتظهر أقساط ديونك هنا تلقائيًا. كل شهر تضغط «دفعت» فيُسجَّل المصروف تلقائيًا، وتعرف ما بقي عليك.</div>`}
   <button class="btn ghost block" data-recpick="1" style="margin-top:12px"><span class="lk">🔒 </span>+ إضافة التزام آخر</button>
+  ${m===ym(new Date())?subsHtml():''}
   ${recs().length?`<div class="panel stack" style="margin-top:12px"><b>تذكير الفواتير</b><div class="note">يظهر التذكير في الرئيسية من يوم التذكير الذي تحدده لكل فاتورة حتى تدفعها. ولتصلك تنبيهات حتى والتطبيق مغلق، أضفها لتقويم هاتفك.</div><div class="row2"><button class="btn ghost" id="billsIcs">إضافة التذكيرات للتقويم</button><button class="btn ghost" id="askNotify">تفعيل الإشعارات</button></div></div>`:''}`;
 }
 
@@ -2149,7 +2177,7 @@ function printTrust(id){const t=trusts().find(x=>x.id===id);if(!t)return;const c
 
 /* ---------- 19. مستنداتي: الخزنة المشفّرة ---------- */
 const DOC_T={id:['البطاقة الشخصية','idcard','#24508C',60],passport:['جواز السفر','passport','#2E8B72',180],license:['رخصة القيادة','car','#3E7CB1',60],cv:['السيرة الذاتية (CV)','doc','#6B5CA5',0],
- cert:['شهادة','edu','#3B8F5A',0],mulk:['ملكية مركبة','car','#5B6F8A',30],carins:['تأمين مركبة','shield','#3E7CB1',30],carother:['مستند سيارة','car','#7A6CC0',0],debtdoc:['عقد أو مستند دين','loan','#8A4F7D',0],debtrcpt:['إيصال سداد','doc','#B0662F',0],health:['بطاقة صحية','health','#C0445A',30],other:['مستند آخر','iother','#7A8494',30]};
+ cert:['شهادة','edu','#3B8F5A',0],mulk:['ملكية مركبة','car','#5B6F8A',30],carins:['تأمين مركبة','shield','#3E7CB1',30],carother:['مستند سيارة','car','#7A6CC0',0],debtdoc:['عقد أو مستند دين','loan','#8A4F7D',0],receipt:['إيصال شراء','doc','#3B8F5A',0],debtrcpt:['إيصال سداد','doc','#B0662F',0],health:['بطاقة صحية','health','#C0445A',30],other:['مستند آخر','iother','#7A8494',30]};
 const VDB=(()=>{let dbp=null;
   const open=()=>dbp||(dbp=new Promise((res,rej)=>{const r=indexedDB.open('masareef-vault',1);r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore('kv');d.createObjectStore('docs',{keyPath:'id'});d.createObjectStore('blobs')};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}));
   const rq=r=>new Promise((res,rej)=>{r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
@@ -2165,7 +2193,7 @@ function vaultLock(){Vault.key=null;S.docFolder=null;Vault.urls.forEach(u=>URL.r
 function vaultTouch(){Vault.last=Date.now()}
 setInterval(()=>{if(Vault.key&&Date.now()-Vault.last>5*60*1000)vaultLock()},30000);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){clearTimeout(Vault.lockT);Vault.lockT=setTimeout(vaultLock,60000)}else clearTimeout(Vault.lockT)});
-function docAlertList(){const out=[];Vault.docs.forEach(d=>{const t=DOC_T[d.type]||DOC_T.other;if(!d.expiry||!t[3]||d.car||d.debt)return;const n=daysTo(d.expiry);
+function docAlertList(){const out=[];Vault.docs.forEach(d=>{const t=DOC_T[d.type]||DOC_T.other;if(!d.expiry||!t[3]||d.car||d.debt||d.tx)return;const n=daysTo(d.expiry);
   if(n<=t[3])out.push({d,days:n,level:n<0||n<=14?'late':'warn',title:(n<0?'انتهت صلاحية ':'تنتهي صلاحية ')+d.title+(d.owner&&!d.title.includes(personName(d.owner))?' ('+personName(d.owner)+')':''),when:n<0?'منذ '+daysWord(-n):n===0?'اليوم':'بعد '+daysWord(n)+(d.type==='passport'&&n>0?'، وكثير من الدول تشترط صلاحية 6 أشهر للسفر':'')})});
   return out.sort((a,b)=>a.days-b.days)}
 function docAlertsHtml(){const A=docAlertList();if(!A.length)return '';
@@ -2198,7 +2226,7 @@ function vDocs(){
    <label class="btn ghost block" for="vaultImportFile" style="text-align:center;cursor:pointer">استيراد خزنة من ملف</label><input type="file" id="vaultImportFile" accept=".json,application/json" hidden></div>`;
 }
 
-const DOC_FOLDER={id:'البطاقات الشخصية',passport:'جوازات السفر',license:'رخص القيادة',cv:'السير الذاتية',cert:'الشهادات',mulk:'ملكيات المركبات',carins:'تأمين المركبات',carother:'مستندات السيارات',debtdoc:'مستندات الديون',debtrcpt:'إيصالات السداد',health:'البطاقات الصحية',other:'مستندات أخرى'};
+const DOC_FOLDER={id:'البطاقات الشخصية',passport:'جوازات السفر',license:'رخص القيادة',cv:'السير الذاتية',cert:'الشهادات',mulk:'ملكيات المركبات',carins:'تأمين المركبات',carother:'مستندات السيارات',debtdoc:'مستندات الديون',receipt:'إيصالات المشتريات',debtrcpt:'إيصالات السداد',health:'البطاقات الصحية',other:'مستندات أخرى'};
 function docFoldersHtml(card){
   const by=S.docBy||'type',f=S.docFolder;const sortD=(a,b)=>(a.owner?personName(a.owner):'').localeCompare(b.owner?personName(b.owner):'')||(a.created||'').localeCompare(b.created||'');
   const seg=`<div class="seg" style="margin-bottom:12px"><button class="n" data-docby="type" aria-pressed="${by==='type'}">حسب النوع</button><button class="n" data-docby="person" aria-pressed="${by==='person'}">حسب الشخص</button></div>`;
@@ -2219,7 +2247,7 @@ async function hydrateDocs(){if(!Vault.key)return;for(const img of document.quer
 async function vaultFiles(d){const out=[];for(const f of d.files||[]){const o=await VDB.get('blobs',f.id);if(!o)continue;const buf=await vDec(Vault.key,o);out.push(new File([buf],f.name,{type:f.mime}))}return out}
 async function compressImage(file){try{if(!/^image\//.test(file.type))return file;const bmp=await createImageBitmap(file);const sc=Math.min(1,2000/Math.max(bmp.width,bmp.height));const c=document.createElement('canvas');c.width=Math.round(bmp.width*sc);c.height=Math.round(bmp.height*sc);c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);const b=await new Promise(r=>c.toBlob(r,'image/jpeg',0.85));return b?new File([b],(file.name||'صورة').replace(/\.[^.]+$/,'')+'.jpg',{type:'image/jpeg'}):file}catch(e){return file}}
 function openDoc(id,pre){if(!Vault.key)return;const L=document.getElementById('layer');const ex=id?Vault.docs.find(x=>x.id===id):null;
-  const d=ex?{id:ex.id,car:ex.car||'',debt:ex.debt||'',type:ex.type,title:ex.title,owner:ex.owner||'',issue:ex.issue||'',expiry:ex.expiry||'',number:'',notes:'',files:(ex.files||[]).slice(),created:ex.created}:(()=>{const ty=pre&&pre.type||'id',ow=pre&&pre.owner||'';return{id:uidGen(),type:ty,title:pre&&pre.title||DOC_T[ty][0]+(ow?' - '+personName(ow):''),owner:ow,issue:'',expiry:pre&&pre.expiry||'',number:'',notes:'',files:[],car:pre&&pre.car||'',debt:pre&&pre.debt||''}})();
+  const d=ex?{id:ex.id,car:ex.car||'',debt:ex.debt||'',tx:ex.tx||'',type:ex.type,title:ex.title,owner:ex.owner||'',issue:ex.issue||'',expiry:ex.expiry||'',number:'',notes:'',files:(ex.files||[]).slice(),created:ex.created}:(()=>{const ty=pre&&pre.type||'id',ow=pre&&pre.owner||'';return{id:uidGen(),type:ty,title:pre&&pre.title||DOC_T[ty][0]+(ow?' - '+personName(ow):''),owner:ow,issue:'',expiry:pre&&pre.expiry||'',number:'',notes:'',files:[],car:pre&&pre.car||'',debt:pre&&pre.debt||'',tx:pre&&pre.tx||''}})();
   const added=[],removed=[];let askDel=false,loaded=!ex;
   const draw=()=>{L.innerHTML=`<div class="scrim" data-close></div><div class="sheet" data-vault role="dialog" aria-modal="true" aria-label="مستند"><div class="in"><div class="grab"></div>
    <h2 style="margin-top:0">${ex?'تعديل المستند':'مستند جديد'}</h2><div class="stack">
@@ -2256,9 +2284,9 @@ function openDoc(id,pre){if(!Vault.key)return;const L=document.getElementById('l
       try{for(const f of added){const c=await compressImage(f);const buf=await c.arrayBuffer();const fid=uidGen();await VDB.put('blobs',await vEnc(Vault.key,buf),fid);d.files.push({id:fid,name:c.name||'ملف',mime:c.type||'application/octet-stream',size:c.size})}
         for(const fid of removed)await VDB.del('blobs',fid);
         if(d.owner&&Object.values(DOC_T).some(t=>t[0]===d.title.trim()))d.title=d.title.trim()+' - '+personName(d.owner);
-        const rec={id:d.id,car:d.car||'',debt:d.debt||'',type:d.type,title:d.title.trim(),owner:d.owner,issue:d.issue,expiry:d.expiry,files:d.files,created:d.created||new Date().toISOString(),secret:await vEnc(Vault.key,te(JSON.stringify({number:d.number.trim(),notes:d.notes.trim()})))};
+        const rec={id:d.id,car:d.car||'',debt:d.debt||'',tx:d.tx||'',type:d.type,title:d.title.trim(),owner:d.owner,issue:d.issue,expiry:d.expiry,files:d.files,created:d.created||new Date().toISOString(),secret:await vEnc(Vault.key,te(JSON.stringify({number:d.number.trim(),notes:d.notes.trim()})))};
         await VDB.put('docs',rec);const i=Vault.docs.findIndex(y=>y.id===rec.id);if(i>=0)Vault.docs[i]=rec;else Vault.docs.push(rec);
-        L.innerHTML='';render();toast('حُفظ '+rec.title+' مشفّرًا'+(rec.car?' ومربوط بالسيارة':rec.debt?' ومربوط بالدين':''))}
+        L.innerHTML='';render();toast('حُفظ '+rec.title+' مشفّرًا'+(rec.car?' ومربوط بالسيارة':rec.debt?' ومربوط بالدين':rec.tx?' ومربوط بالعملية':''))}
       catch(err){x.disabled=false;x.textContent='حفظ';er.hidden=false;er.textContent='تعذّر الحفظ. قد تكون مساحة الهاتف ممتلئة'}}};
   draw()}
 async function viewDoc(id,fid){const d=Vault.docs.find(x=>x.id===id);if(!d||!Vault.key)return;const L=document.getElementById('layer');
@@ -2421,7 +2449,7 @@ function admAsk(then,why){let el=document.getElementById('admLayer');if(!el){el=
   if(!c.bio)setTimeout(()=>{const i=document.getElementById('admPin');if(i)i.focus()},60)}
 /* كل زر تعديل أو حذف أو تراجع أو اعتماد يمر من هنا أولًا */
 const ADM_SEL=['[data-edit]','[data-txdel]','[data-txedit]','[data-dpe]','[data-redit]','[data-dedit]','[data-tedit]','[data-cedit]','[data-gedit]','[data-pedit]','[data-sedit]','[data-rpedit]',
-  '[data-apv]','[data-apedit]','[data-unpay]','[data-recpick]','#dnEdit','#wdEdit','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','label[for="restoreFile2"]','[data-snaprest]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
+  '[data-apv]','[data-apedit]','[data-unpay]','[data-recpick]','[data-acedit]','#acAdd','[data-trdel]','[data-subadd]','#dnEdit','#wdEdit','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','label[for="restoreFile2"]','[data-snaprest]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
 document.addEventListener('click',e=>{if(!admOn())return;if(e.target.closest('#admLayer'))return;
   if(admOpen()){if(e.target.closest('button,label'))Adm.last=Date.now();return}
   const b=e.target.closest(ADM_SEL);if(!b)return;e.preventDefault();e.stopImmediatePropagation();
@@ -2600,7 +2628,8 @@ function openImport(){
     <p class="note" id="iErr" hidden style="color:var(--exp);margin:0"></p>
     <button class="btn block" id="iParse">قراءة الرسائل</button>
     <div class="row2"><button class="btn ghost" id="iDemo">جرّب برسائل مثال</button><button class="btn ghost" data-close>إلغاء</button></div>
-    <p class="note" style="margin:0">القراءة تتم داخل هذه الصفحة. لا يُحفظ نص الرسالة ولا رقم حسابك، فقط المبلغ والجهة والتاريخ.</p></div>`;
+    <p class="note" style="margin:0">القراءة تتم داخل هذه الصفحة. لا يُحفظ نص الرسالة ولا رقم حسابك، فقط المبلغ والجهة والتاريخ.</p>
+    <button class="btn ghost block" id="iShort">⚡ اجعلها تلقائية باختصارات الآيفون</button></div>`;
   const itemsHtml=()=>{const okN=IMP.items.filter(i=>i.ok).length;
     return `<p class="note" style="margin:0 0 10px">قرأت ${IMP.items.length} رسالة ووجدت ${okN} عملية. راجع الفئة والمبلغ قبل الإضافة.</p><div class="stack">`+
     IMP.items.map((it,i)=>{
@@ -2625,6 +2654,7 @@ function openImport(){
   L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;
     if(x.hasAttribute('data-close')){L.innerHTML='';L.onchange=L.oninput=null;return}
     if(x.id==='iDemo'){IMP.text=DEMO_SMS;draw();return}
+    if(x.id==='iShort'){openShortcutGuide();return}
     if(x.id==='iBack'){IMP.items=[];draw();return}
     if(x.id==='iParse'){const v=(document.getElementById('iTxt').value||'').trim();IMP.text=v;
       if(!v){const er=document.getElementById('iErr');er.hidden=false;er.textContent='الصق رسالة البنك أولًا';return}
@@ -2753,8 +2783,9 @@ function openLook(){const L=document.getElementById('layer');
 
 /* ---------- 24. الإصدار وما الجديد ---------- */
 const DEV={name:'ماجد الرميمي',title:'مهندس ومطور تقنية معلومات',country:'سلطنة عُمان',phone:'95134234',intl:'96895134234'};
-const APP_VERSION='2.16.1';
+const APP_VERSION='2.17.0';
 const CHANGELOG=[
+ {v:'2.17.0',d:'2026-10-14',items:['«حساباتي»: رصيد الجاري والكاش والبطاقات، والتحويل بينها (لا يُحسب دخلًا ولا مصروفًا)، ومطابقة الرصيد الفعلي مع كشف الفرق','«هل نزل راتبك؟» في يوم الراتب بالمبلغ المعتاد، وتؤكده بضغطة','توقّع الأشهر الثلاثة القادمة في التقارير، وتنبيه المستشار إذا كان شهر متوقعًا بالسالب','قفل التطبيق ببصمة الوجه أو رمز عند فتحه، وإخفاء المبالغ بزر 👁 في الأعلى','نسخة احتياطية مشفّرة بكلمة سر، وتذكير بحفظ نسخة كل أسبوع','إرفاق صورة الإيصال بأي عملية، محفوظة مشفّرة في خزنة «مستنداتي»','تقويم المدفوعات: الفواتير والأقساط والراتب والخطط والتجديدات على شهر كامل','حاسبة الزكاة: النصاب بسعر الذهب، وخصم الأمانات والديون الحالّة، وموعد الحول','تنبيه عند الوصول إلى 80% من سقف أي فئة، وكشف الاشتراكات المتكررة','مقارنة بنفس الشهر من العام الماضي، واتجاه أهم الفئات لستة أشهر','الالتزامات الشهرية مقسّمة: الفواتير والسكن، مصروف العائلة والرواتب، أقساط الديون، وأخرى؛ لكل قسم المقرر والمتبقي بخط كبير، والمدفوع بالأخضر','«متبقٍ من الشهر الماضي» يظهر بوضوح على الالتزام الذي لم يُسدَّد كاملًا، وتتجدد القائمة كل شهر تلقائيًا','تسجيل رسائل البنك تلقائيًا عبر اختصارات الآيفون، وتسجيل مصروف سريع من رابط','مساحة التطبيق على جهازك في التقارير وقاعدة البيانات']},
  {v:'2.16.1',d:'2026-10-14',items:['قائمة الالتزامات الشهرية ثابتة: إضافة التزام (مصاريف الأهل، رواتب، كهرباء، ماء، إنترنت...) وتعديله وحذفه وتعديل مبلغه من وضع المدير فقط','زر «دفعت» يبقى متاحًا دائمًا من الوضع العادي','علامة 🔒 على أزرار الإضافة والتعديل وإلغاء الدفع عندما يكون وضع المدير مقفلًا']},
  {v:'2.16.0',d:'2026-10-14',items:['إصلاح: رسائل التحويل الواردة (مثل «تم تحويل مبلغ إلى حسابك» و«transferred to your account» و«payment received») كانت تُقرأ مصروفًا، وصارت تُقرأ دخلًا','قراءة اتجاه الرسالة صارت بموازنة كلمات الإيداع والخصم، والراتب والاسترداد دخل دائمًا','إصلاح: المبلغ المكتوب بالأرقام العربية مع الفاصلة العربية (مثل ١٬٢٥٠٫٥٠٠) كان يُقرأ خطأ، وصار يُقرأ 1,250.5','عند تحديد يوم الراتب: الرئيسية تعرض دخل ومصاريف دورة الراتب الحالية (من يوم نزوله) بدل الشهر الميلادي','تنبيه في الرئيسية إذا كان الراتب مسجّلًا في آخر الشهر السابق، مع زر «حدّد يوم الراتب»','عند استيراد رسالة بتاريخ شهر آخر يظهر تنبيه بالشهر الذي ستُحسب فيه']},
  {v:'2.15.1',d:'2026-10-14',items:['أسماء الخانات الطويلة تتحرك تلقائيًا ذهابًا وإيابًا لتظهر كاملة، والقصيرة تبقى ثابتة','يشمل: أقسام الرئيسية، العمليات، الالتزامات، الديون، الخطط، التنبيهات، المستندات، وغيرها']},
@@ -3229,7 +3260,276 @@ function openWidget(){const L=document.getElementById('layer');
     if(x.id==='wSave'){saveFile('idarat-widget.js',widgetScript('ios'),'text/javascript');toast('حُفظ السكربت');return}
     if(x.id==='wMac'){saveFile('idarat-widget.jsx',widgetScript('mac'),'text/javascript');toast('حُفظ ويدجت الماك. ضعه في مجلد أدوات Übersicht');return}}}
 
-/* ---------- 28. الأحداث (الضغط والكتابة) ---------- */
+/* ---------- 28. أدوات احترافية: الحسابات، الراتب المتوقع، التوقعات، القفل، التقويم، الزكاة ---------- */
+function addDays(iso,n){const d=new Date(iso+'T12:00');d.setDate(d.getDate()+n);return isoD(d)}
+/* ===== حساباتي: رصيد كل حساب، والتحويل بينها، ومطابقة الرصيد الفعلي ===== */
+const ACC_KIND={main:'حساب جاري',cash:'نقدًا (كاش)',card:'بطاقة ائتمان',other:'حساب آخر'};
+function accList(){const A=(S.settings.accounts||[]).slice();if(!A.some(a=>a.id==='main'))A.unshift({id:'main',kind:'main',name:mainAcc().name});if(!A.some(a=>a.id==='cash'))A.splice(1,0,{id:'cash',kind:'cash',name:'الكاش'});return A}
+function accSaveList(A){S.settings.accounts=A;return putSettings()}
+function accOf(t){const A=S.settings.accounts||[];if(t.acc&&(t.acc==='main'||t.acc==='cash'||A.some(a=>a.id===t.acc)))return t.acc;if(t.method==='cash')return 'cash';if(t.method==='card'){const c=A.find(a=>a.forCard);if(c)return c.id}return 'main'}
+function transfers(){return S.settings.transfers||[]}
+function accBalance(a){if(!a.anchor)return null;const A=a.anchor;const after=(d,at)=>d>A.date||(d===A.date&&(at||'')>A.at);let b=+A.bal;
+  list().forEach(t=>{if(accOf(t)===a.id&&after(t.date,t.createdAt))b+=t.type==='inc'?+t.amount:-(+t.amount)});
+  transfers().forEach(x=>{if(!after(x.date,x.at))return;if(x.from===a.id)b-=+x.amount;if(x.to===a.id)b+=+x.amount});return r3(b)}
+function accName(id){const a=accList().find(x=>x.id===id);return a?a.name:id==='savings'?savAcc().name:'—'}
+function accBalances(){const A=accList();const out={};const anc={};A.forEach(a=>{if(a.anchor){out[a.id]=+a.anchor.bal;anc[a.id]=a.anchor}});if(!Object.keys(anc).length)return out;
+  const after=(A0,d,at)=>d>A0.date||(d===A0.date&&(at||'')>A0.at);const L=list();for(let i=0;i<L.length;i++){const t=L[i];const id=accOf(t);const A0=anc[id];if(A0&&after(A0,t.date,t.createdAt))out[id]+=t.type==='inc'?+t.amount:-(+t.amount)}
+  transfers().forEach(x=>{[[x.from,-1],[x.to,1]].forEach(([id,sg])=>{const A0=anc[id];if(A0&&after(A0,x.date,x.at))out[id]+=sg*(+x.amount)})});Object.keys(out).forEach(k=>out[k]=r3(out[k]));return out}
+function accTotals(){const BB=accBalances();const A=accList().map(a=>({a,b:a.id in BB?BB[a.id]:null}));const sv=savAcc();const svb=sv.balance!==null&&sv.balance!==''?+sv.balance:null;
+  const known=A.filter(x=>x.b!==null);return{A,svb,total:r3(known.reduce((s,x)=>s+x.b,0)+(svb||0)),known:known.length+(svb!==null?1:0)}}
+function openAccounts(){const L=document.getElementById('layer');
+  const draw=()=>{const T=accTotals();const tr=transfers().slice().sort((a,b)=>(b.date+b.at).localeCompare(a.date+a.at)).slice(0,8);
+   L.innerHTML=`${sheetTop('حساباتي')}<h2 style="margin-top:0">💳 حساباتي</h2>
+    <div class="acctotal"><span>مجموع أرصدتك المعروفة</span><b class="num">${money(T.total)} <small>${CUR}</small></b><small>${T.known?'من '+countWord(T.known,'حساب واحد','حسابين','حسابات','حسابًا'):'اكتب رصيد كل حساب مرة واحدة، وبعدها يحسبه التطبيق تلقائيًا'}</small></div>
+    <div class="stack">${T.A.map(({a,b})=>`<div class="acccard"><div class="acc-h"><div><b>${esc(a.name)}</b><small>${ACC_KIND[a.kind]||''}${a.forCard?' · مشتريات البطاقة':''}</small></div><b class="num ${b!==null&&b<0?'amt-exp':''}">${b===null?'—':money(b)}</b></div>
+      <small class="note">${a.anchor?'آخر مطابقة '+fmtD(a.anchor.date)+(a.anchor.date<addDays(today(),-30)?' · طابقه من جديد':''):'لم تحدّد رصيده بعد'}</small>
+      <div class="chips"><button class="chip pay" data-acrec="${esc(a.id)}">${a.anchor?'مطابقة الرصيد':'حدّد الرصيد الحالي'}</button><button class="chip" data-acedit="${esc(a.id)}"><span class="lk">🔒 </span>تعديل</button></div></div>`).join('')}
+     ${T.svb!==null?`<div class="acccard"><div class="acc-h"><div><b>${esc(savAcc().name)}</b><small>حساب الادخار · يُدار من الخطط</small></div><b class="num">${money(T.svb)}</b></div></div>`:''}</div>
+    <div class="row2" style="margin-top:12px"><button class="btn" id="acTrf">⇄ تحويل بين حساباتي</button><button class="btn ghost" id="acAdd"><span class="lk">🔒 </span>+ حساب</button></div>
+    ${tr.length?`<h3>آخر التحويلات</h3><div class="panel">${tr.map(x=>`<div class="sumrow"><span>${fmtD(x.date)} · ${esc(accName(x.from))} ← ${esc(accName(x.to))}${x.note?' · '+esc(x.note):''}</span><span><b class="num">${money(x.amount)}</b> <button class="chip" data-trdel="${esc(x.id)}" aria-label="حذف التحويل">✕</button></span></div>`).join('')}</div>`:''}
+    <p class="note">التحويل بين حساباتك لا يُحسب دخلًا ولا مصروفًا. المصروف بالكاش يُخصم من «الكاش»، وغيره من الحساب الجاري، إلا إذا اخترت حسابًا آخر عند التسجيل.</p>
+    <div class="actions"><button class="btn ghost block" data-close>إغلاق</button></div></div></div>`};
+  draw();L.oninput=L.onchange=null;
+  L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';render();return}
+    if(x.dataset.acrec){openAccRec(x.dataset.acrec);return}
+    if(x.dataset.acedit||x.id==='acAdd'){openAccEdit(x.dataset.acedit||null);return}
+    if(x.id==='acTrf'){openTransfer();return}
+    if(x.dataset.trdel){const all=transfers();const it=all.find(y=>y.id===x.dataset.trdel);S.settings.transfers=all.filter(y=>y!==it);await putSettings();draw();toast('حُذف التحويل',async()=>{S.settings.transfers=transfers().concat([it]);await putSettings();draw()},8000)}}}
+function openAccRec(id){const L=document.getElementById('layer');const A=accList();const a=A.find(x=>x.id===id);if(!a)return;const app=accBalance(a);
+  L.innerHTML=`${sheetTop('مطابقة')}<h2 style="margin-top:0">${a.anchor?'مطابقة رصيد':'رصيد'} ${esc(a.name)}</h2>
+   ${app!==null?`<div class="panel paybk"><div class="sumrow"><span>حسب التطبيق</span><b class="num">${money(app)}</b></div><div class="sumrow"><span>من آخر مطابقة ${fmtD(a.anchor.date)}</span><span class="num">${money(a.anchor.bal)}</span></div></div>`:''}
+   <div class="field" style="margin-top:10px"><label for="arBal">الرصيد الفعلي الآن (من تطبيق البنك أو محفظتك)</label><div class="amtbox"><input id="arBal" inputmode="decimal" placeholder="0.000" aria-label="الرصيد الفعلي"><span>${CUR}</span></div></div>
+   <div class="payprev" id="arPrev">${app!==null?'اكتب الرصيد لأقارنه بحساب التطبيق.':'من الآن يحسب التطبيق رصيد هذا الحساب تلقائيًا من كل دخل ومصروف وتحويل.'}</div>
+   <div class="actions"><button class="btn block" id="arSave">حفظ الرصيد</button><button class="btn ghost block" data-close>إلغاء</button></div></div></div>`;
+  L.onchange=null;L.oninput=e=>{if(e.target.id!=='arBal'||app===null)return;const v=parseAmt(e.target.value),d=r3(v-app);document.getElementById('arPrev').innerHTML=!e.target.value?'':Math.abs(d)<0.0005?'<b class="amt-inc">مطابق تمامًا ✓</b>':`الفرق <b class="num ${d<0?'amt-exp':'amt-inc'}">${d>0?'+':'−'}${money(Math.abs(d))}</b>: ${d<0?'غالبًا مصروف لم تسجّله.':'غالبًا دخل لم تسجّله.'} يُعتمد الرصيد الفعلي من الآن.`};
+  L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){openAccounts();return}
+    if(x.id==='arSave'){const raw=document.getElementById('arBal').value;if(raw.trim()===''){toast('اكتب الرصيد');return}const v=parseAmt(raw)*(raw.trim().startsWith('-')||raw.trim().startsWith('−')?-1:1);
+      const now=new Date().toISOString();a.log=(a.log||[]).concat([{date:today(),app,actual:v}]).slice(-24);a.anchor={bal:v,date:today(),at:now};
+      if(a.id==='main'){const m=mainAcc();m.balance=v;m.at=today();S.settings.mainAcc=m}
+      await accSaveList(A);toast(app!==null&&Math.abs(v-app)>=0.0005?'حُفظ الرصيد، والفرق '+money(Math.abs(v-app)):'حُفظ الرصيد');openAccounts()}}}
+function openAccEdit(id){const L=document.getElementById('layer');const A=accList();const ex=id?A.find(x=>x.id===id):null;const a=ex?Object.assign({},ex):{id:uidGen(),kind:'other',name:''};
+  const draw=()=>{L.innerHTML=`${sheetTop('حساب')}<h2 style="margin-top:0">${ex?'تعديل الحساب':'حساب جديد'}</h2><div class="stack">
+   <div class="field"><label for="aeName">اسم الحساب</label><input class="inp" id="aeName" value="${esc(a.name)}" maxlength="30" placeholder="مثال: بطاقة بنك مسقط"></div>
+   ${a.id==='main'||a.id==='cash'?'':`<div class="seg seg3">${['other','card'].map(k=>`<button class="n" data-aek="${k}" aria-pressed="${a.kind===k}">${ACC_KIND[k]}</button>`).join('')}</div>
+   ${a.kind==='card'?`<label class="toggle"><input type="checkbox" id="aeCard" ${a.forCard?'checked':''}><span>مشتريات «البطاقة» تُخصم من هذا الحساب</span></label>`:''}`}
+   </div><div class="actions"><button class="btn block" id="aeSave">حفظ</button>${ex&&a.id!=='main'&&a.id!=='cash'?'<button class="btn ghost block" id="aeDel" style="color:var(--exp)">حذف الحساب</button>':''}<button class="btn ghost block" data-close>إلغاء</button></div></div></div>`};
+  draw();L.oninput=L.onchange=null;
+  L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){openAccounts();return}
+    if(x.dataset.aek){a.name=document.getElementById('aeName').value;a.kind=x.dataset.aek;draw();return}
+    if(x.id==='aeDel'){const used=list().some(t=>t.acc===a.id)||transfers().some(t=>t.from===a.id||t.to===a.id);if(used){toast('مرتبط بعمليات أو تحويلات، فلا يُحذف. يمكنك تغيير اسمه');return}await accSaveList(A.filter(y=>y.id!==a.id));openAccounts();return}
+    if(x.id==='aeSave'){a.name=document.getElementById('aeName').value.trim();if(!a.name){toast('اكتب اسم الحساب');return}const c=document.getElementById('aeCard');a.forCard=!!(c&&c.checked&&a.kind==='card');
+      let B=A.map(y=>y.id===a.id?a:a.forCard?Object.assign({},y,{forCard:false}):y);if(!ex)B.push(a);await accSaveList(B);if(a.id==='main'){const m=mainAcc();m.name=a.name;S.settings.mainAcc=m;await putSettings()}openAccounts()}}}
+function openTransfer(){const L=document.getElementById('layer');const A=accList();let from='main',to=A.find(a=>a.id!=='main')?A.find(a=>a.id!=='main').id:'cash';
+  const opt=(sel)=>A.map(a=>`<option value="${esc(a.id)}" ${sel===a.id?'selected':''}>${esc(a.name)}</option>`).join('');
+  L.innerHTML=`${sheetTop('تحويل')}<h2 style="margin-top:0">⇄ تحويل بين حساباتي</h2><div class="stack">
+   <div class="amtbox"><input id="tfAmt" inputmode="decimal" placeholder="0.000" aria-label="المبلغ"><span>${CUR}</span></div>
+   <div class="row2"><div class="field"><label for="tfFrom">من</label><select class="inp" id="tfFrom">${opt(from)}</select></div><div class="field"><label for="tfTo">إلى</label><select class="inp" id="tfTo">${opt(to)}</select></div></div>
+   <div class="row2"><div class="field"><label for="tfDate">التاريخ</label><input class="inp" type="date" id="tfDate" value="${today()}"></div><div class="field"><label for="tfNote">ملاحظة</label><input class="inp" id="tfNote" maxlength="40" placeholder="سحب من الصراف مثلًا"></div></div>
+   <p class="note" style="margin:0">مثال: سحبت 50 من الصراف = تحويل من الحساب الجاري إلى الكاش. لا يُحسب مصروفًا.</p></div>
+   <div class="actions"><button class="btn block" id="tfSave">حفظ التحويل</button><button class="btn ghost block" data-close>إلغاء</button></div></div></div>`;
+  L.oninput=L.onchange=null;
+  L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){openAccounts();return}
+    if(x.id==='tfSave'){const g=i=>document.getElementById(i).value;const amt=parseAmt(g('tfAmt'));if(!amt){toast('اكتب المبلغ');return}if(g('tfFrom')===g('tfTo')){toast('اختر حسابين مختلفين');return}
+      const it={id:uidGen(),date:g('tfDate')||today(),from:g('tfFrom'),to:g('tfTo'),amount:amt,note:g('tfNote').trim(),at:new Date().toISOString()};S.settings.transfers=transfers().concat([it]);await putSettings();toast('حُفظ التحويل');openAccounts()}}}
+/* ===== الراتب المتوقع ===== */
+function lastSalary(){return list().filter(t=>t.type==='inc'&&t.cat==='salary').sort((a,b)=>b.date.localeCompare(a.date))[0]||null}
+function salaryDueHtml(){const pc=payCycle();if(!pc||S.month!==ym(new Date()))return '';if(list().some(t=>t.type==='inc'&&t.cat==='salary'&&t.date>=addDays(pc.start,-5)))return '';
+  try{if(localStorage.getItem('masareef:salskip')===today())return ''}catch(e){}const ls=lastSalary();
+  return `<div class="saldue"><span class="sd-ic">💰</span><div class="sd-m"><b>هل نزل راتبك؟</b><small>موعده ${fmtD(pc.start)}${ls?' · المعتاد <span class="num">'+amtH(ls.amount)+'</span>':''}</small></div><div class="sd-b"><button class="chip pay" data-salyes="1">نعم، نزل</button><button class="chip" data-salno="1">ليس بعد</button></div></div>`}
+/* ===== توقّع الأشهر الثلاثة القادمة ===== */
+function forecast(n){n=n||3;const cm=ym(new Date());const past=[1,2,3].map(k=>shiftMonth(cm,-k));const used=past.filter(m=>inMonth(m).length);
+  const ls=lastSalary();const incAvg=ls?+ls.amount:(used.length?used.reduce((s,m)=>s+sum(inMonth(m),'inc'),0)/used.length:0);
+  const varAvg=used.length?used.reduce((s,m)=>s+inMonth(m).filter(t=>t.type==='exp'&&!isFixedTx(t)).reduce((a,t)=>a+(+t.amount),0),0)/used.length:0;
+  const Ds=debts().filter(d=>+d.balance>0.0005);const pl=Ds.length?debtSim():{finish:{}};const G=(S.settings.goals||[]).map(g=>({g,c:goalCalc(g)})).filter(x=>!x.c.done&&x.c.tgt);
+  const rows=[];for(let k=0;k<n;k++){const m=shiftMonth(cm,k);
+    const obl=recs().filter(r=>recActive(r,m)).reduce((s,r)=>s+amtAt(r,m),0);
+    const dm=Ds.reduce((s,d)=>{if(d.mode==='once')return s+(d.end&&d.end.slice(0,7)===m?+d.balance:0);const f=pl.finish[d.id];return s+(f&&k+1>f+debtOff()?0:debtInst(d))},0);
+    const plans=G.filter(x=>x.g.due&&x.g.due.slice(0,7)>=m).reduce((s,x)=>s+(x.c.monthly||0),0);
+    const left=incAvg-obl-dm-plans-varAvg;rows.push({m,inc:r3(incAvg),obl:r3(obl),debt:r3(dm),plans:r3(plans),vari:r3(varAvg),left:r3(left)})}
+  return{rows,basis:ls?'آخر راتب':used.length?'متوسط دخلك':'',ok:incAvg>0}}
+function forecastHtml(){const F=forecast(3);if(!F.ok)return '';
+  return `<h2>توقّع الأشهر الثلاثة القادمة</h2><div class="panel fcast"><table class="cmptbl"><thead><tr><th></th>${F.rows.map(r=>`<th>${esc(MONTHS[+r.m.slice(5)-1])}</th>`).join('')}</tr></thead><tbody>
+   <tr><td>الدخل المتوقع</td>${F.rows.map(r=>`<td class="num">${money(r.inc)}</td>`).join('')}</tr>
+   <tr><td>الالتزامات الشهرية</td>${F.rows.map(r=>`<td class="num">− ${money(r.obl)}</td>`).join('')}</tr>
+   <tr><td>أقساط الديون</td>${F.rows.map(r=>`<td class="num">− ${money(r.debt)}</td>`).join('')}</tr>
+   <tr><td>حصص الخطط</td>${F.rows.map(r=>`<td class="num">− ${money(r.plans)}</td>`).join('')}</tr>
+   <tr><td>المصروف المعتاد</td>${F.rows.map(r=>`<td class="num">− ${money(r.vari)}</td>`).join('')}</tr>
+   <tr class="tot"><td>المتبقي المتوقع</td>${F.rows.map(r=>`<td class="num ${r.left<0?'amt-exp':'amt-inc'}">${r.left<0?'−':''}${money(Math.abs(r.left))}</td>`).join('')}</tr></tbody></table>
+   <p class="note" style="margin:8px 0 0">تقدير مبني على ${F.basis}، والتزاماتك وأقساطك وخططك، ومتوسط مصروفك المتغيّر في آخر 3 أشهر.${F.rows.some(r=>r.left<0)?' <b class="amt-exp">شهر بالسالب: جهّز له من الآن أو أجّل خطة.</b>':''}</p></div>`}
+/* ===== قفل التطبيق وإخفاء المبالغ ===== */
+const LOCK_K='masareef:applock';
+function lockCfg(){try{return JSON.parse(localStorage.getItem(LOCK_K)||'null')}catch(e){return null}}
+function lockSave(c){try{c?localStorage.setItem(LOCK_K,JSON.stringify(c)):localStorage.removeItem(LOCK_K)}catch(e){}}
+async function lockPinOk(pin){const c=lockCfg();if(!c||!pin)return false;return await admHash(String(pin),b64d(c.salt))===c.hash}
+const LockS={fails:0,wait:0,hid:0};
+function showLock(){const c=lockCfg();if(!c||document.getElementById('lockScreen'))return;const el=document.createElement('div');el.id='lockScreen';el.setAttribute('role','dialog');el.setAttribute('aria-label','التطبيق مقفل');
+  el.innerHTML=`<div class="lk-in"><div class="lk-logo">🔒</div><h2>إدارة شؤوني</h2><p class="note">التطبيق مقفل لحماية بياناتك</p>
+   ${c.bio?'<button class="btn block" id="lkBio">فتح ببصمة الوجه</button>':''}
+   <input class="inp num pin" id="lkPin" type="password" inputmode="numeric" maxlength="8" placeholder="الرمز" autocomplete="off" aria-label="رمز فتح التطبيق">
+   <button class="btn ${c.bio?'ghost ':''}block" id="lkGo">فتح بالرمز</button><p class="note" id="lkErr" style="color:var(--exp)"></p></div>`;
+  document.body.appendChild(el);document.body.classList.add('app-locked');
+  const ok=()=>{el.remove();document.body.classList.remove('app-locked','app-hidden');LockS.fails=0};
+  el.onclick=async e=>{const x=e.target.closest('button');if(!x)return;const er=document.getElementById('lkErr');
+    if(x.id==='lkBio'){const r=await verifyUser();if(r==='ok')ok();else er.textContent=r==='cancel'?'أُلغيت بصمة الوجه':'تعذّرت بصمة الوجه، استخدم الرمز';return}
+    if(x.id==='lkGo'){if(Date.now()<LockS.wait){er.textContent='انتظر '+Math.ceil((LockS.wait-Date.now())/1000)+' ثانية';return}
+      if(await lockPinOk(document.getElementById('lkPin').value)){ok();return}LockS.fails++;if(LockS.fails>=5){LockS.wait=Date.now()+30000;LockS.fails=0}er.textContent='الرمز غير صحيح';document.getElementById('lkPin').value=''}};
+  el.onkeydown=e=>{if(e.key==='Enter'&&e.target.id==='lkPin')document.getElementById('lkGo').click()}}
+document.addEventListener('visibilitychange',()=>{if(!lockCfg())return;if(document.visibilityState==='hidden'){LockS.hid=Date.now();document.body.classList.add('app-hidden')}
+  else{document.body.classList.remove('app-hidden');if(LockS.hid&&Date.now()-LockS.hid>60000)showLock();LockS.hid=0}});
+function hideAmtOn(){try{return localStorage.getItem('masareef:hideamt')==='1'}catch(e){return false}}
+function applyHideAmt(){document.body.classList.toggle('hide-amt',hideAmtOn());const b=document.getElementById('privBtn');if(b){b.textContent=hideAmtOn()?'🙈':'👁';b.setAttribute('aria-label',hideAmtOn()?'إظهار المبالغ':'إخفاء المبالغ')}}
+function privBtnInit(){const h=document.querySelector('.hdr-actions');if(!h||document.getElementById('privBtn'))return;const b=document.createElement('button');b.id='privBtn';b.type='button';b.className='iconbtn privbtn';h.insertBefore(b,document.getElementById('lookBtn'));applyHideAmt()}
+function securityHtml(){const c=lockCfg();
+  return `<div class="panel stack"><b>🔐 الأمان والخصوصية</b>
+   <div class="sumrow" style="align-items:center"><span>قفل التطبيق عند فتحه${c?' (مفعّل'+(c.bio?' ببصمة الوجه':'')+')':''}</span><button class="chip${c?'':' pay'}" id="lockSet">${c?'إيقاف':'تفعيل'}</button></div>
+   <div class="sumrow" style="align-items:center"><span>إخفاء المبالغ أمام الآخرين (زر 👁 في الأعلى)</span><button class="chip" id="hideAmt">${hideAmtOn()?'إظهارها':'إخفاؤها'}</button></div>
+   <span class="note">القفل يطلب الرمز أو بصمة الوجه عند فتح التطبيق، وبعد دقيقة من الخروج منه، ويُخفي المحتوى في قائمة التطبيقات المفتوحة.</span></div>`}
+function openLockSetup(){const L=document.getElementById('layer');const c=lockCfg();
+  if(c){L.innerHTML=`${sheetTop('القفل')}<h2 style="margin-top:0">إيقاف قفل التطبيق</h2><div class="field"><label for="lsOld">الرمز الحالي</label><input class="inp num pin" id="lsOld" type="password" inputmode="numeric" maxlength="8"></div><p class="note" id="lsErr" style="color:var(--exp)"></p>
+    <div class="actions">${c.bio?'<button class="btn ghost block" id="lsBioOff">إيقاف ببصمة الوجه</button>':''}<button class="btn block" id="lsOff">إيقاف القفل</button><button class="btn ghost block" data-close>إلغاء</button></div></div></div>`;
+    L.oninput=L.onchange=null;L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
+      if(x.id==='lsBioOff'){if(await verifyUser()==='ok'){lockSave(null);L.innerHTML='';render();toast('أُوقف قفل التطبيق')}return}
+      if(x.id==='lsOff'){if(await lockPinOk(document.getElementById('lsOld').value)){lockSave(null);L.innerHTML='';render();toast('أُوقف قفل التطبيق')}else document.getElementById('lsErr').textContent='الرمز غير صحيح'}};return}
+  uvAvailable().then(uv=>{L.innerHTML=`${sheetTop('القفل')}<h2 style="margin-top:0">تفعيل قفل التطبيق</h2><div class="stack">
+    <div class="row2"><div class="field"><label for="ls1">رمز من 4 إلى 8 أرقام</label><input class="inp num pin" id="ls1" type="password" inputmode="numeric" maxlength="8"></div><div class="field"><label for="ls2">أعد كتابته</label><input class="inp num pin" id="ls2" type="password" inputmode="numeric" maxlength="8"></div></div>
+    ${uv?'<label class="toggle"><input type="checkbox" id="lsBio" checked><span>الفتح ببصمة الوجه أيضًا</span></label>':''}
+    <p class="note" style="margin:0">الرمز محفوظ مشفّرًا في هذا الهاتف فقط. إذا نسيته وليس عندك بصمة وجه، لا يمكن فتح التطبيق إلا بحذف بيانات الموقع من إعدادات Safari، فاحفظ نسخة احتياطية قبلها.</p><p class="note" id="lsErr" style="color:var(--exp)"></p></div>
+    <div class="actions"><button class="btn block" id="lsSave">تفعيل</button><button class="btn ghost block" data-close>إلغاء</button></div></div></div>`;
+    L.oninput=L.onchange=null;L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
+      if(x.id==='lsSave'){const p1=document.getElementById('ls1').value.trim(),p2=document.getElementById('ls2').value.trim(),er=document.getElementById('lsErr');
+        if(!/^\d{4,8}$/.test(p1)){er.textContent='الرمز من 4 إلى 8 أرقام';return}if(p1!==p2){er.textContent='الرمزان غير متطابقين';return}
+        const salt=crypto.getRandomValues(new Uint8Array(16));const hash=await admHash(p1,salt);let bio=false;const bx=document.getElementById('lsBio');if(bx&&bx.checked)bio=(await verifyUser())==='ok';
+        lockSave({salt:b64e(salt),hash,bio});L.innerHTML='';render();toast('فُعّل قفل التطبيق'+(bx&&bx.checked&&!bio?' بالرمز فقط':''))}}})}
+/* ===== نسخة احتياطية مشفّرة بكلمة سر ===== */
+async function encBackupText(pass){const salt=crypto.getRandomValues(new Uint8Array(16));const key=await vDerive(pass,salt);const o=await vEnc(key,te(backupText()));
+  return JSON.stringify({app:'masareef',enc:'aes-gcm-pbkdf2',v:2,name:'إدارة شؤوني - نسخة احتياطية مشفّرة',at:new Date().toISOString(),appVersion:APP_VERSION,salt:b64e(salt),iv:b64e(o.iv),ct:b64e(o.ct)})}
+function openEncBackup(){const L=document.getElementById('layer');
+  L.innerHTML=`${sheetTop('نسخة مشفّرة')}<h2 style="margin-top:0">🔐 نسخة احتياطية مشفّرة</h2><div class="stack">
+   <div class="field"><label for="ebP1">كلمة سر (6 أحرف أو أكثر)</label><input class="inp" id="ebP1" type="password" autocomplete="new-password"></div>
+   <div class="field"><label for="ebP2">أعد كتابتها</label><input class="inp" id="ebP2" type="password" autocomplete="new-password"></div>
+   <p class="note" style="margin:0">الملف لا يُقرأ بدون هذه الكلمة، حتى لو وصل لغيرك. <b>لا يمكن استعادته إذا نسيتها</b>، فاكتبها في مكان آمن.</p><p class="note" id="ebErr" style="color:var(--exp)"></p></div>
+   <div class="actions"><button class="btn block" id="ebGo">تشفير وحفظ</button><button class="btn ghost block" data-close>إلغاء</button></div></div></div>`;
+  L.oninput=L.onchange=null;L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
+    if(x.id==='ebGo'){const p1=document.getElementById('ebP1').value,p2=document.getElementById('ebP2').value,er=document.getElementById('ebErr');if(p1.length<6){er.textContent='كلمة السر 6 أحرف على الأقل';return}if(p1!==p2){er.textContent='الكلمتان غير متطابقتين';return}
+      x.disabled=true;x.textContent='جارٍ التشفير…';const txt=await encBackupText(p1);L.innerHTML='';const r=await shareFile('idarat-shuooni-backup-'+today()+'-encrypted.json',txt,'application/json');
+      if(r!=='cancel'){try{localStorage.setItem('masareef:lastBackup',today())}catch(er2){}toast('حُفظت النسخة المشفّرة')}}}}
+function openDecrypt(o,label){const L=document.getElementById('layer');
+  L.innerHTML=`${sheetTop('فك التشفير')}<h2 style="margin-top:0">🔐 نسخة مشفّرة</h2><div class="field"><label for="dcP">كلمة السر</label><input class="inp" id="dcP" type="password" autocomplete="current-password"></div><p class="note" id="dcErr" style="color:var(--exp)"></p>
+   <div class="actions"><button class="btn block" id="dcGo">فتح النسخة</button><button class="btn ghost block" data-close>إلغاء</button></div></div></div>`;
+  L.oninput=L.onchange=null;L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
+    if(x.id==='dcGo'){x.disabled=true;try{const key=await vDerive(document.getElementById('dcP').value,b64d(o.salt));const txt=td(await vDec(key,{iv:b64d(o.iv),ct:b64d(o.ct)}));openRestore(txt,label||'نسخة مشفّرة')}
+      catch(er){x.disabled=false;document.getElementById('dcErr').textContent='كلمة السر غير صحيحة أو الملف تالف'}}}}
+function backupNudgeHtml(){if(list().length<10)return '';const lb=advLastBackup();const days=lb?Math.max(0,-daysTo(lb)):999;if(days<7)return '';
+  try{const sn=localStorage.getItem('masareef:bksnooze');if(sn&&sn>=today())return ''}catch(e){}
+  return `<div class="infobox"><span>💾 ${lb?'مرّ '+daysWord(days)+' على آخر نسخة احتياطية.':'لم تحفظ نسخة احتياطية بعد.'} احفظ نسخة في iCloud حتى لا تضيع بياناتك.</span><button class="chip pay" data-bknow="1">حفظ</button><button class="chip" data-bklater="1">لاحقًا</button></div>`}
+/* ===== تقويم المدفوعات ===== */
+function calItems(m){const out={};const add=(d,o)=>{(out[d]=out[d]||[]).push(o)};const cur=ym(new Date());
+  monthItems(m).forEach(i=>{const d=recDate({day:i.day},m);add(d,{t:i.name,a:i.amount,k:i.isPaid?'paid':(d<today()?'late':'due')})});
+  if(+S.settings.payday){const [y,mm]=m.split('-').map(Number);add(isoD(payDate(y,mm-1)),{t:'نزول الراتب',a:lastSalary()?+lastSalary().amount:0,k:'inc'})}
+  (S.settings.goals||[]).forEach(g=>{if(g.due&&g.due.slice(0,7)===m)add(g.due,{t:'موعد خطة: '+g.name,a:goalCalc(g).tgt,k:'plan'})});
+  trusts().forEach(t=>{if(t.due&&t.due.slice(0,7)===m&&trustCalc(t).rem>0)add(t.due,{t:'إرجاع أمانة: '+t.name,a:trustCalc(t).rem,k:'due'})});
+  cars().forEach(c=>{[['insExpiry','تأمين '],['regExpiry','ملكية ']].forEach(([f,n])=>{if(c[f]&&c[f].slice(0,7)===m)add(c[f],{t:'تجديد '+n+c.name,a:0,k:'plan'})})});
+  return out}
+function openPayCalendar(m){m=m||S.month;const L=document.getElementById('layer');let sel=null;
+  const draw=()=>{const I=calItems(m);const [y,mm]=m.split('-').map(Number);const first=new Date(y,mm-1,1).getDay();const dim=new Date(y,mm,0).getDate();const td=today();
+    const cells=[];for(let k=0;k<(first+1)%7;k++)cells.push('<div class="cd e"></div>');
+    for(let d=1;d<=dim;d++){const iso=m+'-'+String(d).padStart(2,'0');const it=I[iso]||[];const ks=[...new Set(it.map(x=>x.k))];
+      cells.push(`<button class="cd${iso===td?' td':''}${iso===sel?' sel':''}${it.length?' has':''}" data-cday="${iso}"><span>${d}</span><i>${ks.map(k=>`<em class="k-${k}"></em>`).join('')}</i></button>`)}
+    const L2=sel?(I[sel]||[]):Object.entries(I).sort().flatMap(([d,a])=>a.map(x=>Object.assign({d},x)));
+    const tot=Object.values(I).flat().filter(x=>x.k!=='inc'&&x.k!=='plan').reduce((s,x)=>s+(+x.a||0),0);
+    L.innerHTML=`${sheetTop('التقويم')}<div class="qhead"><button class="iconbtn" data-cm="1" aria-label="الشهر التالي">›</button><h2 style="margin:0">📅 ${esc(monthName(m))}</h2><button class="iconbtn" data-cm="-1" aria-label="الشهر السابق">‹</button></div>
+     <div class="calg"><div class="cw">السبت</div><div class="cw">الأحد</div><div class="cw">الاثنين</div><div class="cw">الثلاثاء</div><div class="cw">الأربعاء</div><div class="cw">الخميس</div><div class="cw">الجمعة</div>${cells.join('')}</div>
+     <div class="calkey"><span><em class="k-due"></em>مستحق</span><span><em class="k-late"></em>متأخر</span><span><em class="k-paid"></em>مدفوع</span><span><em class="k-inc"></em>راتب</span><span><em class="k-plan"></em>خطة / تجديد</span></div>
+     <div class="panel">${L2.length?L2.map(x=>`<div class="sumrow"><span><em class="dotk k-${x.k}"></em>${sel?'':fmtD(x.d)+' · '}${esc(x.t)}</span><b class="num">${x.a?money(x.a):''}</b></div>`).join(''):'<p class="note" style="margin:6px">لا شيء في هذا '+(sel?'اليوم':'الشهر')+'.</p>'}</div>
+     ${!sel&&tot?`<p class="note">مجموع المدفوعات في الشهر: <b class="num">${money(tot)}</b> ${CUR}</p>`:''}
+     <div class="actions"><button class="btn ghost block" data-close>إغلاق</button></div></div></div>`};
+  draw();L.oninput=L.onchange=null;
+  L.onclick=e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
+    if(x.dataset.cm){m=shiftMonth(m,+x.dataset.cm);sel=null;draw();return}
+    if(x.dataset.cday){sel=sel===x.dataset.cday?null:x.dataset.cday;draw()}}}
+/* ===== حاسبة الزكاة (للاسترشاد) ===== */
+function openZakat(){const L=document.getElementById('layer');const Z=Object.assign({gold:'',hawl:'',extra:'',debt:''},S.settings.zakat||{});
+  const T=accTotals();const held=trustsHeld();const due=recStatus(ym(new Date())).dueLeft;
+  const draw=()=>{const gold=parseAmt(Z.gold),nisab=r3(gold*85);const cash=T.total;const extra=parseAmt(Z.extra),dd=Z.debt===''?r3(due):parseAmt(Z.debt);
+    const base=r3(cash+extra-held-dd);const zk=base>=nisab&&nisab>0?r3(base*0.025):0;const hd=Z.hawl?daysTo(addDays(Z.hawl,354)):null;
+    L.innerHTML=`${sheetTop('الزكاة')}<h2 style="margin-top:0">🕋 حاسبة الزكاة</h2><div class="stack">
+     <div class="field"><label for="zkGold">سعر غرام الذهب عيار 24 اليوم (${CUR})</label><input class="inp num" id="zkGold" inputmode="decimal" value="${esc(Z.gold)}" placeholder="مثال: 31.500" style="text-align:left"></div>
+     <div class="panel paybk">
+      <div class="sumrow"><span>أرصدة حساباتك والادخار</span><b class="num">${money(cash)}</b></div>
+      ${T.known?'':'<div class="note">حدّد أرصدة حساباتك من «حساباتي» ليُحسب هذا تلقائيًا.</div>'}
+      <div class="sumrow"><span>أموال أخرى تجب فيها الزكاة (ذهب، أسهم، ديون لك مرجوّة)</span><input class="inp num zkin" id="zkExtra" inputmode="decimal" value="${esc(Z.extra)}" placeholder="0"></div>
+      ${held?`<div class="sumrow"><span>الأمانات التي عندك (ليست مالك)</span><b class="num">− ${money(held)}</b></div>`:''}
+      <div class="sumrow"><span>ديون حالّة عليك الآن</span><input class="inp num zkin" id="zkDebt" inputmode="decimal" value="${esc(Z.debt===''?amtIn(r3(due)):Z.debt)}"></div>
+      <div class="sumrow total"><span>المال الخاضع للزكاة</span><b class="num">${money(base)}</b></div>
+      <div class="sumrow"><span>النصاب (85 غرام ذهب)</span><b class="num">${nisab?money(nisab):'—'}</b></div>
+      <div class="sumrow total"><span>الزكاة الواجبة (2.5%)</span><b class="num ${zk?'amt-inc':''}">${nisab?(zk?money(zk):'لم يبلغ النصاب'):'اكتب سعر الذهب'}</b></div></div>
+     <div class="field"><label for="zkHawl">تاريخ بلوغ مالك النصاب (لحساب الحول الهجري)</label><input class="inp" type="date" id="zkHawl" value="${esc(Z.hawl)}"></div>
+     ${hd!==null?`<div class="note">${hd>0?'يحول الحول بعد '+daysWord(hd)+' (في '+fmtD(addDays(Z.hawl,354))+')':'حال الحول، فأخرج زكاتك إن كان المال باقيًا فوق النصاب'}</div>`:''}
+     <p class="note" style="margin:0">حاسبة للاسترشاد بحسب القول المشهور (ربع العشر بعد بلوغ النصاب ومرور الحول). للمسائل الخاصة كالديون المؤجلة والذهب المستعمل اسأل أهل العلم.</p></div>
+     <div class="actions"><button class="btn block" id="zkSave">حفظ</button><button class="btn ghost block" data-close>إغلاق</button></div></div></div>`};
+  const grab=()=>{const g=i=>document.getElementById(i);if(g('zkGold'))Z.gold=g('zkGold').value;if(g('zkExtra'))Z.extra=g('zkExtra').value;if(g('zkDebt'))Z.debt=g('zkDebt').value;if(g('zkHawl'))Z.hawl=g('zkHawl').value};
+  draw();L.oninput=null;L.onchange=e=>{if(['zkGold','zkExtra','zkDebt','zkHawl'].includes(e.target.id)){grab();const y=L.querySelector('.sheet').scrollTop;draw();L.querySelector('.sheet').scrollTop=y}};
+  L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
+    if(x.id==='zkSave'){grab();S.settings.zakat=Z;await putSettings();L.innerHTML='';toast('حُفظت بيانات الزكاة')}}}
+/* ===== سقف الفئات (تنبيه 80%) والاشتراكات المتكررة ===== */
+function capAlerts(){const m=ym(new Date()),B=S.settings.budgets||{};const sp={};inMonth(m).filter(t=>t.type==='exp').forEach(t=>sp[t.cat]=(sp[t.cat]||0)+(+t.amount));
+  return Object.entries(B).filter(([c,v])=>+v>0&&(sp[c]||0)>=0.8*v).map(([c,v])=>({c,v:+v,s:r3(sp[c]||0),pct:Math.round((sp[c]||0)/v*100)})).sort((a,b)=>b.pct-a.pct)}
+function subsDetect(){const cm=ym(new Date());const ms=[1,2,3,4].map(k=>shiftMonth(cm,-k));const by={};
+  list().filter(t=>t.type==='exp'&&!t.rec&&!t.debt&&t.note&&t.date>=ms[3]+'-01'&&t.date<cm+'-01').forEach(t=>{const k=mkey(t.note);if(!k)return;(by[k]=by[k]||{n:t.note,cat:t.cat,M:{}}).M[t.date.slice(0,7)]=+t.amount});
+  const known=new Set(recs().map(r=>mkey(r.name)));
+  return Object.values(by).filter(o=>{const v=Object.values(o.M);if(v.length<3)return false;const a=v.reduce((s,x)=>s+x,0)/v.length;return v.every(x=>Math.abs(x-a)<=Math.max(0.5,a*0.12))}).filter(o=>!known.has(mkey(o.n)))
+    .map(o=>{const v=Object.values(o.M);return{n:o.n,cat:o.cat,a:r3(v.reduce((s,x)=>s+x,0)/v.length),k:v.length}}).sort((a,b)=>b.a-a.a).slice(0,6)}
+function subsHtml(){const L=subsDetect();if(!L.length)return '';
+  return `<h2>اشتراكات ومصاريف متكررة لاحظتها</h2><div class="panel">${L.map(s=>`<div class="sumrow"><span>${esc(s.n)} <small class="note">· ${s.k} أشهر متتالية تقريبًا</small></span><span><b class="num">${money(s.a)}</b> <button class="chip" data-subadd="${esc(s.n)}|${s.a}|${esc(s.cat)}"><span class="lk">🔒 </span>أضفه للالتزامات</button></span></div>`).join('')}
+   <p class="note" style="margin:6px 0 0">راجعها: هل ما زلت تحتاجها؟ وإن كانت ثابتة أضفها للالتزامات الشهرية لتدخل في خطتك.</p></div>`}
+/* ===== مقارنة سنوية واتجاه الفئات ===== */
+function yearCmpHtml(m){const a=inMonth(m),b=inMonth(shiftMonth(m,-12));if(!b.length)return '';const ea=sum(a,'exp'),eb=sum(b,'exp'),ia=sum(a,'inc'),ib=sum(b,'inc');const p=(x,y)=>y?Math.round((x-y)/y*100):null;
+  const cell=(l,x,y,good)=>{const d=p(x,y);return `<div class="hstat"><span>${l}</span><b class="num">${money(x)}</b><small>العام الماضي ${money(y)}${d===null?'':' · <span class="'+((good?d>=0:d<=0)?'amt-inc':'amt-exp')+'">'+(d>0?'+':'')+d+'%</span>'}</small></div>`};
+  return `<h2>مقارنة بنفس الشهر من العام الماضي</h2><div class="hstats">${cell('الدخل',ia,ib,true)}${cell('المصاريف',ea,eb,false)}</div>`}
+function catTrendHtml(m){const ms=[5,4,3,2,1,0].map(k=>shiftMonth(m,-k));const tot={};const V={};
+  ms.forEach(mm=>inMonth(mm).filter(t=>t.type==='exp').forEach(t=>{tot[t.cat]=(tot[t.cat]||0)+(+t.amount);(V[t.cat]=V[t.cat]||{})[mm]=((V[t.cat]||{})[mm]||0)+(+t.amount)}));
+  const top=Object.entries(tot).sort((a,b)=>b[1]-a[1]).slice(0,5);if(top.length<2)return '';
+  return `<h2>اتجاه أهم الفئات (6 أشهر)</h2><div class="panel">${top.map(([c])=>{const vals=ms.map(mm=>V[c][mm]||0);const mx=Math.max(...vals)||1;const last=vals[5],prev=vals[4];const d=prev?Math.round((last-prev)/prev*100):null;const cc=catOf(c);
+    return `<div class="ctrend"><span class="ct-n">${esc(cc.n)}</span><span class="ct-b">${vals.map((v,i)=>`<i style="height:${Math.max(3,v/mx*100)}%;background:${cc.c}${i===5?'':'99'}" title="${money(v)}"></i>`).join('')}</span><span class="ct-v"><b class="num">${money(last)}</b>${d===null?'':`<small class="${d>0?'amt-exp':'amt-inc'}">${d>0?'↑':'↓'}${Math.abs(d)}%</small>`}</span></div>`}).join('')}</div>`}
+/* ===== مساحة التطبيق على الجهاز ===== */
+let storMemo=null;async function storageInfo(){if(storMemo&&Date.now()-storMemo.t<20000)return storMemo.v;const v=await storageInfo0();storMemo={t:Date.now(),v};return v}
+async function storageInfo0(){let usage=null,quota=null;try{if(navigator.storage&&navigator.storage.estimate){const e=await navigator.storage.estimate();usage=e.usage;quota=e.quota}}catch(e){}
+  let ls=0;try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);ls+=(k.length+(localStorage.getItem(k)||'').length)*2}}catch(e){}
+  let snaps=0;try{snaps=(await snapList()).reduce((s,x)=>s+(x.size||0)*2,0)}catch(e){}
+  const docs=Vault.docs.reduce((s,d)=>s+(d.files||[]).reduce((a,f)=>a+(+f.size||0),0),0);
+  let cache=0;try{if(window.caches){for(const k of await caches.keys()){const c=await caches.open(k);for(const r of await c.keys()){const res=await c.match(r);if(res){const b=await res.clone().blob();cache+=b.size}}}}}catch(e){}
+  return{usage,quota,ls,snaps,docs,cache}}
+function fmtBytes(b){if(b==null)return '—';if(b<1024)return b+' بايت';if(b<1048576)return (b/1024).toFixed(0)+' كيلوبايت';return (b/1048576).toFixed(1)+' ميجابايت'}
+async function fillStorage(el){if(!el)return;const s=await storageInfo();const total=s.usage!=null?s.usage:s.ls+s.snaps+s.docs+s.cache;
+  el.innerHTML=`<div class="sumrow"><span>المساحة المستخدمة على جهازك</span><b class="num">${fmtBytes(total)}</b></div>
+   <div class="sumrow sub"><span>بياناتك (العمليات والأقسام)</span><span class="num">${fmtBytes(s.ls)}</span></div>
+   <div class="sumrow sub"><span>اللقطات التلقائية</span><span class="num">${fmtBytes(s.snaps)}</span></div>
+   <div class="sumrow sub"><span>مستنداتي (مشفّرة)</span><span class="num">${fmtBytes(s.docs)}</span></div>
+   <div class="sumrow sub"><span>ملفات التطبيق للعمل بدون إنترنت</span><span class="num">${fmtBytes(s.cache)}</span></div>
+   ${s.quota?`<div class="sumrow sub"><span>المتاح للتطبيق</span><span class="num">${fmtBytes(s.quota)}</span></div>`:''}`}
+/* ===== اختصارات الآيفون: تسجيل رسالة البنك أو مصروف من رابط ===== */
+function handleLaunchUrl(){let q;try{q=new URLSearchParams(location.search)}catch(e){return}const sms=q.get('sms'),amt=q.get('amt');if(!sms&&!amt)return;
+  try{history.replaceState(null,'',location.pathname)}catch(e){}
+  setTimeout(()=>{if(document.getElementById('lockScreen')){const iv=setInterval(()=>{if(!document.getElementById('lockScreen')){clearInterval(iv);go()}},400)}else go()},300);
+  function go(){if(sms){IMP={text:sms,items:[]};openImport();setTimeout(()=>{const b=document.getElementById('iParse');if(b)b.click()},120)}
+    else openSheet(null,{type:q.get('type')==='inc'?'inc':'exp',amount:amt,cat:q.get('cat')||'',note:q.get('note')||''})}}
+function openShortcutGuide(){const L=document.getElementById('layer');const url=appUrl();
+  L.innerHTML=`${sheetTop('الاختصارات')}<h2 style="margin-top:0">⚡ تسجيل رسائل البنك تلقائيًا</h2>
+   <p class="note">بأتمتة من تطبيق «الاختصارات» في الآيفون: عند وصول رسالة من البنك يفتح التطبيق وفيه العملية جاهزة، فتضغط «إضافة» فقط. الرسالة لا تمر على أي طرف آخر.</p>
+   <ol class="steps"><li>افتح تطبيق <b>الاختصارات</b> ← تبويب <b>الأتمتة</b> ← <b>+</b> ← <b>رسالة</b>.</li>
+    <li>في «المرسل» اختر اسم البنك، أو في «الرسالة تحتوي» اكتب كلمة مثل <b>OMR</b> أو <b>ر.ع</b>. اختر <b>التشغيل فورًا</b>.</li>
+    <li>أضف الإجراء <b>فتح عناوين URL</b>، والصق الرابط التالي، ثم ضع بعد <b>sms=</b> المتغيّر <b>«الرسالة»</b> بعد تمريره على إجراء <b>ترميز URL</b>.</li></ol>
+   <div class="codebox" dir="ltr">${esc(url)}?sms=</div><button class="btn ghost block" id="scCopy">نسخ الرابط</button>
+   <p class="note">ولتسجيل مصروف سريع من اختصار أو من Siri: <span dir="ltr">${esc(url)}?amt=3.5&amp;note=قهوة</span></p>
+   <div class="actions"><button class="btn ghost block" data-close>إغلاق</button></div></div></div>`;
+  L.oninput=L.onchange=null;L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
+    if(x.id==='scCopy'){try{await navigator.clipboard.writeText(url+'?sms=');toast('نُسخ الرابط')}catch(er){toast('انسخه يدويًا من المربع')}}}}
+/* نصائح المستشار من الأدوات الجديدة */
+function proAdvice(add){capAlerts().slice(0,2).forEach(a=>add(a.pct>=100?86:66,'budget',(a.pct>=100?'تجاوزت سقف ':'وصلت ')+a.pct+'% من سقف «'+esc(catOf(a.c).n)+'»','صرفت <b class="num">'+amtH(a.s)+'</b> من <b class="num">'+amtH(a.v)+'</b> هذا الشهر.',['الميزانية','data-tab="budget"']));
+  const F=forecast(3);const neg=F.ok?F.rows.find(r=>r.left<0):null;if(neg)add(74,'warn','شهر '+esc(MONTHS[+neg.m.slice(5)-1])+' متوقع بالسالب','المتوقع <b class="num">−'+amtH(Math.abs(neg.left))+'</b> بعد الالتزامات والأقساط والخطط. جهّز له من الآن.',['التوقّعات','data-tab="reports"']);
+  const m=accList().find(a=>a.id==='main');if(m&&m.anchor&&m.anchor.date<addDays(today(),-30))add(45,'cal','طابق رصيد حسابك الجاري','آخر مطابقة كانت '+fmtD(m.anchor.date)+'. المطابقة الشهرية تكشف أي مصروف نسيت تسجيله.',['حساباتي','data-accopen="1"'])}
+
+/* ---------- 29. الأحداث (الضغط والكتابة) ---------- */
 document.addEventListener('click',async e=>{
   const b=e.target.closest('button');if(!b||b.closest('#layer'))return;
   if(b.dataset.tab){S.tab=b.dataset.tab;render();window.scrollTo(0,0);return}
@@ -3260,6 +3560,17 @@ document.addEventListener('click',async e=>{
   if(b.dataset.duaread){openDuaRead();return}
   if(b.dataset.wird){openWird();return}
   if(b.dataset.adhkar){openAdhkar();return}
+  if(b.dataset.accopen){openAccounts();return}
+  if(b.dataset.paycal){openPayCalendar();return}
+  if(b.dataset.zakat){openZakat();return}
+  if(b.dataset.salyes){const ls=lastSalary();openSheet(null,{type:'inc',cat:'salary',amount:ls?amtIn(ls.amount):'',note:'راتب',method:'transfer'});return}
+  if(b.dataset.salno){try{localStorage.setItem('masareef:salskip',today())}catch(e){}render();return}
+  if(b.dataset.bknow){await saveBackupFile();render();return}
+  if(b.dataset.bklater){try{localStorage.setItem('masareef:bksnooze',addDays(today(),3))}catch(e){}render();return}
+  if(b.dataset.subadd){const [n,a,c]=b.dataset.subadd.split('|');const r={id:uidGen(),kind:'other',name:n,cat:c||'bills',amount:+a,day:new Date().getDate(),since:ym(new Date()),arrears:0};recLog(r,'أُضيف من الاشتراكات المتكررة');S.settings.recurring=recs().concat([r]);await putSettings();render();toast('أُضيف «'+n+'» للالتزامات الشهرية');return}
+  if(b.id==='privBtn'||b.id==='hideAmt'){try{localStorage.setItem('masareef:hideamt',hideAmtOn()?'0':'1')}catch(e){}applyHideAmt();render();return}
+  if(b.id==='lockSet'){openLockSetup();return}
+  if(b.id==='scGuide'){openShortcutGuide();return}
   if(b.dataset.dpe){const [did,pid]=b.dataset.dpe.split('|');openDebtPayEdit(did,pid);return}
   if(b.dataset.dprint){printDebt(b.dataset.dprint);return}
   if(b.dataset.cdview){const id=b.dataset.cdview;withVault(()=>viewDoc(id));return}
@@ -3363,8 +3674,8 @@ let debtT;document.addEventListener('input',e=>{if(e.target.id==='q'){S.q=e.targ
 document.addEventListener('change',e=>{
   if(e.target.id==='restoreFile'&&e.target.files[0]){const r=new FileReader();r.onload=()=>openRestore(r.result,'من ملف');r.readAsText(e.target.files[0]);e.target.value=''}});
 
-/* ---------- 29. التشغيل ---------- */
-checkVersion();cacheLoad();migrateRecs();render();dbBoot();Sync.start();setTimeout(notifyCarAlerts,1500);vaultLoad();
+/* ---------- 30. التشغيل ---------- */
+checkVersion();cacheLoad();migrateRecs();if(lockCfg())showLock();privBtnInit();render();dbBoot();handleLaunchUrl();Sync.start();setTimeout(notifyCarAlerts,1500);vaultLoad();
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.classList&&e.target.classList.contains('pin')){const b=document.getElementById(e.target.id==='vPin'?'vaultUnlock':'vaultSetup');b&&b.click()}});
 document.addEventListener('change',async e=>{if(e.target.id==='vaultImportFile'&&e.target.files[0]){const f=e.target.files[0];e.target.value='';const txt=await f.text();const L=document.getElementById('layer');
   L.innerHTML=`<div class="scrim" data-close></div><div class="sheet" data-vault role="dialog" aria-modal="true" aria-label="استيراد خزنة"><div class="in"><div class="grab"></div><h2 style="margin-top:0">استيراد خزنة</h2><div class="stack"><div class="field"><label for="vImpPin">رمز الخزنة التي صُدّر منها الملف</label><input class="inp num pin" id="vImpPin" type="password" inputmode="numeric" maxlength="8"></div><div class="actions"><button class="btn block" id="vImpGo">استيراد</button><button class="btn ghost block" data-close>إلغاء</button></div></div></div></div>`;
