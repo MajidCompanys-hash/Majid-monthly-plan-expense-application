@@ -15,7 +15,7 @@
  *  10. العرض
  *  11. التسجيل السريع
  *  12. نافذة إضافة وتعديل العمليات
- *  13. المصاريف والأقساط الشهرية، والأهل
+ *  13. الالتزامات الشهرية، والأهل
  *  14. الخطط والأهداف: المناسبات وحساب الادخار
  *  15. الخطط والأهداف: معالج الخطة الذكية
  *  16. السيارات: التأمين والملكية والصيانة والتنبيهات
@@ -62,7 +62,10 @@ function today(){return isoD(new Date())}
 function daysTo(iso){if(!iso)return null;return Math.ceil((new Date(iso+'T12:00')-new Date())/864e5)}
 function fmtD(iso){if(!iso)return '—';const d=new Date(iso+'T12:00');return d.getDate()+' '+MONTHS[d.getMonth()]+' '+d.getFullYear()}
 /* تقريب لثلاث خانات (البيسة) */
-function r3(x){return Math.round(x*1000)/1000}
+/* تقريب المبالغ لثلاث خانات (بيسة) بدقة، ومتماثل للسالب والموجب: 1.0005→1.001 و −1.0005→−1.001 */
+function r3(x){x=Number(x)||0;const g=x<0?-1:1;return g*Math.round(Math.abs(x)*1000+1e-7)/1000||0}
+/* عدد أيام الشهر الذي فيه التاريخ d */
+function monthDays(d){return new Date(d.getFullYear(),d.getMonth()+1,0).getDate()}
 /* العدد بالعربية: 1 واحد، 2 مثنى، 3-10 جمع، 11+ مفرد منصوب */
 function countWord(n,one,two,few,many){return n===1?one:n===2?two:n<=10?n+' '+few:n+' '+many}
 /* أيقونة خطية موحّدة */
@@ -90,13 +93,15 @@ function shiftMonth(m,k){const [y,mm]=m.split('-').map(Number);return ym(new Dat
 function uidGen(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
 function list(){return Object.values(S.tx)}
 function inMonth(m){return list().filter(t=>t.date&&t.date.slice(0,7)===m)}
-function sum(a,type){return a.filter(t=>t.type===type).reduce((s,t)=>s+(+t.amount||0),0)}
+function sum(a,type){return r3(a.filter(t=>t.type===type).reduce((s,t)=>s+(+t.amount||0),0))}
 
 /* ---------- 2. التخزين في الجهاز وقاعدة البيانات الداخلية ---------- */
-function cacheSave(){try{localStorage.setItem('masareef:v1',JSON.stringify({tx:S.tx,del:S.del,settings:S.settings}))}catch(e){if(!S.lsWarned){S.lsWarned=1;toast('ذاكرة التطبيق ممتلئة. بياناتك محفوظة في قاعدة البيانات الداخلية، واحفظ نسخة احتياطية كملف',null,7000)}}mirrorSoon()}
+/* rev: رقم يزيد مع كل حفظ، ويُكتب في الذاكرة الأساسية وفي قاعدة البيانات الداخلية.
+   إذا فشل الحفظ في الذاكرة الأساسية (امتلأت)، تكون القاعدة الداخلية أحدث، فتُعتمد هي عند الفتح التالي. */
+function cacheSave(){S.rev=(S.rev||0)+1;try{secStamp()}catch(e){}try{localStorage.setItem('masareef:v1',JSON.stringify({rev:S.rev,tx:S.tx,del:S.del,settings:S.settings}))}catch(e){if(!S.lsWarned){S.lsWarned=1;toast('ذاكرة التطبيق ممتلئة. بياناتك محفوظة في قاعدة البيانات الداخلية، واحفظ نسخة احتياطية كملف',null,7000)}}mirrorSoon()}
 function cacheLoad(){let raw=null;try{raw=localStorage.getItem('masareef:v1')}catch(e){}
   if(!raw){S.lsState='missing';return}
-  try{const r=JSON.parse(raw);if(!r||typeof r!=='object')throw 0;S.tx=r.tx||{};S.del=r.del||{};S.settings=Object.assign({monthlyBudget:0,budgets:{}},r.settings||{});S.lsState='ok';if(S.snapVer)S.snapVerData=backupText()}
+  try{const r=JSON.parse(raw);if(!r||typeof r!=='object')throw 0;S.tx=r.tx||{};S.del=r.del||{};S.settings=Object.assign({monthlyBudget:0,budgets:{}},r.settings||{});S.lsRev=S.rev=+r.rev||0;S.lsState='ok';if(S.snapVer)S.snapVerData=backupText()}
   catch(e){S.lsState='corrupt';try{localStorage.setItem('masareef:v1:corrupt',raw)}catch(er){}}}
 /* ===== قاعدة البيانات الداخلية =====
    الحفظ على ثلاث طبقات داخل هاتفك:
@@ -104,7 +109,7 @@ function cacheLoad(){let raw=null;try{raw=localStorage.getItem('masareef:v1')}ca
    2) قاعدة بيانات IndexedDB مقسّمة: كل عملية سجل مستقل، وكل قسم (الديون، الالتزامات، الخطط...) في خانة مستقلة.
       تُحدَّث تلقائيًا بعد كل حفظ، ومنها تُستعاد البيانات إذا تلفت الذاكرة الأساسية.
    3) لقطات يومية تلقائية (آخر 14 يومًا) + لقطة قبل كل تحديث أو استعادة أو حذف شامل. */
-const DATA_SECS=[['debts','الديون'],['recurring','الالتزامات الشهرية'],['goals','الخطط والادخار'],['trusts','الأمانات'],['cars','السيارات'],['people','الأهل']];
+const DATA_SECS=[['debts','الديون'],['recurring','الالتزامات الشهرية'],['goals','الخطط والادخار'],['trusts','الأمانات'],['cars','السيارات'],['people','الأهل'],['accounts','الحسابات'],['transfers','التحويلات']];
 const IDB=(()=>{let dbp=null;
   const open=()=>dbp||(dbp=new Promise((res,rej)=>{if(!window.indexedDB){rej(new Error('noidb'));return}const r=indexedDB.open('masareef-data',1);
     r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore('tx',{keyPath:'id'});d.createObjectStore('sec');d.createObjectStore('snap',{keyPath:'id'})};r.onsuccess=()=>res(r.result);r.onerror=()=>{dbp=null;rej(r.error)}}));
@@ -127,17 +132,18 @@ async function mirrorFlush(){if(!Mirror.known)return;if(Mirror.busy){Mirror.agai
     for(const id of Mirror.known.keys())if(!nk.has(id))gone.push(id);
     const parts=splitSettings();parts.del=S.del;const secPut=Object.entries(parts).map(([k,v])=>[k,v,JSON.stringify(v)]).filter(([k,,s])=>Mirror.secs[k]!==s);
     if(put.length||gone.length||secPut.length){await IDB.tr(['tx','sec'],t=>{const T=t.objectStore('tx'),X=t.objectStore('sec');put.forEach(x=>T.put(x));gone.forEach(id=>T.delete(id));
-      secPut.forEach(([k,v])=>X.put(v,k));X.put({at:Date.now(),n:nk.size,v:APP_VERSION},'meta')});
+      secPut.forEach(([k,v])=>X.put(v,k));X.put({at:Date.now(),n:nk.size,v:APP_VERSION,rev:S.rev||0},'meta')});
       secPut.forEach(([k,,s])=>Mirror.secs[k]=s)}
     Mirror.known=nk;Mirror.at=Date.now();Mirror.ok=true;Mirror.err=''}
   catch(e){Mirror.ok=false;Mirror.err=String(e&&e.message||e)}
   Mirror.busy=false;if(Mirror.again){Mirror.again=false;mirrorSoon()}}
 /* عند الفتح: تجهيز المرآة، واستعادة البيانات منها إذا كانت الذاكرة الأساسية فارغة أو تالفة */
 async function dbBoot(){try{const [txs,keys]=await Promise.all([IDB.all('tx'),IDB.keys('sec')]);const sec={};for(const k of keys)sec[k]=await IDB.get('sec',k);
-    if(S.lsState!=='ok'&&(txs.length||(sec.settings&&Object.keys(sec.settings).length>2))){
-      S.tx={};txs.forEach(t=>{if(t&&t.id)S.tx[t.id]=t});S.del=sec.del||{};S.settings=joinSettings(sec);
+    const idbNewer=S.lsState==='ok'&&sec.meta&&+sec.meta.rev>(S.lsRev||0);
+    if((S.lsState!=='ok'||idbNewer)&&(txs.length||(sec.settings&&Object.keys(sec.settings).length>2))){
+      S.rev=Math.max(S.rev||0,+(sec.meta&&sec.meta.rev)||0);S.tx={};txs.forEach(t=>{if(t&&t.id)S.tx[t.id]=t});S.del=sec.del||{};S.settings=joinSettings(sec);
       Mirror.known=new Map(txs.map(t=>[t.id,JSON.stringify(t)]));cacheSave();migrateRecs();render();
-      toast(S.lsState==='corrupt'?'كانت الذاكرة الأساسية تالفة، واستُعيدت بياناتك كاملة من قاعدة البيانات الداخلية':'استُعيدت بياناتك من قاعدة البيانات الداخلية',null,6000);S.lsState='ok'}
+      toast(idbNewer?'آخر تعديلاتك لم تُحفظ في الذاكرة الأساسية (كانت ممتلئة)، فاستُعيدت من قاعدة البيانات الداخلية':S.lsState==='corrupt'?'كانت الذاكرة الأساسية تالفة، واستُعيدت بياناتك كاملة من قاعدة البيانات الداخلية':'استُعيدت بياناتك من قاعدة البيانات الداخلية',null,6000);S.lsState='ok'}
     else{Mirror.known=new Map(txs.map(t=>[t.id,JSON.stringify(t)]));Object.keys(sec).forEach(k=>{if(k!=='meta')Mirror.secs[k]=JSON.stringify(sec[k])})}
     await mirrorFlush();
     if(S.snapVer)await snapTake('قبل التحديث إلى الإصدار '+APP_VERSION,false,S.snapVerData);S.snapVer=null;S.snapVerData=null;
@@ -145,7 +151,7 @@ async function dbBoot(){try{const [txs,keys]=await Promise.all([IDB.all('tx'),ID
   catch(e){Mirror.ok=false;Mirror.err=String(e&&e.message||e)}}
 /* اللقطات */
 function dataCounts(st){st=st||S.settings;const L=st===S.settings?list():[];const D=st.debts||[];
-  return{tx:L.length,inc:L.filter(t=>t.type==='inc').length,exp:L.filter(t=>t.type==='exp').length,recurring:(st.recurring||[]).length,debts:D.length,debtsDone:D.filter(d=>!(+d.balance>0.0005)).length,debtPays:D.reduce((s,d)=>s+(d.pays||[]).length,0),goals:(st.goals||[]).length,trusts:(st.trusts||[]).length,cars:(st.cars||[]).length,people:(st.people||[]).length}}
+  return{tx:L.length,inc:L.filter(t=>t.type==='inc').length,exp:L.filter(t=>t.type==='exp').length,recurring:(st.recurring||[]).length,debts:D.length,debtsDone:D.filter(d=>!(+d.balance>0.0005)).length,debtPays:D.reduce((s,d)=>s+(d.pays||[]).length,0),goals:(st.goals||[]).length,trusts:(st.trusts||[]).length,cars:(st.cars||[]).length,people:(st.people||[]).length,accounts:(st.accounts||[]).length,transfers:(st.transfers||[]).length}}
 async function snapTake(label,auto,txt){try{txt=txt||backupText();const o=JSON.parse(txt);const id=auto?'day-'+today():'s-'+Date.now();
     await IDB.tr(['snap'],t=>t.objectStore('snap').put({id,at:new Date().toISOString(),label:label||'لقطة يومية تلقائية',auto:!!auto,counts:o.counts||null,check:o.check||'',size:txt.length,data:txt}));await snapPrune();return id}catch(e){return null}}
 async function snapPrune(){const A=(await IDB.all('snap')).sort((a,b)=>b.at.localeCompare(a.at));const del=A.filter(s=>s.auto).slice(14).concat(A.filter(s=>!s.auto).slice(12));
@@ -153,10 +159,21 @@ async function snapPrune(){const A=(await IDB.all('snap')).sort((a,b)=>b.at.loca
 async function snapDaily(){if(!list().length&&!debts().length&&!recs().length)return;try{if(!await IDB.get('snap','day-'+today()))await snapTake('',true)}catch(e){}}
 async function snapList(){try{return (await IDB.all('snap')).sort((a,b)=>b.at.localeCompare(a.at))}catch(e){return []}}
 
-async function putTx(t){delete t.localOnly;if(!S.tx[t.id]&&!t.sample&&admPendNew())t.pend=1;t.u=Date.now();S.tx[t.id]=t;cacheSave();render();Sync.soon()}
+async function putTx(t){txPrep(t);cacheSave();render();Sync.soon()}
 async function delTx(id){delete S.tx[id];S.del[id]=Date.now();cacheSave();render();Sync.soon()}
+/* حفظ أو حذف مجموعة عمليات دفعة واحدة: حفظ واحد وعرض واحد بدل تكراره لكل عملية */
+function txPrep(t){delete t.localOnly;if(!S.tx[t.id]&&!t.sample&&admPendNew())t.pend=1;t.u=Date.now();S.tx[t.id]=t}
+async function putTxMany(arr){arr.forEach(txPrep);cacheSave();render();Sync.soon()}
+async function delTxMany(ids){const n=Date.now();ids.forEach(id=>{delete S.tx[id];S.del[id]=n});cacheSave();render();Sync.soon()}
+/* كل قسم له وقت آخر تعديل (_su)، حتى تدمج المزامنة بين الأجهزة كل قسم على حدة ولا يضيع تعديل قسم بسبب تعديل قسم آخر */
+const SecJ={};
+function secStamp(){const now=Date.now(),su=S.settings._su=Object.assign({},S.settings._su||{});const parts=splitSettings();delete parts.settings._su;delete parts.settings._u;
+  Object.entries(parts).forEach(([k,v])=>{const j=JSON.stringify(v);if(SecJ[k]!==undefined&&SecJ[k]!==j)su[k]=now;SecJ[k]=j})}
+function secSeed(){const parts=splitSettings();delete parts.settings._su;delete parts.settings._u;Object.entries(parts).forEach(([k,v])=>SecJ[k]=JSON.stringify(v))}
 async function putSettings(){S.settings._u=Date.now();cacheSave();Sync.soon()}
-function saveFile(name,text,type){try{const blob=new Blob([text],{type});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},1500);return true}catch(e){return false}}
+/* تنزيل أي ملف أو Blob إلى جهازك (دالة واحدة لكل التطبيق) */
+function dlBlob(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},2000)}
+function saveFile(name,text,type){try{dlBlob(new Blob([text],{type}),name);return true}catch(e){return false}}
 
 /* ---------- 3. النسخ الاحتياطي والإشعارات الصغيرة ---------- */
 /* النسخة الاحتياطية: ملف مقسّم إلى أقسام واضحة، مع عدد السجلات وبصمة للتحقق من سلامته */
@@ -180,7 +197,7 @@ async function applyBackup(B,mode){const now=Date.now();
 /* نافذة الاستعادة: معاينة ما في الملف ومقارنته بما عندك قبل أي تغيير */
 function openRestore(txt,label){try{const o=JSON.parse(txt);if(o&&o.app==='masareef'&&o.enc){openDecrypt(o,label);return}}catch(e){}const L=document.getElementById('layer');const B=parseBackup(txt);if(B.err){toast(B.err);return}let mode='replace';
   const cur=dataCounts(),nw=Object.assign(dataCounts(B.settings),{tx:B.tx.length,inc:B.tx.filter(t=>t.type==='inc').length,exp:B.tx.filter(t=>t.type==='exp').length});
-  const rows=[['العمليات','tx'],['الديون','debts'],['دفعات الديون','debtPays'],['الالتزامات الشهرية','recurring'],['الخطط','goals'],['الأمانات','trusts'],['السيارات','cars'],['الأهل','people']];
+  const rows=[['العمليات','tx'],['الديون','debts'],['دفعات الديون','debtPays'],['الالتزامات الشهرية','recurring'],['الخطط','goals'],['الأمانات','trusts'],['السيارات','cars'],['الأهل','people'],['الحسابات','accounts'],['التحويلات','transfers']];
   const draw=()=>{L.innerHTML=`${sheetTop('استعادة')}<h2 style="margin-top:0">استعادة ${esc(label||'نسخة احتياطية')}</h2>
    <div class="panel paybk"><div class="sumrow"><span>تاريخ النسخة</span><b>${B.at?fmtAt(B.at):'—'}</b></div>${B.appVersion?`<div class="sumrow"><span>من الإصدار</span><b>${esc(B.appVersion)}</b></div>`:''}
     <div class="sumrow"><span>سلامة الملف</span><b class="${B.check===false?'amt-exp':'amt-inc'}">${B.check===true?'سليم ومطابق لبصمته ✓':B.check===false?'⚠ البصمة لا تطابق: الملف عُدّل أو تلف جزء منه':'نسخة قديمة بدون بصمة'}</b></div>
@@ -195,7 +212,6 @@ function openRestore(txt,label){try{const o=JSON.parse(txt);if(o&&o.app==='masar
     if(x.id==='rsGo'){x.disabled=true;const before=backupText();const sid=await snapTake('قبل الاستعادة',false,before);await applyBackup(B,mode);L.innerHTML='';
       toast('استُعيدت البيانات: '+countWord(B.tx.length,'عملية واحدة','عمليتان','عمليات','عملية'),async()=>{await applyBackup(parseBackup(before),'replace');toast('أُعيدت بياناتك كما كانت')},10000)}}}
 /* للتوافق مع النسخ السابقة من الأزرار */
-function restoreFrom(txt){openRestore(txt)}
 /* فحص السلامة: يقرأ كل قسم ويتأكد من صحة ترابطه */
 async function dataHealth(){const L=list(),R=recs(),D=debts();const out=[];const add=(ok,t,d)=>out.push({ok,t,d});
   let lsOk=false,lsSize=0;try{const raw=localStorage.getItem('masareef:v1')||'';lsSize=raw.length;const p=JSON.parse(raw);lsOk=!!p&&Object.keys(p.tx||{}).length===L.length}catch(e){}
@@ -217,7 +233,7 @@ async function dataHealth(){const L=list(),R=recs(),D=debts();const out=[];const
 async function openDataCenter(){const L=document.getElementById('layer');L.innerHTML=`${sheetTop('قاعدة البيانات')}<h2 style="margin-top:0">🗄️ قاعدة البيانات</h2><p class="note">جارٍ الفحص…</p></div></div>`;
   const H=await dataHealth(),SN=await snapList();let est=null;try{est=navigator.storage&&navigator.storage.estimate?await navigator.storage.estimate():null}catch(e){}
   const c=dataCounts(),lb=advLastBackup(),lbd=lb?Math.max(0,-daysTo(lb)):null,warn=H.filter(h=>!h.ok).length;const fp=backupObj().check;
-  const secRows=[['tx','العمليات (الدخل والمصاريف)',c.tx,c.inc+' دخل · '+c.exp+' مصروف'],['debts','الديون',c.debts,(c.debts-c.debtsDone)+' قائم · '+c.debtsDone+' منتهٍ · '+c.debtPays+' دفعة'],['monthly','الالتزامات الشهرية',c.recurring,''],['plans','الخطط والادخار',c.goals,''],['trusts','الأمانات',c.trusts,''],['','السيارات',c.cars,''],['','الأهل',c.people,''],['','مستنداتي (خزنة مشفّرة منفصلة)',Vault.docs.length,'لها نسخة احتياطية مشفّرة خاصة من «مستنداتي»']];
+  const secRows=[['tx','العمليات (الدخل والمصاريف)',c.tx,c.inc+' دخل · '+c.exp+' مصروف'],['debts','الديون',c.debts,(c.debts-c.debtsDone)+' قائم · '+c.debtsDone+' منتهٍ · '+c.debtPays+' دفعة'],['monthly','الالتزامات الشهرية',c.recurring,''],['plans','الخطط والادخار',c.goals,''],['trusts','الأمانات',c.trusts,''],['','السيارات',c.cars,''],['','الأهل',c.people,''],['','حساباتي والتحويلات',c.accounts,c.transfers+' تحويل'],['','مستنداتي (خزنة مشفّرة منفصلة)',Vault.docs.length,'لها نسخة احتياطية مشفّرة خاصة من «مستنداتي»']];
   const draw=()=>{L.innerHTML=`${sheetTop('قاعدة البيانات')}<h2 style="margin-top:0">🗄️ قاعدة البيانات</h2>
    <div class="dbstat ${warn?'warn':'ok'}"><b>${warn?'⚠ '+countWord(warn,'ملاحظة واحدة','ملاحظتان','ملاحظات','ملاحظة')+' تحتاج انتباهك':'✓ قاعدة البيانات سليمة ومحفوظة'}</b><small>بصمة البيانات الحالية: <span dir="ltr" class="num">${fp}</span></small></div>
    <h3>أين تُحفظ بياناتك</h3><div class="panel dblayers">
@@ -337,14 +353,14 @@ function dashHtml(){
   T.push({i:'car',c:'#3E7CB1',attr:'data-tab="cars"',t:'السيارات',st:al.length?'alert':C.length?'good':'',s:!C.length?'أضف سيارتك لمتابعة التأمين والملكية والصيانة':al.length?esc(al[0].text)+(al.length>1?' (+'+(al.length-1)+')':''):(C.length===1?'سيارة واحدة':C.length+' سيارات')+' · كل شيء ساري'});
   {const A=docAlertList();const n=Vault.docs.length;T.push({i:'docs',c:'#24508C',attr:'data-tab="docs"',t:'مستنداتي',st:A.some(a=>a.level==='late')?'alert':'',s:A.length?esc(A[0].title)+' '+esc(A[0].when.split('،')[0]):n?n+' مستند في الخزنة المشفّرة':'البطاقة والجواز والـCV في خزنة مشفّرة'})}
   {const Ds=debts(),cm=ym(new Date());const rem=Ds.reduce((s,d)=>s+(+d.balance||0),0);const lateD=Ds.filter(d=>+d.balance>0&&!(d.pays||[]).some(x=>x.date&&x.date.slice(0,7)===cm)&&new Date().getDate()>(+d.day||1));const pl=Ds.length?simDebts(Ds,debtPlan().extra,debtPlan().strategy,true):null;
-   T.push({i:'debt',c:'#8A4F7D',attr:'data-tab="debts"',t:'قسم الديون',st:lateD.length?'alert':Ds.length&&rem<=0?'good':'',s:!Ds.length?'أضف ديونك لتعرف متى تتخلص منها':rem<=0?'لا ديون متبقية':lateD.length?'قسط '+esc(lateD[0].name)+' متأخر':'متبقٍ <span class="num">'+amtH(rem)+'</span>'+(pl&&pl.months?' · باقٍ '+countWord(pl.months,'قسط واحد','قسطان','أقساط','قسطًا'):'')})}
+   T.push({i:'debt',c:'#8A4F7D',attr:'data-tab="debts"',t:'ديوني',st:lateD.length?'alert':Ds.length&&rem<=0?'good':'',s:!Ds.length?'أضف ديونك لتعرف متى تتخلص منها':rem<=0?'لا ديون متبقية':lateD.length?'قسط '+esc(lateD[0].name)+' متأخر':'متبقٍ <span class="num">'+amtH(rem)+'</span>'+(pl&&pl.months?' · باقٍ '+countWord(pl.months,'قسط واحد','قسطان','أقساط','قسطًا'):'')})}
   {const held=trustsHeld(),n=trusts().filter(t=>trustCalc(t).rem>0).length,al=trustAlertList();T.push({i:'trust',c:'#6B5C3A',attr:'data-tab="trusts"',t:'الأمانات',st:al.some(a=>a.level==='late')?'alert':'',s:held?'عندك <span class="num">'+amtH(held)+'</span> لـ'+countWord(n,'شخص واحد','شخصين','أشخاص','شخصًا')+(al.length?' · '+al.length+' موعد قريب':''):'وثّق أموال الآخرين التي عندك'})}
   const st=recStatus(m);const late=st.R.filter(i=>!i.isPaid&&(m<ym(new Date())||(m===ym(new Date())&&new Date().getDate()>i.day)));
-  T.push({i:'bills',c:'#6B5CA5',attr:'data-tab="monthly"',t:'المصاريف الشهرية',st:late.length?'alert':st.R.length&&!st.left?'good':'',s:!st.R.length?'الفواتير والإيجار وأقساط الديون في مكان واحد':!st.left?'دفعت كلها هذا الشهر':'باقي '+st.left+' من '+st.R.length+(late.length?' · '+late.length+' متأخر':'')});
+  T.push({i:'bills',c:'#6B5CA5',attr:'data-tab="monthly"',t:'الالتزامات الشهرية',st:late.length?'alert':st.R.length&&!st.left?'good':'',s:!st.R.length?'الفواتير والإيجار وأقساط الديون في مكان واحد':!st.left?'دفعت كلها هذا الشهر':'باقي '+st.left+' من '+st.R.length+(late.length?' · '+late.length+' متأخر':'')});
   const P=people(),po=byPerson(a);const pt=P.reduce((s,p)=>s+(po[p.id]||0),0);const over=P.filter(p=>+p.allowance&&(po[p.id]||0)>+p.allowance);
   T.push({i:'family',c:'#2F7F7A',attr:'data-tab="house"',t:'الأهل والبيت',st:over.length?'alert':'',s:!P.length?'وزّع المصاريف على أفراد أسرتك':over.length?'تجاوزت مخصص '+esc(over[0].name):P.length+' أشخاص · صُرف <span class="num">'+amtH(pt)+'</span>'});
   const B=+S.settings.monthlyBudget||0;let bs='حدّد سقفًا شهريًا لمصاريفك',bst='';
-  if(B){const d=new Date();const dl=new Date(d.getFullYear(),d.getMonth()+1,0).getDate()-d.getDate()+1;bs=exp>B?'تجاوزت بـ <span class="num">'+amtH(exp-B)+'</span>':'صرفت '+Math.round(exp/B*100)+'%'+(m===ym(d)?' · يوميًا <span class="num">'+amtH(dailyPlan().daily)+'</span>':'');bst=exp>B?'alert':''}
+  if(B){const d=new Date();const dl=monthDays(d)-d.getDate()+1;bs=exp>B?'تجاوزت بـ <span class="num">'+amtH(exp-B)+'</span>':'صرفت '+Math.round(exp/B*100)+'%'+(m===ym(d)?' · يوميًا <span class="num">'+amtH(dailyPlan().daily)+'</span>':'');bst=exp>B?'alert':''}
   T.push({i:'budget',c:'#B0662F',attr:'data-tab="budget"',t:'الميزانية',st:bst,s:bs});
   {const AT=accTotals();T.push({i:'acc',c:'#1F6B55',attr:'data-accopen="1"',t:'حساباتي',s:AT.known?'مجموع أرصدتك <span class="num">'+amtH(AT.total)+'</span>':'أرصدة الجاري والكاش والبطاقات، والتحويل بينها'})}
   T.push({i:'cal',c:'#C9881E',attr:'data-paycal="1"',t:'تقويم المدفوعات',s:'مواعيد الفواتير والأقساط والراتب والخطط'});
@@ -357,7 +373,7 @@ function dashHtml(){
 /* ---------- 6. مستشاري الذكي: تحليل بياناتك داخل الجهاز فقط ---------- */
 function advCtx(){const now=new Date(),cm=ym(now);const a=inMonth(cm);const inc=sum(a,'inc'),exp=sum(a,'exp');
   const prev=pastMonths(3),avgInc=pastAvg(x=>sum(x,'inc'))||0,avgExp=avgExpense();
-  const dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate(),day=now.getDate();
+  const dim=monthDays(now),day=now.getDate();
   const st=recStatus(cm);const G=(S.settings.goals||[]).map(g=>({g,c:goalCalc(g)}));
   return{now,cm,a,inc,exp,prev,avgInc,avgExp,dim,day,st,G,baseInc:Math.max(inc,avgInc),refExp:avgExp||exp,B:+S.settings.monthlyBudget||0,gs:goalsSummary(),Ds:debts().filter(d=>+d.balance>0)}}
 function advLastBackup(){try{return localStorage.getItem('masareef:lastBackup')||''}catch(e){return ''}}
@@ -460,7 +476,7 @@ function periodTo(d){return d.cyc?'حتى نزول الراتب':'حتى نها�
 const isFixedTx=t=>!!(t.rec||t.debt||t.cat==='loan');
 function varSpend(a){return a.filter(t=>t.type==='exp'&&!isFixedTx(t)).reduce((s,t)=>s+(+t.amount||0),0)}
 function dailyPlan(extra){const now=new Date(),cm=ym(now),td=today();const cyc=payCycle(now);
-  const mEnd=cm+'-'+String(new Date(now.getFullYear(),now.getMonth()+1,0).getDate()).padStart(2,'0');
+  const mEnd=cm+'-'+String(monthDays(now)).padStart(2,'0');
   const from=cyc?cyc.start:cm+'-01',to=cyc?cyc.end:mEnd;const a=inRange(from,td);
   const dim=cyc?cyc.len:+mEnd.slice(8),day=cyc?cyc.dayIdx:now.getDate(),left=cyc?cyc.left:dim-day+1;
   const incRec=sum(a,'inc'),avgInc=pastAvg(x=>sum(x,'inc'))||0;const expected=!incRec&&avgInc>0;const inc=incRec||avgInc;
@@ -871,7 +887,7 @@ function openSheet(t,pre){
   draw(isNew&&t.amount==='');
 }
 
-/* ---------- 13. المصاريف والأقساط الشهرية، والأهل ---------- */
+/* ---------- 13. الالتزامات الشهرية، والأهل ---------- */
 const REC_KINDS={
  wifi:{n:'واي فاي وإنترنت المنزل',cat:'bills'},phone:{n:'باقة الهاتف',cat:'bills'},
  elec:{n:'فاتورة الكهرباء',cat:'bills',variable:1},water:{n:'فاتورة المياه',cat:'bills',variable:1},
@@ -1204,7 +1220,7 @@ function openUnpay(kind,id,m){const L=document.getElementById('layer');const r=k
     if(r){for(const t of P)await delTx(t.id);recLog(r,'إلغاء دفع '+monthName(m)+': '+countWord(P.length,'دفعة واحدة','دفعتان','دفعات','دفعة')+' بمجموع '+money(tot)+'، ورجع غير مدفوع')}
     else for(const p of P.slice())await delDebtPay(d,p);
     await putSettings();L.innerHTML='';render();
-    toast('رجع «'+name+'» غير مدفوع لشهر '+monthName(m),async()=>{const o=JSON.parse(snap);S.settings.recurring=o.recurring;S.settings.debts=o.debts;for(const t of txs){delete S.del[t.id];await putTx(t)}await putSettings();render();toast('أُعيدت الدفعات')},9000)}}
+    toast('رجع «'+name+'» غير مدفوع لشهر '+monthName(m),async()=>{const o=JSON.parse(snap);S.settings.recurring=o.recurring;S.settings.debts=o.debts;txs.forEach(t=>delete S.del[t.id]);await putTxMany(txs);await putSettings();render();toast('أُعيدت الدفعات')},9000)}}
 function openPayDel(txId){const t=S.tx[txId];if(!t)return;const L=document.getElementById('layer');
   L.innerHTML=`${sheetTop('حذف دفعة')}<h2 style="margin-top:0">حذف هذه الدفعة؟</h2>
    <div class="panel"><div class="sumrow"><span>${esc(t.note||catOf(t.cat).n)}</span><b class="num">${amtH(t.amount)}</b></div><div class="sumrow"><span>التاريخ</span><b>${fmtD(t.date)}</b></div></div>
@@ -1226,7 +1242,7 @@ function payAll(){const m=S.month,cur=m===ym(new Date());const L=document.getEle
     for(const {i,amt} of items){if(i.kind==='rec'){const t=recTx(i.ref,m);t.amount=amt;await putTx(t);made.push(t.id)}
       else{const p=await applyDebtPayment(i.ref,amt,cur?today():recDate({day:i.day},m),true);if(p.tx)made.push(p.tx)}}
     await putSettings();L.innerHTML='';render();
-    toast('سُجّلت '+countWord(made.length,'دفعة واحدة','دفعتان','دفعات','دفعة')+' بمجموع '+rial(tot),async()=>{for(const id of made)await delTx(id);S.settings.debts=JSON.parse(snap);await putSettings();render();toast('أُلغي تسجيل الدفعات')},9000)}}
+    toast('سُجّلت '+countWord(made.length,'دفعة واحدة','دفعتان','دفعات','دفعة')+' بمجموع '+rial(tot),async()=>{await delTxMany(made);S.settings.debts=JSON.parse(snap);await putSettings();render();toast('أُلغي تسجيل الدفعات')},9000)}}
 
 /* ---------- 14. الخطط والأهداف: المناسبات وحساب الادخار ---------- */
 const GOAL_KINDS={
@@ -1422,7 +1438,7 @@ function goalBadge(g){const t=PLAN_T[g.kind];const ic=t?[t.icon,t.c]:GOAL_ICON[g
   return `<span class="cbadge" style="background:${ic[1]}1f;color:${ic[1]}">${svgI(CI[ic[0]]||CI.iother)}</span>`}
 function avgSurplus(){return pastAvg(a=>sum(a,'inc')-sum(a,'exp'))}
 function avgExpense(){return pastAvg(a=>sum(a,'exp'))||0}
-function addMonthsIso(n){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()+n);const dim=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();d.setDate(Math.min(new Date().getDate(),dim));return isoD(d)}
+function addMonthsIso(n){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()+n);const nd=monthDays(d);d.setDate(Math.min(new Date().getDate(),nd));return isoD(d)}
 function monthsUntil(iso){const d=new Date(iso+'T12:00'),n=new Date();return Math.max(1,(d.getFullYear()*12+d.getMonth())-(n.getFullYear()*12+n.getMonth())+1)}
 function openPlanWizard(id,kind,pre){
   const L=document.getElementById('layer');const G=S.settings.goals||(S.settings.goals=[]);const ex=id?G.find(x=>x.id===id):null;
@@ -1721,7 +1737,7 @@ function spanWord(a,b){if(!a||!b)return '—';const m=monthsBetween(a,b);if(m>=1
   if(m>=1)return monthsWord(m);const d=Math.max(0,daysBetween(a,b));return d?daysWord(d):'نفس اليوم'}
 /* موعد الانتهاء المقرر: المتفق عليه إن وُجد، وإلا حسب خطتك */
 function debtEnd(d,pl){if(d.closed)return d.closed.end;if(d.end)return d.end;pl=pl||debtSim();const n=pl.finish[d.id];
-  if(!n)return d.end||null;const t=new Date();const dt=new Date(t.getFullYear(),t.getMonth()+n-1+debtOff(),1);dt.setDate(Math.min(+d.day||1,new Date(dt.getFullYear(),dt.getMonth()+1,0).getDate()));return isoD(dt)}
+  if(!n)return d.end||null;const t=new Date();const dt=new Date(t.getFullYear(),t.getMonth()+n-1+debtOff(),1);dt.setDate(Math.min(+d.day||1,monthDays(dt)));return isoD(dt)}
 function debtSim(){const P=debtPlan();return simDebts(debts(),P.extra,P.strategy,true)}
 /* عند انتهاء الدين يُحفظ ملخصه: المدة، طريقة التخلص منه، وما دفعته */
 const CLOSE_M={lump:'دفعة واحدة بالمبلغ الإجمالي',inst:'أقساط على فترات',early:'أقساط ثم سداد مبكر للباقي'};
@@ -1767,12 +1783,11 @@ function debtNoteParts(){return String(S.settings.debtNote||'').split(/\n\s*\n/)
 function debtNoteHtml(){const P=debtNoteParts();const lock=admOn()&&!Adm.open;
   if(!P.length)return `<div class="panel dnote empty"><div class="dnote-h"><b>🤲 تذكير</b><button class="chip" id="dnEdit">${lock?'🔒 ':''}+ إضافة</button></div><span class="note">اكتب هنا أدعية وآيات التيسير وقضاء الدين، فتظهر شريطًا متحركًا هنا وفي الرئيسية.${admOn()?' تعديلها من وضع المدير فقط.':''}</span></div>`;
   return `<div class="dnote-tk">${duaTickerHtml('in-debts')}<button class="chip" id="dnEdit" aria-label="تعديل الأدعية">${lock?'🔒':'✎'} تعديل</button></div>`}
-function debtNoteToday(){const P=debtNoteParts();if(!P.length)return '';const n=new Date();const d=Math.floor((n-new Date(n.getFullYear(),0,0))/864e5);return P[d%P.length]}
 function openDebtNote(){const L=document.getElementById('layer');let txt=S.settings.debtNote||'';
-  const draw=()=>{L.innerHTML=`${sheetTop('تذكير')}<h2 style="margin-top:0">🤲 تذكير قسم الديون</h2>
+  const draw=()=>{L.innerHTML=`${sheetTop('تذكير')}<h2 style="margin-top:0">🤲 تذكير «ديوني»</h2>
    <div class="stack"><div class="field"><label for="dnTxt">أدعية وآيات وكلمات تذكّرك (اترك سطرًا فارغًا بين كل واحدة)</label><textarea class="inp dntxt" id="dnTxt" maxlength="3000" rows="9">${esc(txt)}</textarea></div>
    <div class="field"><label>إضافة من المقترحات</label><div class="dnsug">${DEBT_DUA.map((d,i)=>`<button class="dnchip" data-dns="${i}"><span>${esc(d[0])}</span><small>${esc(d[1])}</small></button>`).join('')}</div></div>
-   <p class="note" style="margin:0">تظهر كاملة أعلى قسم الديون، وواحدة منها كل يوم في الرئيسية.</p></div>
+   <p class="note" style="margin:0">تظهر كاملة أعلى صفحة «ديوني»، وواحدة منها كل يوم في الرئيسية.</p></div>
    <div class="actions"><button class="btn block" id="dnSave">حفظ</button><button class="btn ghost block" data-close>إلغاء</button></div></div></div>`};
   draw();L.onchange=null;L.oninput=e=>{if(e.target.id==='dnTxt')txt=e.target.value};
   L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
@@ -1789,7 +1804,7 @@ function duaTickerHtml(cls){const P=debtNoteParts().map(p=>p.replace(/\s*\n\s*/g
   return `<button class="ticker${cls?' '+cls:''}" data-duaread="1" aria-label="أدعية التيسير، اضغط لقراءتها كاملة"><span class="tk-ic">🤲</span><span class="tk-win"><span class="tk-run" style="animation-duration:${dur}s">${one}<i>✦</i>${one}<i>✦</i></span></span></button>`}
 function openDuaRead(){const P=debtNoteParts();const L=document.getElementById('layer');
   L.innerHTML=`${sheetTop('الأدعية')}<h2 style="margin-top:0">🤲 أدعية التيسير وقضاء الدين</h2><div class="duaread">${P.map(p=>`<p>${esc(p)}</p>`).join('')}</div>
-   <div class="actions"><button class="btn ghost block" data-tab="debts" data-close>قسم الديون</button><button class="btn ghost block" data-close>إغلاق</button></div></div></div>`;
+   <div class="actions"><button class="btn ghost block" data-tab="debts" data-close>ديوني</button><button class="btn ghost block" data-close>إغلاق</button></div></div></div>`;
   L.oninput=L.onchange=null;L.onclick=e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.dataset.tab){L.innerHTML='';S.tab='debts';render();window.scrollTo(0,0);return}if(x.hasAttribute('data-close'))L.innerHTML=''}}
 /* أذكار الصباح والمساء من «حصن المسلم»، وآياتها من نص مشروع تنزيل. تُعرض كما هي ولا تُعدَّل */
 const ADHKAR={"M": [{"c": 1, "r": "آية الكرسي · البقرة ٢٥٥", "t": "أَعُوذُ بِاللَّهِ مِنَ الشَّيْطَانِ الرَّجِيمِ", "q": "اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ لَّهُ مَا فِي السَّمَاوَاتِ وَمَا فِي الْأَرْضِ مَن ذَا الَّذِي يَشْفَعُ عِندَهُ إِلَّا بِإِذْنِهِ يَعْلَمُ مَا بَيْنَ أَيْدِيهِمْ وَمَا خَلْفَهُمْ وَلَا يُحِيطُونَ بِشَيْءٍ مِّنْ عِلْمِهِ إِلَّا بِمَا شَاءَ وَسِعَ كُرْسِيُّهُ السَّمَاوَاتِ وَالْأَرْضَ وَلَا يَئُودُهُ حِفْظُهُمَا وَهُوَ الْعَلِيُّ الْعَظِيمُ ﴿٢٥٥﴾", "d": "من قالها حين يصبح أجير من الجن حتى يمسى ومن قالها حين يمسى أجير من الجن حتى يصبح."}, {"c": 3, "r": "سورة الإخلاص", "t": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", "q": "قُلْ هُوَ اللَّهُ أَحَدٌ ﴿١﴾ اللَّهُ الصَّمَدُ ﴿٢﴾ لَمْ يَلِدْ وَلَمْ يُولَدْ ﴿٣﴾ وَلَمْ يَكُن لَّهُ كُفُوًا أَحَدٌ ﴿٤﴾", "d": "من قالها حين يصبح وحين يمسى كفته من كل شىء (الإخلاص والمعوذتين)."}, {"c": 3, "r": "سورة الفلق", "t": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", "q": "قُلْ أَعُوذُ بِرَبِّ الْفَلَقِ ﴿١﴾ مِن شَرِّ مَا خَلَقَ ﴿٢﴾ وَمِن شَرِّ غَاسِقٍ إِذَا وَقَبَ ﴿٣﴾ وَمِن شَرِّ النَّفَّاثَاتِ فِي الْعُقَدِ ﴿٤﴾ وَمِن شَرِّ حَاسِدٍ إِذَا حَسَدَ ﴿٥﴾", "d": "من قالها حين يصبح وحين يمسى كفته من كل شىء (الإخلاص والمعوذتين)."}, {"c": 3, "r": "سورة الناس", "t": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", "q": "قُلْ أَعُوذُ بِرَبِّ النَّاسِ ﴿١﴾ مَلِكِ النَّاسِ ﴿٢﴾ إِلَٰهِ النَّاسِ ﴿٣﴾ مِن شَرِّ الْوَسْوَاسِ الْخَنَّاسِ ﴿٤﴾ الَّذِي يُوَسْوِسُ فِي صُدُورِ النَّاسِ ﴿٥﴾ مِنَ الْجِنَّةِ وَالنَّاسِ ﴿٦﴾", "d": "من قالها حين يصبح وحين يمسى كفته من كل شىء (الإخلاص والمعوذتين)."}, {"c": 1, "r": "مسلم", "t": "أَصْبَحْنا وَأَصْبَحَ المُلْكُ لله وَالحَمدُ لله، لا إلهَ إلاّ اللّهُ وَحدَهُ لا شَريكَ لهُ، لهُ المُلكُ ولهُ الحَمْد، وهُوَ على كلّ شَيءٍ قدير، رَبِّ أسْأَلُكَ خَيرَ ما في هذا اليوم وَخَيرَ ما بَعْدَه، وَأَعوذُ بِكَ مِنْ شَرِّ ما في هذا اليوم وَشَرِّ ما بَعْدَه، رَبِّ أَعوذُبِكَ مِنَ الْكَسَلِ وَسوءِ الْكِبَر، رَبِّ أَعوذُ بِكَ مِنْ عَذابٍ في النّارِ وَعَذابٍ في القَبْر."}, {"c": 1, "r": "البخاري", "t": "اللّهمَّ أَنْتَ رَبِّي لا إلهَ إلاّ أَنْتَ، خَلَقْتَني وَأَنا عَبْدُك، وَأَنا عَلى عَهْدِكَ وَوَعْدِكَ ما اسْتَطَعْت، أَعوذُبِكَ مِنْ شَرِّ ما صَنَعْت، أَبوءُ لَكَ بِنِعْمَتِكَ عَلَيَّ وَأَبوءُ بِذَنْبي فَاغْفِرْ لي فَإِنَّهُ لا يَغْفِرُ الذُّنوبَ إِلاّ أَنْتَ.", "d": "من قالها موقنا بها حين يمسى ومات من ليلته دخل الجنة وكذلك حين يصبح."}, {"c": 3, "r": "أحمد", "t": "رَضيتُ بِاللهِ رَبَّاً وَبِالإسْلامِ ديناً وَبِمُحَمَّدٍ صلى الله عليه وسلم نَبِيّاً.", "d": "من قالها حين يصبح وحين يمسى كان حقا على الله أن يرضيه يوم القيامة."}, {"c": 4, "r": "أبو داود", "t": "اللّهُمَّ إِنِّي أَصْبَحْتُ أُشْهِدُك، وَأُشْهِدُ حَمَلَةَ عَرْشِك، وَمَلَائِكَتَكَ، وَجَميعَ خَلْقِك، أَنَّكَ أَنْتَ اللهُ لا إلهَ إلاّ أَنْتَ وَحْدَكَ لا شَريكَ لَك، وَأَنَّ ُ مُحَمّداً عَبْدُكَ وَرَسولُك.", "d": "من قالها أعتقه الله من النار."}, {"c": 1, "r": "أبو داود", "t": "اللّهُمَّ ما أَصْبََحَ بي مِنْ نِعْمَةٍ أَو بِأَحَدٍ مِنْ خَلْقِك، فَمِنْكَ وَحْدَكَ لا شريكَ لَك، فَلَكَ الْحَمْدُ وَلَكَ الشُّكْر.", "d": "من قالها حين يصبح أدى شكر يومه."}, {"c": 7, "r": "ابن السني", "t": "حَسْبِيَ اللّهُ لا إلهَ إلاّ هُوَ عَلَيهِ تَوَكَّلتُ وَهُوَ رَبُّ العَرْشِ العَظيم.", "d": "من قالها كفاه الله ما أهمه من أمر الدنيا والأخرة."}, {"c": 3, "r": "ابن ماجه", "t": "بِسمِ اللهِ الذي لا يَضُرُّ مَعَ اسمِهِ شَيءٌ في الأرْضِ وَلا في السّماءِ وَهوَ السّميعُ العَليم.", "d": "لم يضره من الله شيء."}, {"c": 1, "r": "الترمذي", "t": "اللّهُمَّ بِكَ أَصْبَحْنا وَبِكَ أَمْسَينا، وَبِكَ نَحْيا وَبِكَ نَمُوتُ وَإِلَيْكَ النُّشُور."}, {"c": 1, "r": "أحمد", "t": "أَصْبَحْنا عَلَى فِطْرَةِ الإسْلاَمِ، وَعَلَى كَلِمَةِ الإِخْلاَصِ، وَعَلَى دِينِ نَبِيِّنَا مُحَمَّدٍ صَلَّى اللهُ عَلَيْهِ وَسَلَّمَ، وَعَلَى مِلَّةِ أَبِينَا إبْرَاهِيمَ حَنِيفاً مُسْلِماً وَمَا كَانَ مِنَ المُشْرِكِينَ."}, {"c": 3, "r": "مسلم", "t": "سُبْحانَ اللهِ وَبِحَمْدِهِ عَدَدَ خَلْقِه، وَرِضا نَفْسِه، وَزِنَةَ عَرْشِه، وَمِدادَ كَلِماتِه."}, {"c": 3, "r": "أحمد", "t": "اللّهُمَّ عافِني في بَدَني، اللّهُمَّ عافِني في سَمْعي، اللّهُمَّ عافِني في بَصَري، لا إلهَ إلاّ أَنْتَ."}, {"c": 1, "r": "أبو داود", "t": "اللّهُمَّ إِنِّي أسْأَلُكَ العَفْوَ وَالعافِيةَ في الدُّنْيا وَالآخِرَة، اللّهُمَّ إِنِّي أسْأَلُكَ العَفْوَ وَالعافِيةَ في ديني وَدُنْيايَ وَأهْلي وَمالي، اللّهُمَّ اسْتُرْ عوْراتي وَآمِنْ رَوْعاتي، اللّهُمَّ احْفَظْني مِن بَينِ يَدَيَّ وَمِن خَلْفي وَعَن يَميني وَعَن شِمالي، وَمِن فَوْقي، وَأَعوذُ بِعَظَمَتِكَ أَن أُغْتالَ مِن تَحْتي."}, {"c": 3, "r": "الترمذي", "t": "يَا حَيُّ يَا قيُّومُ بِرَحْمَتِكَ أسْتَغِيثُ أصْلِحْ لِي شَأنِي كُلَّهُ وَلاَ تَكِلْنِي إلَى نَفْسِي طَرْفَةَ عَيْنٍ."}, {"c": 1, "r": "أبو داود", "t": "أَصْبَحْنا وَأَصْبَحْ المُلكُ للهِ رَبِّ العالَمين، اللّهُمَّ إِنِّي أسْأَلُكَ خَيْرَ هذا اليَوْم، فَتْحَهُ، وَنَصْرَهُ، وَنورَهُ وَبَرَكَتَهُ، وَهُداهُ، وَأَعوذُ بِكَ مِنْ شَرِّ ما فيهِ وَشَرِّ ما بَعْدَه."}, {"c": 1, "r": "الترمذي", "t": "اللّهُمَّ عالِمَ الغَيْبِ وَالشّهادَةِ فاطِرَ السّماواتِ وَالأرْضِ رَبَّ كلِّ شَيءٍ وَمَليكَه، أَشْهَدُ أَنْ لا إِلهَ إِلاّ أَنْت، أَعوذُ بِكَ مِن شَرِّ نَفْسي وَمِن شَرِّ الشَّيْطانِ وَشِرْكِهِ، وَأَنْ أَقْتَرِفَ عَلى نَفْسي سوءاً أَوْ أَجُرَّهُ إِلى مُسْلِم."}, {"c": 3, "r": "", "t": "أَعوذُ بِكَلِماتِ اللّهِ التّامّاتِ مِنْ شَرِّ ما خَلَق."}, {"c": 3, "r": "", "t": "أسْتَغْفِرُ اللهَ العَظِيمَ الَّذِي لاَ إلَهَ إلاَّ هُوَ، الحَيُّ القَيُّومُ، وَأتُوبُ إلَيهِ."}, {"c": 1, "r": "ابن ماجه", "t": "اللَّهُمَّ إِنِّي أَسْأَلُكَ عِلْمًا نَافِعًا، وَرِزْقًا طَيِّبًا، وَعَمَلًا مُتَقَبَّلًا."}, {"c": 100, "r": "الترمذي", "t": "لَا إلَه إلّا اللهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَى كُلِّ شَيْءِ قَدِيرِ.", "d": "من قالها 100 مرة في يوم كانت له عدل عشر رقاب، وكتبت له مئة حسنة، ومحيت عنه مئة سيئة، وكانت له حرزا من الشيطان في يومه ذلك حتى يمسي ولم يأتي أحد بأفضل مما جاء به إلا احد عمل أكثر من ذلك"}, {"c": 100, "r": "مسلم", "t": "سُبْحانَ اللهِ وَبِحَمْدِهِ.", "d": "حُطَّتْ خَطَايَاهُ وَإِنْ كَانَتْ مِثْلَ زَبَدِ الْبَحْرِ. لَمْ يَأْتِ أَحَدٌ يَوْمَ الْقِيَامَةِ بِأَفْضَلَ مِمَّا جَاءَ بِهِ إِلَّا أَحَدٌ قَالَ مِثْلَ مَا قَالَ أَوْ زَادَ عَلَيْهِ."}, {"c": 100, "r": "البخاري", "t": "أسْتَغْفِرُ اللهَ وَأتُوبُ إلَيْهِ", "d": "مائة حسنة، ومُحيت عنه مائة سيئة، وكانت له حرزاً من الشيطان حتى يمسى."}], "E": [{"c": 1, "r": "آية الكرسي · البقرة ٢٥٥", "t": "أَعُوذُ بِاللَّهِ مِنَ الشَّيْطَانِ الرَّجِيمِ", "q": "اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ لَّهُ مَا فِي السَّمَاوَاتِ وَمَا فِي الْأَرْضِ مَن ذَا الَّذِي يَشْفَعُ عِندَهُ إِلَّا بِإِذْنِهِ يَعْلَمُ مَا بَيْنَ أَيْدِيهِمْ وَمَا خَلْفَهُمْ وَلَا يُحِيطُونَ بِشَيْءٍ مِّنْ عِلْمِهِ إِلَّا بِمَا شَاءَ وَسِعَ كُرْسِيُّهُ السَّمَاوَاتِ وَالْأَرْضَ وَلَا يَئُودُهُ حِفْظُهُمَا وَهُوَ الْعَلِيُّ الْعَظِيمُ ﴿٢٥٥﴾", "d": "من قالها حين يصبح أجير من الجن حتى يمسى ومن قالها حين يمسى أجير من الجن حتى يصبح."}, {"c": 1, "r": "خواتيم سورة البقرة ٢٨٥-٢٨٦", "t": "أَعُوذُ بِاللَّهِ مِنَ الشَّيْطَانِ الرَّجِيمِ", "q": "آمَنَ الرَّسُولُ بِمَا أُنزِلَ إِلَيْهِ مِن رَّبِّهِ وَالْمُؤْمِنُونَ كُلٌّ آمَنَ بِاللَّهِ وَمَلَائِكَتِهِ وَكُتُبِهِ وَرُسُلِهِ لَا نُفَرِّقُ بَيْنَ أَحَدٍ مِّن رُّسُلِهِ وَقَالُوا سَمِعْنَا وَأَطَعْنَا غُفْرَانَكَ رَبَّنَا وَإِلَيْكَ الْمَصِيرُ ﴿٢٨٥﴾ لَا يُكَلِّفُ اللَّهُ نَفْسًا إِلَّا وُسْعَهَا لَهَا مَا كَسَبَتْ وَعَلَيْهَا مَا اكْتَسَبَتْ رَبَّنَا لَا تُؤَاخِذْنَا إِن نَّسِينَا أَوْ أَخْطَأْنَا رَبَّنَا وَلَا تَحْمِلْ عَلَيْنَا إِصْرًا كَمَا حَمَلْتَهُ عَلَى الَّذِينَ مِن قَبْلِنَا رَبَّنَا وَلَا تُحَمِّلْنَا مَا لَا طَاقَةَ لَنَا بِهِ وَاعْفُ عَنَّا وَاغْفِرْ لَنَا وَارْحَمْنَا أَنتَ مَوْلَانَا فَانصُرْنَا عَلَى الْقَوْمِ الْكَافِرِينَ ﴿٢٨٦﴾", "d": "من قرأ آيتين من آخر سورة البقرة في ليلة كفتاه."}, {"c": 3, "r": "سورة الإخلاص", "t": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", "q": "قُلْ هُوَ اللَّهُ أَحَدٌ ﴿١﴾ اللَّهُ الصَّمَدُ ﴿٢﴾ لَمْ يَلِدْ وَلَمْ يُولَدْ ﴿٣﴾ وَلَمْ يَكُن لَّهُ كُفُوًا أَحَدٌ ﴿٤﴾", "d": "من قالها حين يصبح وحين يمسى كفته من كل شىء (الإخلاص والمعوذتين)."}, {"c": 3, "r": "سورة الفلق", "t": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", "q": "قُلْ أَعُوذُ بِرَبِّ الْفَلَقِ ﴿١﴾ مِن شَرِّ مَا خَلَقَ ﴿٢﴾ وَمِن شَرِّ غَاسِقٍ إِذَا وَقَبَ ﴿٣﴾ وَمِن شَرِّ النَّفَّاثَاتِ فِي الْعُقَدِ ﴿٤﴾ وَمِن شَرِّ حَاسِدٍ إِذَا حَسَدَ ﴿٥﴾"}, {"c": 3, "r": "سورة الناس", "t": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", "q": "قُلْ أَعُوذُ بِرَبِّ النَّاسِ ﴿١﴾ مَلِكِ النَّاسِ ﴿٢﴾ إِلَٰهِ النَّاسِ ﴿٣﴾ مِن شَرِّ الْوَسْوَاسِ الْخَنَّاسِ ﴿٤﴾ الَّذِي يُوَسْوِسُ فِي صُدُورِ النَّاسِ ﴿٥﴾ مِنَ الْجِنَّةِ وَالنَّاسِ ﴿٦﴾"}, {"c": 1, "r": "مسلم", "t": "أَمْسَيْنا وَأَمْسى الملكُ لله وَالحَمدُ لله، لا إلهَ إلاّ اللّهُ وَحدَهُ لا شَريكَ لهُ، لهُ المُلكُ ولهُ الحَمْد، وهُوَ على كلّ شَيءٍ قدير، رَبِّ أسْأَلُكَ خَيرَ ما في هذهِ اللَّيْلَةِ وَخَيرَ ما بَعْدَها، وَأَعوذُ بِكَ مِنْ شَرِّ ما في هذهِ اللَّيْلةِ وَشَرِّ ما بَعْدَها، رَبِّ أَعوذُبِكَ مِنَ الْكَسَلِ وَسوءِ الْكِبَر، رَبِّ أَعوذُ بِكَ مِنْ عَذابٍ في النّارِ وَعَذابٍ في القَبْر."}, {"c": 1, "r": "البخاري", "t": "اللّهمَّ أَنْتَ رَبِّي لا إلهَ إلاّ أَنْتَ، خَلَقْتَني وَأَنا عَبْدُك، وَأَنا عَلى عَهْدِكَ وَوَعْدِكَ ما اسْتَطَعْت، أَعوذُبِكَ مِنْ شَرِّ ما صَنَعْت، أَبوءُ لَكَ بِنِعْمَتِكَ عَلَيَّ وَأَبوءُ بِذَنْبي فَاغْفِرْ لي فَإِنَّهُ لا يَغْفِرُ الذُّنوبَ إِلاّ أَنْتَ.", "d": "من قالها موقنا بها حين يمسى ومات من ليلته دخل الجنة وكذلك حين يصبح."}, {"c": 3, "r": "أحمد", "t": "رَضيتُ بِاللهِ رَبَّاً وَبِالإسْلامِ ديناً وَبِمُحَمَّدٍ صلى الله عليه وسلم نَبِيّاً.", "d": "من قالها حين يصبح وحين يمسى كان حقا على الله أن يرضيه يوم القيامة."}, {"c": 4, "r": "أبو داود", "t": "اللّهُمَّ إِنِّي أَمسيتُ أُشْهِدُك، وَأُشْهِدُ حَمَلَةَ عَرْشِك، وَمَلَائِكَتَكَ، وَجَميعَ خَلْقِك، أَنَّكَ أَنْتَ اللهُ لا إلهَ إلاّ أَنْتَ وَحْدَكَ لا شَريكَ لَك، وَأَنَّ ُ مُحَمّداً عَبْدُكَ وَرَسولُك.", "d": "من قالها أعتقه الله من النار."}, {"c": 1, "r": "أبو داود", "t": "اللّهُمَّ ما أَمسى بي مِنْ نِعْمَةٍ أَو بِأَحَدٍ مِنْ خَلْقِك، فَمِنْكَ وَحْدَكَ لا شريكَ لَك، فَلَكَ الْحَمْدُ وَلَكَ الشُّكْر.", "d": "من قالها حين يمسى أدى شكر يومه."}, {"c": 7, "r": "ابن السني", "t": "حَسْبِيَ اللّهُ لا إلهَ إلاّ هُوَ عَلَيهِ تَوَكَّلتُ وَهُوَ رَبُّ العَرْشِ العَظيم.", "d": "من قالها كفاه الله ما أهمه من أمر الدنيا والأخرة."}, {"c": 3, "r": "ابن ماجه", "t": "بِسمِ اللهِ الذي لا يَضُرُّ مَعَ اسمِهِ شَيءٌ في الأرْضِ وَلا في السّماءِ وَهوَ السّميعُ العَليم.", "d": "لم يضره من الله شيء."}, {"c": 1, "r": "الترمذي", "t": "اللّهُمَّ بِكَ أَمْسَينا وَبِكَ أَصْبَحْنا، وَبِكَ نَحْيا وَبِكَ نَمُوتُ وَإِلَيْكَ الْمَصِيرُ."}, {"c": 1, "r": "أحمد", "t": "أَمْسَيْنَا عَلَى فِطْرَةِ الإسْلاَمِ، وَعَلَى كَلِمَةِ الإِخْلاَصِ، وَعَلَى دِينِ نَبِيِّنَا مُحَمَّدٍ صَلَّى اللهُ عَلَيْهِ وَسَلَّمَ، وَعَلَى مِلَّةِ أَبِينَا إبْرَاهِيمَ حَنِيفاً مُسْلِماً وَمَا كَانَ مِنَ المُشْرِكِينَ."}, {"c": 3, "r": "مسلم", "t": "سُبْحانَ اللهِ وَبِحَمْدِهِ عَدَدَ خَلْقِه، وَرِضا نَفْسِه، وَزِنَةَ عَرْشِه، وَمِدادَ كَلِماتِه."}, {"c": 3, "r": "أحمد", "t": "اللّهُمَّ عافِني في بَدَني، اللّهُمَّ عافِني في سَمْعي، اللّهُمَّ عافِني في بَصَري، لا إلهَ إلاّ أَنْتَ."}, {"c": 1, "r": "أبو داود", "t": "اللّهُمَّ إِنِّي أسْأَلُكَ العَفْوَ وَالعافِيةَ في الدُّنْيا وَالآخِرَة، اللّهُمَّ إِنِّي أسْأَلُكَ العَفْوَ وَالعافِيةَ في ديني وَدُنْيايَ وَأهْلي وَمالي، اللّهُمَّ اسْتُرْ عوْراتي وَآمِنْ رَوْعاتي، اللّهُمَّ احْفَظْني مِن بَينِ يَدَيَّ وَمِن خَلْفي وَعَن يَميني وَعَن شِمالي، وَمِن فَوْقي، وَأَعوذُ بِعَظَمَتِكَ أَن أُغْتالَ مِن تَحْتي."}, {"c": 3, "r": "الترمذي", "t": "يَا حَيُّ يَا قيُّومُ بِرَحْمَتِكَ أسْتَغِيثُ أصْلِحْ لِي شَأنِي كُلَّهُ وَلاَ تَكِلْنِي إلَى نَفْسِي طَرْفَةَ عَيْنٍ."}, {"c": 1, "r": "أبو داود", "t": "أَمْسَيْنا وَأَمْسَى الْمُلْكُ للهِ رَبِّ الْعَالَمَيْنِ، اللَّهُمَّ إِنَّي أسْأَلُكَ خَيْرَ هَذَه اللَّيْلَةِ فَتْحَهَا ونَصْرَهَا، ونُوْرَهَا وبَرَكَتهَا، وَهُدَاهَا، وَأَعُوذُ بِكَ مِنْ شَرِّ مَا فيهِا وَشَرَّ مَا بَعْدَهَا."}, {"c": 1, "r": "الترمذي", "t": "اللّهُمَّ عالِمَ الغَيْبِ وَالشّهادَةِ فاطِرَ السّماواتِ وَالأرْضِ رَبَّ كلِّ شَيءٍ وَمَليكَه، أَشْهَدُ أَنْ لا إِلهَ إِلاّ أَنْت، أَعوذُ بِكَ مِن شَرِّ نَفْسي وَمِن شَرِّ الشَّيْطانِ وَشِرْكِهِ، وَأَنْ أَقْتَرِفَ عَلى نَفْسي سوءاً أَوْ أَجُرَّهُ إِلى مُسْلِم."}, {"c": 3, "r": "", "t": "أَعوذُ بِكَلِماتِ اللّهِ التّامّاتِ مِنْ شَرِّ ما خَلَق."}, {"c": 3, "r": "", "t": "أسْتَغْفِرُ اللهَ العَظِيمَ الَّذِي لاَ إلَهَ إلاَّ هُوَ، الحَيُّ القَيُّومُ، وَأتُوبُ إلَيهِ."}, {"c": 100, "r": "الترمذي", "t": "لَا إلَه إلّا اللهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَى كُلِّ شَيْءِ قَدِيرِ.", "d": "كانت له عدل عشر رقاب، وكتبت له مئة حسنة، ومحيت عنه مئة سيئة، وكانت له حرزا من الشيطان."}, {"c": 100, "r": "مسلم", "t": "سُبْحانَ اللهِ وَبِحَمْدِهِ.", "d": "حُطَّتْ خَطَايَاهُ وَإِنْ كَانَتْ مِثْلَ زَبَدِ الْبَحْرِ. لَمْ يَأْتِ أَحَدٌ يَوْمَ الْقِيَامَةِ بِأَفْضَلَ مِمَّا جَاءَ بِهِ إِلَّا أَحَدٌ قَالَ مِثْلَ مَا قَالَ أَوْ زَادَ عَلَيْهِ."}], "R": [{"q": "وَمَن يَتَّقِ اللَّهَ يَجْعَل لَّهُ مَخْرَجًا ﴿٢﴾ وَيَرْزُقْهُ مِنْ حَيْثُ لَا يَحْتَسِبُ وَمَن يَتَوَكَّلْ عَلَى اللَّهِ فَهُوَ حَسْبُهُ إِنَّ اللَّهَ بَالِغُ أَمْرِهِ قَدْ جَعَلَ اللَّهُ لِكُلِّ شَيْءٍ قَدْرًا ﴿٣﴾", "r": "سورة الطلاق ٢-٣"}, {"q": "فَقُلْتُ اسْتَغْفِرُوا رَبَّكُمْ إِنَّهُ كَانَ غَفَّارًا ﴿١٠﴾ يُرْسِلِ السَّمَاءَ عَلَيْكُم مِّدْرَارًا ﴿١١﴾ وَيُمْدِدْكُم بِأَمْوَالٍ وَبَنِينَ وَيَجْعَل لَّكُمْ جَنَّاتٍ وَيَجْعَل لَّكُمْ أَنْهَارًا ﴿١٢﴾", "r": "سورة نوح ١٠-١٢"}, {"q": "قُلِ اللَّهُمَّ مَالِكَ الْمُلْكِ تُؤْتِي الْمُلْكَ مَن تَشَاءُ وَتَنزِعُ الْمُلْكَ مِمَّن تَشَاءُ وَتُعِزُّ مَن تَشَاءُ وَتُذِلُّ مَن تَشَاءُ بِيَدِكَ الْخَيْرُ إِنَّكَ عَلَىٰ كُلِّ شَيْءٍ قَدِيرٌ ﴿٢٦﴾ تُولِجُ اللَّيْلَ فِي النَّهَارِ وَتُولِجُ النَّهَارَ فِي اللَّيْلِ وَتُخْرِجُ الْحَيَّ مِنَ الْمَيِّتِ وَتُخْرِجُ الْمَيِّتَ مِنَ الْحَيِّ وَتَرْزُقُ مَن تَشَاءُ بِغَيْرِ حِسَابٍ ﴿٢٧﴾", "r": "سورة آل عمران ٢٦-٢٧"}, {"q": "فَإِنَّ مَعَ الْعُسْرِ يُسْرًا ﴿٥﴾ إِنَّ مَعَ الْعُسْرِ يُسْرًا ﴿٦﴾", "r": "سورة الشرح ٥-٦"}, {"t": "اللَّهُمَّ اكْفِنِي بِحَلاَلِكَ عَنْ حَرَامِكَ، وَأَغْنِنِي بِفَضْلِكِ عَمَّنْ سِوَاكَ.", "r": "دعاء قضاء الدين · الترمذي"}, {"t": "اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنَ الْهَمِّ وَالْحَزَنِ، وَالْعَجْزِ وَالْكَسَلِ، وَالْبُخْلِ وَالْجُبْنِ، وَضَلَعِ الدَّيْنِ وَغَلَبَةِ الرِّجَالِ.", "r": "دعاء قضاء الدين · البخاري"}, {"t": "اللَّهُمَّ إِنِّي عَبْدُكَ، ابْنُ عَبْدِكَ، ابْنُ أَمَتِكَ، نَاصِيَتِي بِيَدِكَ، مَاضٍ فِيَّ حُكْمُكَ، عَدْلٌ فِيَّ قَضَاؤُكَ، أَسْأَلُكَ بِكُلِّ اسْمٍ هُوَ لَكَ، سَمَّيْتَ بِهِ نَفْسَكَ، أَوْ أَنْزَلْتَهُ فِي كِتَابِكَ، أَوْ عَلَّمْتَهُ أَحَداً مِنْ خَلْقِكَ، أَوِ اسْتَأْثَرْتَ بِهِ فِي عِلْمِ الغَيْبِ عِنْدَكَ، أَنْ تَجْعَلَ القُرْآنَ رَبِيعَ قَلْبِي، وَنُورَ صَدْرِي، وَجَلاَءَ حُزْنِي، وَذَهَابَ هَمِّي.", "r": "دعاء الهم والحزن · أحمد"}, {"t": "لاَ إِلَهَ إِلاَّ اللَّهُ الْعَظِيمُ الْحَلِيمُ، لاَ إِلَهَ إِلاَّ اللَّهُ رَبُّ الْعَرْشِ الْعَظِيمِ، لاَ إِلَهَ إِلاَّ اللَّهُ رَبُّ السَّمَوَاتِ وَرَبُّ الْأَرْضِ وَرَبُّ الْعَرْشِ الْكَرِيمِ.", "r": "دعاء الكرب · البخاري ومسلم"}, {"t": "اللَّهُمَّ رَحْمَتَكَ أَرْجُو، فَلاَ تَكِلْنِي إِلَى نَفْسِي طَرْفَةَ عَيْنٍ، وَأَصْلِحْ لِي شَأْنِي كُلَّهُ، لاَ إِلَهَ إِلاَّ أَنْتَ.", "r": "دعاء الكرب · أبو داود"}]};
@@ -1862,7 +1877,7 @@ function openWirdSettings(){const W=wird();const L=document.getElementById('laye
    <div class="field"><label for="wsHead">عنوان قسم الأدعية بعد السورة</label><input class="inp" id="wsHead" value="${esc(W.dhead)}" maxlength="50"></div>
    <div class="field"><label for="wsDuas">الأدعية بعد السورة (اترك سطرًا فارغًا بين كل دعاء)</label><textarea class="inp dntxt" id="wsDuas" rows="7" maxlength="3000">${esc(duas)}</textarea></div>
    <div class="field"><label>إضافة من المقترحات (آيات دعاء كاملة من المصحف)</label><div class="dnsug">${WIRD_DUA.map((d,i)=>`<button class="dnchip" data-wsd="${i}"><span>${d[0]}</span><small>${esc(d[1])}</small></button>`).join('')}
-    ${debtNoteParts().length?`<button class="dnchip" data-wsd="note"><span>إضافة أدعية «تذكير» من قسم الديون</span><small>${countWord(debtNoteParts().length,'دعاء واحد','دعاءان','أدعية','دعاءً')}</small></button>`:''}</div></div>
+    ${debtNoteParts().length?`<button class="dnchip" data-wsd="note"><span>إضافة أدعية «تذكير» من صفحة «ديوني»</span><small>${countWord(debtNoteParts().length,'دعاء واحد','دعاءان','أدعية','دعاءً')}</small></button>`:''}</div></div>
    <button class="btn ghost block" id="wsDef">استعادة الأدعية الافتراضية (آيات الرزق وأدعية قضاء الدين والهم والكرب)</button>
    <p class="note" style="margin:0">نص السورة ثابت من مصدر موثوق ولا يُعدَّل، حفاظًا على صحته.</p>
    <button class="btn ghost block" id="wsReset" style="color:var(--exp)">مسح سجل الليالي (${(W.log||[]).length})</button></div>
@@ -1880,7 +1895,7 @@ function openWirdSettings(){const W=wird();const L=document.getElementById('laye
       S.settings.wird=W;await putSettings();L.innerHTML='';render();toast('حُفظت إعدادات الورد')}}}
 
 function vDebts(){const Ds=debts(),P=debtPlan();
-  const head=`<div class="backrow"><h2 style="margin:4px 0">قسم الديون</h2><button class="chip" data-tab="home">الرئيسية ‹</button></div>`;
+  const head=`<div class="backrow"><h2 style="margin:4px 0">ديوني</h2><button class="chip" data-tab="home">الرئيسية ‹</button></div>`;
   if(!Ds.length)return head+`<div class="panel empty"><b>اعرف ديونك ومتى تتخلص منها</b>أضف القروض وبطاقات الائتمان، والديون لأشخاص، وأي دين شخصي. أرتّبها لك في أقسام، وأحسب موعد انتهاء كل دين ومدته، وأحتفظ بسجل كامل لكل دين حتى بعد انتهائه.</div><button class="btn block" data-dadd="1" style="margin-top:12px">+ أضف دينًا</button>${debtNoteHtml()}`;
   const act=Ds.filter(d=>+d.balance>0.0005),done=Ds.filter(d=>!(+d.balance>0.0005));const pl=debtSim();const F=debtFree();
   const g=S.debtGrp||'all',k=S.debtSort||'end';
@@ -1900,7 +1915,7 @@ function vDebts(){const Ds=debts(),P=debtPlan();
     ${F&&!F.stuck?`<div class="lbl" style="margin-top:12px">يوم التحرر من الديون <b>${fmtD(F.date)}</b> · باقٍ ${countWord(F.left,'قسط واحد','قسطان','أقساط','قسطًا')} (⏳ ${daysWord(F.days)})</div>`:''}</section>
     <div class="dgrid">${grpCells}</div>`:`<div class="okbox">لا ديون متبقية. مبروك!</div>`)
   +debtNoteHtml()+`<div class="row2 dexp"><button class="btn ghost" data-dexp="pdf">🖨️ طباعة / PDF</button><button class="btn ghost" data-dexp="xlsx">📊 Excel / Numbers</button></div>
-  <div class="backrow" style="margin-top:16px"><h2 style="margin:0">ديوني</h2><button class="chip pay" data-dadd="1">+ دين جديد</button></div>${filt}${list}${arch}
+  <div class="backrow" style="margin-top:16px"><h2 style="margin:0">الديون الحالية</h2><button class="chip pay" data-dadd="1">+ دين جديد</button></div>${filt}${list}${arch}
   ${act.length?`<h2>خطة التخلص من الديون</h2>
   <div class="panel stack">
    <div class="seg" role="group" aria-label="ترتيب السداد"><button class="n" data-dstrat="avalanche" aria-pressed="${P.strategy!=='snowball'}">الأعلى فائدة أولًا</button><button class="n" data-dstrat="snowball" aria-pressed="${P.strategy==='snowball'}">الأصغر مبلغًا أولًا</button></div>
@@ -1915,7 +1930,7 @@ function debtHomeHtml(){const Ds=debts();if(!Ds.length)return '';const act=Ds.fi
   const rows=Object.entries(DEBT_G).map(([key,v])=>{const L=act.filter(d=>debtGroup(d)===key);if(!L.length)return '';const ends=L.map(d=>debtEnd(d,pl)).filter(Boolean).sort();
     return `<button class="hprow" data-dgo="${key}"><span class="cbadge" style="background:${v[1]}1f;color:${v[1]}">${svgI(CI[v[2]]||CI.iother)}</span><span class="hp-main"><b>${v[0]}</b><small>${countWord(L.length,'دين واحد','دينان','ديون','دينًا')}${ends.length?' · أقربها ينتهي '+fmtD(ends[0]):''}</small></span><span class="hp-r"><b class="hp-amt num">${money(L.reduce((s,d)=>s+(+d.balance),0))}</b><small>${CUR}</small></span></button>`}).join('');
   const doneRow=done.length?`<button class="hprow" data-dgo="done"><span class="cbadge" style="background:var(--inc-soft,#1e7a4f1f);color:var(--inc)">${svgI(CI.shield)}</span><span class="hp-main"><b>ديون انتهت</b><small>${countWord(done.length,'دين واحد','دينان','ديون','دينًا')} ${done.length===1?'محفوظ':'محفوظة'} بسجلها وطريقة سدادها</small></span><span class="hp-r"><b class="hp-amt num">${money(done.reduce((s,d)=>s+((d.closed||{}).total||0),0))}</b><small>سدّدت</small></span></button>`:'';
-  return `<div class="backrow"><h2 style="margin:0">قسم الديون</h2><button class="chip pay" data-tab="debts">فتح القسم ‹</button></div>
+  return `<div class="backrow"><h2 style="margin:0">ديوني</h2><button class="chip pay" data-tab="debts">فتح القسم ‹</button></div>
   <div class="panel hplans dfree">${!act.length?'<div class="okbox" style="margin:0 0 6px">لا ديون متبقية. مبروك! 🎉</div>':F&&F.stuck?`<div class="warnbox" style="margin:0">القسط لا يكفي لإنهاء أحد الديون. افتح القسم وراجع الأقساط.</div>`:F?`<div class="hp-sum"><div class="hp-ring" style="--p:${F.pct}"><span class="num">${F.pct}%</span></div><div class="hp-cells">
     <div><span>المتبقي</span><b class="num">${amtH(F.rem)}</b></div><div><span>باقٍ عليك</span><b>${F.left?countWord(F.left,'قسط واحد','قسطان','أقساط','قسطًا'):'—'}</b></div>
     <div><span>يوم التحرر</span><b>${fmtD(F.date)}</b></div><div><span>العد التنازلي</span><b>⏳ ${daysWord(F.days)}</b></div></div></div>
@@ -2044,7 +2059,7 @@ function debtFree(){const Ds=debts().filter(d=>+d.balance>0.0005);if(!Ds.length)
   const rem=Ds.reduce((s,d)=>s+(+d.balance),0),orig=Ds.reduce((s,d)=>s+Math.max(+d.original||0,+d.balance||0),0);
   const out={rem:r3(rem),orig:r3(orig),pct:orig?Math.round((orig-rem)/orig*100):0,inst:r3(Ds.reduce((s,d)=>s+debtInst(d),0)),stuck:pl.stuck,left:Math.max(0,...Ds.filter(d=>d.mode!=='once').map(d=>pl.finish[d.id]||0)),count:Ds.length};
   if(pl.stuck)return out;const last=Ds.filter(d=>pl.finish[d.id]===pl.months);const n=new Date();const dt=new Date(n.getFullYear(),n.getMonth()+pl.months-1+debtOff(),1);
-  const day=Math.min(new Date(dt.getFullYear(),dt.getMonth()+1,0).getDate(),Math.max(...last.map(d=>+d.day||1)));dt.setDate(day);
+  const day=Math.min(monthDays(dt),Math.max(...last.map(d=>+d.day||1)));dt.setDate(day);
   out.date=isoD(dt);out.label=monthLabel(pl.months);out.days=Math.max(0,daysTo(out.date));
   const cm=ym(n);const nx=Ds.filter(d=>!debtPaidIn(d,cm)&&(d.mode!=='once'||(d.end&&d.end.slice(0,7)===cm))).sort((a,b)=>(+a.day||1)-(+b.day||1))[0];if(nx)out.next={name:nx.name,day:+nx.day||1,amt:nx.mode==='once'?+nx.balance:+nx.payment||0,late:n.getDate()>(+nx.day||1)};
   return out}
@@ -2328,7 +2343,7 @@ async function shareDoc(id){const d=Vault.docs.find(x=>x.id===id);if(!d||!Vault.
     if(x.dataset.vsecure){await secureSend(x.dataset.vsecure);return}
     if(x.id==='shGo'){const out=files.filter((f,i)=>sel[i]);if(!out.length){toast('اختر ملفًا واحدًا على الأقل');return}
       if(navigator.canShare&&navigator.canShare({files:out})){navigator.share({files:out,title:d.title}).then(()=>{L.innerHTML='';toast('أُرسل '+(out.length===1?'الملف':out.length+' ملفات'))}).catch(err=>{if(!err||err.name!=='AbortError')toast('تعذّرت المشاركة، حاول مرة أخرى')});return}
-      out.forEach((f,i)=>{const u=URL.createObjectURL(f);const a=document.createElement('a');a.href=u;a.download=/^[\x20-\x7E]+$/.test(f.name)?f.name:'idarat-shuooni-document-'+(i+1)+((f.name.match(/\.[A-Za-z0-9]+$/)||[''])[0]);document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(u);a.remove()},1500)});L.innerHTML='';toast('حُفظت الملفات في التنزيلات، ويمكنك إرفاقها في واتساب أو البريد')}};
+      out.forEach((f,i)=>dlBlob(f,/^[\x20-\x7E]+$/.test(f.name)?f.name:'idarat-shuooni-document-'+(i+1)+((f.name.match(/\.[A-Za-z0-9]+$/)||[''])[0])));L.innerHTML='';toast('حُفظت الملفات في التنزيلات، ويمكنك إرفاقها في واتساب أو البريد')}};
   draw()}
 function b64(u8){let s='';for(let i=0;i<u8.length;i+=32768)s+=String.fromCharCode.apply(null,u8.subarray(i,i+32768));return btoa(s)}
 function unb64(s){const b=atob(s);const u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u}
@@ -2351,7 +2366,7 @@ async function secureSend(id){const d=Vault.docs.find(x=>x.id===id);if(!d||!Vaul
     if(x.hasAttribute('data-close')){L.innerHTML='';return}
     if(x.id==='sCopy'){try{await navigator.clipboard.writeText(pass);toast('نُسخت كلمة المرور')}catch(err){toast('تعذّر النسخ، اكتبها يدويًا')}return}
     if(x.id==='sShare'){try{if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'مستند محمي'});return}}catch(err){if(err&&err.name==='AbortError')return}
-      const u=URL.createObjectURL(file);const a=document.createElement('a');a.href=u;a.download=file.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(u);a.remove()},1500);toast('حُفظ الملف المحمي في التنزيلات')}}}
+      dlBlob(file,file.name);toast('حُفظ الملف المحمي في التنزيلات')}}}
 async function vaultExport(){if(!Vault.key)return;const blobs={};for(const d of Vault.docs)for(const f of d.files||[]){const o=await VDB.get('blobs',f.id);if(o)blobs[f.id]={iv:b64(o.iv),ct:b64(o.ct)}}
   const ser=o=>o?{iv:b64(o.iv),ct:b64(o.ct)}:null;
   const out={app:'masareef-vault',v:1,at:new Date().toISOString(),cfg:{salt:b64(Vault.cfg.salt),check:ser(Vault.cfg.check)},docs:Vault.docs.map(d=>Object.assign({},d,{secret:ser(d.secret)})),blobs};
@@ -2511,7 +2526,7 @@ function openAdmSetup(change){const L=document.getElementById('layer');let bio=f
     const wantBio=!!(document.getElementById('amBio')||{}).checked;if(wantBio)bio=(await verifyUser())==='ok';
     admSave({salt:b64e(salt),hash,approve:document.getElementById('amApv').checked,bio,since:today()});admUnlocked();L.innerHTML='';render();
     toast(wantBio&&!bio?'فُعّل وضع المدير بالرمز. لم تُفعَّل بصمة الوجه':'فُعّل وضع المدير')}})}
-async function wipeAll(){await snapTake('قبل حذف كل البيانات');for(const t of list())await delTx(t.id);S.settings={monthlyBudget:0,budgets:{}};await putSettings();render();toast('حُذفت كل البيانات')}
+async function wipeAll(){await snapTake('قبل حذف كل البيانات');await delTxMany(list().map(t=>t.id));S.settings={monthlyBudget:0,budgets:{}};await putSettings();render();toast('حُذفت كل البيانات')}
 async function openWipe(){const L=document.getElementById('layer');const uv=await uvAvailable();const hasPin=!!Vault.cfg;let showPin=!uv&&hasPin,busy=false;
   const word='احذف';const norm=s=>String(s||'').replace(/[ً-ْـ\s]/g,'').replace(/[أإآ]/g,'ا');
   const draw=()=>{L.innerHTML=`${sheetTop('حذف كل البيانات')}
@@ -2666,11 +2681,12 @@ function openImport(){
     if(x.id==='iParse'){const v=(document.getElementById('iTxt').value||'').trim();IMP.text=v;
       if(!v){const er=document.getElementById('iErr');er.hidden=false;er.textContent='الصق رسالة البنك أولًا';return}
       IMP.items=splitMsgs(v).map(parseSms);draw();return}
-    if(x.id==='iAdd'){let n=0;const IMP_added=[];const mc=Object.assign({},S.settings.merchantCats||{});
+    if(x.id==='iAdd'){let n=0;const IMP_added=[],IMP_new=[];const mc=Object.assign({},S.settings.merchantCats||{});
       for(const it of IMP.items){if(!it.ok||!it.on)continue;const amt=parseAmt(it.amount);if(!amt)continue;
         const rec={id:uidGen(),type:it.type,amount:amt,cat:it.cat,date:it.date||today(),method:it.method,note:(it.note||'').trim(),createdAt:new Date().toISOString(),src:it.key};
         if(it.merchant)mc[mkey(it.merchant)]=it.cat;
-        await putTx(rec);IMP_added.push(rec.date);n++}
+        IMP_new.push(rec);IMP_added.push(rec.date);n++}
+      if(IMP_new.length)await putTxMany(IMP_new);
       S.settings.merchantCats=mc;putSettings();
       L.innerHTML='';L.onchange=L.oninput=null;IMP={text:'',items:[]};
       const mons=[...new Set(IMP_added.map(d=>d.slice(0,7)))];
@@ -2686,7 +2702,13 @@ function mergeData(r){
   ids.forEach(id=>{const a=S.tx[id],b=rt[id];const w=!a?b:!b?a:((+b.u||0)>(+a.u||0)?b:a);if(!w)return;if(del[id]&&del[id]>=(+w.u||0))return;tx[id]=w});
   const cut=Date.now()-180*864e5;for(const k in del)if(del[k]<cut)delete del[k];
   S.tx=tx;S.del=del;
-  if(r.settings&&(+r.settings._u||0)>(+S.settings._u||0))S.settings=Object.assign({monthlyBudget:0,budgets:{}},r.settings);
+  if(r.settings){const L=S.settings,Rm=r.settings;
+    if(!L._su||!Rm._su){if((+Rm._u||0)>(+L._u||0))S.settings=Object.assign({monthlyBudget:0,budgets:{}},Rm)}
+    else{/* دمج قسمًا قسمًا: لكل قسم تؤخذ النسخة الأحدث تعديلًا */
+      const lp=splitSettings(L),rp=splitSettings(Rm),su=Object.assign({},L._su),out={};
+      Object.keys(Object.assign({},lp,rp)).forEach(k=>{const lt=+L._su[k]||0,rt=+Rm._su[k]||0;if(rt>lt){out[k]=rp[k];su[k]=rt}else out[k]=lp[k]});
+      const st=Object.assign({monthlyBudget:0,budgets:{}},out.settings);DATA_SECS.forEach(([k])=>{st[k]=out[k]||[]});st._su=su;st._u=Math.max(+L._u||0,+Rm._u||0);S.settings=st}
+    secSeed()}
 }
 const Sync=(()=>{
   const CFG_KEY='masareef:sync',FILE='masareef-data.json',SCOPE='https://www.googleapis.com/auth/drive.appdata',API='https://www.googleapis.com';
@@ -2790,8 +2812,9 @@ function openLook(){const L=document.getElementById('layer');
 
 /* ---------- 24. الإصدار وما الجديد ---------- */
 const DEV={name:'ماجد الرميمي',title:'مهندس ومطور تقنية معلومات',country:'سلطنة عُمان',phone:'95134234',intl:'96895134234'};
-const APP_VERSION='2.17.1';
+const APP_VERSION='2.18.0';
 const CHANGELOG=[
+ {v:'2.18.0',d:'2026-10-14',items:['مراجعة شاملة للتطبيق: توحيد أسماء الأقسام («الالتزامات الشهرية» و«ديوني» في كل مكان)','إصلاح مهم: إذا امتلأت ذاكرة التطبيق الأساسية لم تكن آخر تعديلاتك تُعتمد عند الفتح التالي؛ الآن تُستعاد تلقائيًا من قاعدة البيانات الداخلية','المزامنة بين الأجهزة تدمج كل قسم على حدة، فلا يضيع تعديل الديون على جهاز بسبب تعديل الالتزامات على جهاز آخر','«حذف كل البيانات» وحذف بيانات المثال واستيراد الرسائل والاعتماد صارت تُحفظ دفعة واحدة (أسرع بكثير مع البيانات الكبيرة)','الحسابات والتحويلات صارت أقسامًا مستقلة في قاعدة البيانات والنسخة الاحتياطية ومعاينة الاستعادة','تقريب المبالغ بدقة البيسة في كل المجاميع','تحسين ملف التشغيل بدون إنترنت: لا يحفظ صفحات الخطأ','حذف أكواد وتنسيقات غير مستخدمة، وتوحيد دوال التنزيل وأيام الشهر']},
  {v:'2.17.1',d:'2026-10-14',items:['تصغير وتكبير كل قسم في الالتزامات الشهرية بالضغط على عنوانه، ويُحفظ اختيارك','كل بند يظهر مختصرًا (الاسم والمبلغ وزر «دفعت»)، وبالضغط على اسمه تظهر تفاصيله وسجله وأزرار التعديل','«توسيع الكل» و«تصغير الكل»','زر «+ إضافة في …» داخل كل قسم يضيف التزامًا من نوع القسم مباشرة، من وضع المدير']},
  {v:'2.17.0',d:'2026-10-14',items:['«حساباتي»: رصيد الجاري والكاش والبطاقات، والتحويل بينها (لا يُحسب دخلًا ولا مصروفًا)، ومطابقة الرصيد الفعلي مع كشف الفرق','«هل نزل راتبك؟» في يوم الراتب بالمبلغ المعتاد، وتؤكده بضغطة','توقّع الأشهر الثلاثة القادمة في التقارير، وتنبيه المستشار إذا كان شهر متوقعًا بالسالب','قفل التطبيق ببصمة الوجه أو رمز عند فتحه، وإخفاء المبالغ بزر 👁 في الأعلى','نسخة احتياطية مشفّرة بكلمة سر، وتذكير بحفظ نسخة كل أسبوع','إرفاق صورة الإيصال بأي عملية، محفوظة مشفّرة في خزنة «مستنداتي»','تقويم المدفوعات: الفواتير والأقساط والراتب والخطط والتجديدات على شهر كامل','حاسبة الزكاة: النصاب بسعر الذهب، وخصم الأمانات والديون الحالّة، وموعد الحول','تنبيه عند الوصول إلى 80% من سقف أي فئة، وكشف الاشتراكات المتكررة','مقارنة بنفس الشهر من العام الماضي، واتجاه أهم الفئات لستة أشهر','الالتزامات الشهرية مقسّمة: الفواتير والسكن، مصروف العائلة والرواتب، أقساط الديون، وأخرى؛ لكل قسم المقرر والمتبقي بخط كبير، والمدفوع بالأخضر','«متبقٍ من الشهر الماضي» يظهر بوضوح على الالتزام الذي لم يُسدَّد كاملًا، وتتجدد القائمة كل شهر تلقائيًا','تسجيل رسائل البنك تلقائيًا عبر اختصارات الآيفون، وتسجيل مصروف سريع من رابط','مساحة التطبيق على جهازك في التقارير وقاعدة البيانات']},
  {v:'2.16.1',d:'2026-10-14',items:['قائمة الالتزامات الشهرية ثابتة: إضافة التزام (مصاريف الأهل، رواتب، كهرباء، ماء، إنترنت...) وتعديله وحذفه وتعديل مبلغه من وضع المدير فقط','زر «دفعت» يبقى متاحًا دائمًا من الوضع العادي','علامة 🔒 على أزرار الإضافة والتعديل وإلغاء الدفع عندما يكون وضع المدير مقفلًا']},
@@ -2848,7 +2871,7 @@ function loadSample(){
    ['exp',31.75,'food',d(4),'card','مقاضي البيت'],['exp',4.2,'rest',d(5),'cash','قهوة وفطور'],['exp',38.4,'bills',d(6),'card','فاتورة الكهرباء'],
    ['exp',15,'charity',d(7),'cash','صدقة'],['exp',12.9,'bills',d(8),'card','باقة الإنترنت'],['inc',60,'business',d(8),'cash','مبيعات المواد الغذائية'],
    ['inc',850,'salary',pd(1),'transfer','راتب الشهر'],['exp',180,'home',pd(2),'transfer','إيجار الشقة'],['exp',210.3,'food',pd(10),'card','مقاضي'],['exp',95,'shop',pd(18),'card','ملابس'],['exp',60,'fuel',pd(20),'card','وقود']];
-  rows.forEach(r=>putTx({id:uidGen(),type:r[0],amount:r[1],cat:r[2],date:r[3],method:r[4],note:r[5],createdAt:new Date().toISOString(),sample:true}));
+  putTxMany(rows.map(r=>({id:uidGen(),type:r[0],amount:r[1],cat:r[2],date:r[3],method:r[4],note:r[5],createdAt:new Date().toISOString(),sample:true})));
   toast('أُضيفت بيانات مثال، يمكنك حذفها من التقارير');
 }
 
@@ -2903,7 +2926,7 @@ function reportDoc(o){o=o||prOpts();const R=prRange(o),has=k=>o.secs.includes(k)
   if(has('people')){const pe=Object.entries(byPerson(A)).filter(([,v])=>v>0);
     if(pe.length>1)h+=sec('people','المصاريف حسب الأشخاص',T(['الشخص','المبلغ','النسبة'],pe.sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k?esc(personName(k)):'لي وللبيت'}</td><td>${N(v)}</td><td>${P(v,exp)}</td></tr>`)))}
   if(has('monthly')&&oneMonth){const st=recStatus(m0);if(st.R.length){const pd=i=>i.kind==='rec'?recPays(i.ref).filter(t=>t.date.slice(0,7)===m0):(i.ref.pays||[]).filter(p=>p.date&&p.date.slice(0,7)===m0).map(p=>({amount:p.amt,date:p.date}));
-    h+=sec('monthly','المصاريف والأقساط الشهرية',T(['البند','يوم الدفع','المستحق','المدفوع','المتبقي','الدفعات','الحالة','✓'],st.R.slice().sort((a,b)=>a.day-b.day).map(i=>{const rem=r3(Math.max(0,i.amount-(i.paidAmt||0)));return `<tr><td>${esc(i.name)}${i.prev>0.0005?`<br><small>منها متأخرات ${money(i.prev)}</small>`:''}</td><td>${i.day}</td><td>${N(i.amount)}</td><td>${N(i.paidAmt||0)}</td><td class="${rem>0.0005?'no':'ok'}">${N(rem)}</td><td>${pd(i).map(t=>money(t.amount)+' ('+fmtD(t.date)+')').join('<br>')||'—'}</td><td class="${i.isPaid?'ok':i.paidAmt?'':'no'}">${i.isPaid?'مدفوع':i.paidAmt?'جزئي':'لم يُدفع'}</td><td class="box">${i.isPaid?'☑':'☐'}</td></tr>`}),['المجموع','',N(st.total),N(st.paidAmt),N(st.dueLeft),'',`مدفوع ${st.paid.length} من ${st.R.length}`,'']))}}
+    h+=sec('monthly','الالتزامات الشهرية',T(['البند','يوم الدفع','المستحق','المدفوع','المتبقي','الدفعات','الحالة','✓'],st.R.slice().sort((a,b)=>a.day-b.day).map(i=>{const rem=r3(Math.max(0,i.amount-(i.paidAmt||0)));return `<tr><td>${esc(i.name)}${i.prev>0.0005?`<br><small>منها متأخرات ${money(i.prev)}</small>`:''}</td><td>${i.day}</td><td>${N(i.amount)}</td><td>${N(i.paidAmt||0)}</td><td class="${rem>0.0005?'no':'ok'}">${N(rem)}</td><td>${pd(i).map(t=>money(t.amount)+' ('+fmtD(t.date)+')').join('<br>')||'—'}</td><td class="${i.isPaid?'ok':i.paidAmt?'':'no'}">${i.isPaid?'مدفوع':i.paidAmt?'جزئي':'لم يُدفع'}</td><td class="box">${i.isPaid?'☑':'☐'}</td></tr>`}),['المجموع','',N(st.total),N(st.paidAmt),N(st.dueLeft),'',`مدفوع ${st.paid.length} من ${st.R.length}`,'']))}}
   if(has('debts')){const Ds=debts().filter(d=>+d.balance>0.0005),Dn=debts().filter(d=>d.closed);if(Ds.length||Dn.length){const pl=debtSim();const GK=Object.keys(DEBT_G);let x='';
     if(Ds.length)x+=T(['القسم','الدين','بدأ','المتبقي','القسط','الفائدة','ينتهي المقرر','المدة'],debtSort(Ds,'end',pl).sort((a,b)=>GK.indexOf(debtGroup(a))-GK.indexOf(debtGroup(b))).map(d=>{const e=debtEnd(d,pl),st=debtStart(d);return `<tr><td>${DEBT_G[debtGroup(d)][0]}</td><td>${esc(d.name)}${d.lender?' ('+esc(d.lender)+')':''}</td><td class="nw">${fmtD(st)}</td><td>${N(d.balance)}</td><td>${d.mode==='once'?'دفعة واحدة':N(d.payment)}</td><td>${+d.rate?d.rate+'%':'—'}</td><td class="nw">${e?fmtD(e):'—'}</td><td>${e?spanWord(st,e):'—'}</td></tr>`}),['المجموع','','',N(Ds.reduce((s2,d)=>s2+(+d.balance),0)),N(Ds.reduce((s2,d)=>s2+debtInst(d),0)),'','','']);
     if(Dn.length)x+='<h3>ديون انتهت</h3>'+T(['الدين','من','إلى','استغرق','طريقة التخلص','مجموع ما دُفع'],Dn.map(d=>{const c=d.closed;return `<tr><td>${esc(d.name)}</td><td class="nw">${fmtD(c.start)}</td><td class="nw">${fmtD(c.end)}</td><td>${spanWord(c.start,c.end)}</td><td>${CLOSE_M[c.method]}</td><td>${N(c.total)}</td></tr>`}));
@@ -3090,7 +3113,7 @@ function expSheets(secs,period){const R=expRange(period),sub=`إدارة شؤو�
 /* المشاركة على الآيفون: «فتح في Numbers» أو «حفظ في الملفات»، وإلا تنزيل */
 async function shareFile(name,data,type){const f=new File([data],name,{type});
   try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:name});return 'shared'}}catch(e){if(e&&e.name==='AbortError')return 'cancel'}
-  const url=URL.createObjectURL(f);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},2000);return 'saved'}
+  dlBlob(f,name);return 'saved'}
 async function exportXlsx(secs,period){let sh=expSheets(secs,period);if(sh.length>1)sh=sh.filter(x=>x.rows.length);if(!sh.length){toast('اختر قسمًا واحدًا على الأقل');return}
   const data=XL.build(sh);const R=expRange(period);const ks=secs.filter(k=>k!=='summary');const nm='idarat-shuooni-'+(ks.length===1?ks[0]:'report')+'-'+(period==='all'?'all':R.from.slice(0,period==='year'?4:7))+'.xlsx';
   const r=await shareFile(nm,data,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -3237,7 +3260,7 @@ function openWidget(){const L=document.getElementById('layer');
    L.innerHTML=`${sheetTop('ويدجت الآيفون والماك')}
    <h2 style="margin-top:0">ويدجت الآيفون والماك</h2>
    <div class="wprev" aria-label="شكل الويدجت"><div class="wp-h"><b>إدارة شؤوني</b><span>${esc(D.monthName)}</span></div>
-    <div class="wp-b"><div><span>المتبقي هذا الشهر</span><b class="num">${D.privacy?'•••':money(D.m.left)}</b></div><div><span>المتاح يوميًا</span><b class="num">${D.privacy?'•••':money(Math.max(0,D.m.spendable)/(new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate()-new Date().getDate()+1))}</b></div></div>
+    <div class="wp-b"><div><span>المتبقي هذا الشهر</span><b class="num">${D.privacy?'•••':money(D.m.left)}</b></div><div><span>المتاح يوميًا</span><b class="num">${D.privacy?'•••':money(Math.max(0,D.m.spendable)/(monthDays(new Date())-new Date().getDate()+1))}</b></div></div>
     <div class="wp-bar"><i style="width:${Math.min(100,pct)}%"></i></div>
     <div class="wp-f"><span>خططي <span dir="ltr">${D.plans.pct}%</span></span><span>${D.next[0]?esc(D.next[0].t):'لا التزامات قريبة'}</span></div></div>
    <div class="stack" style="margin-top:12px">
@@ -3556,7 +3579,7 @@ document.addEventListener('click',async e=>{
   if(b.id==='admApprove'){const c=admCfg();admSave(Object.assign({},c,{approve:c.approve===false}));render();toast(c.approve===false?'العمليات المُدخلة وهو مقفل تنتظر اعتمادك':'أُوقف الاعتماد، العمليات الجديدة تُحفظ مباشرة');return}
   if(b.id==='admBioSet'){const c=admCfg();if(c.bio){admSave(Object.assign({},c,{bio:false}));render();toast('أُوقفت بصمة الوجه للمدير');return}
     const r=await verifyUser();if(r==='ok'){admSave(Object.assign({},c,{bio:true}));render();toast('فُعّلت بصمة الوجه للمدير')}else toast(r==='unavailable'?'بصمة الوجه غير متاحة هنا':'لم تُفعَّل بصمة الوجه');return}
-  if(b.id==='admOff'){const P=pendList();for(const t of P){const c=Object.assign({},t);delete c.pend;await putTx(c)}admSave(null);Adm.open=false;render();toast('أُوقف وضع المدير'+(P.length?' واعتُمدت العمليات المنتظرة':''));return}
+  if(b.id==='admOff'){const P=pendList();await putTxMany(P.map(t=>{const c=Object.assign({},t);delete c.pend;return c}));admSave(null);Adm.open=false;render();toast('أُوقف وضع المدير'+(P.length?' واعتُمدت العمليات المنتظرة':''));return}
   if(b.dataset.apopen){openApprovals();return}
   if(b.dataset.dgrp){S.debtGrp=b.dataset.dgrp;render();return}
   if(b.dataset.dsort){S.debtSort=b.dataset.dsort;render();return}
@@ -3667,7 +3690,7 @@ document.addEventListener('click',async e=>{
   if(b.dataset.ftype){S.ftype=b.dataset.ftype;render();return}
   if(b.id==='loadSample'){loadSample();return}
   if(b.id==='saveBudget'){S.settings.monthlyBudget=parseAmt(document.getElementById('mb').value);const bb={};document.querySelectorAll('[data-bcat]').forEach(i=>{const v=parseAmt(i.value);if(v)bb[i.dataset.bcat]=v});S.settings.budgets=bb;document.activeElement.blur();await putSettings();render();toast('حُفظت الميزانية');return}
-  if(b.id==='clearSample'){list().filter(t=>t.sample).forEach(t=>delTx(t.id));toast('حُذفت بيانات المثال');return}
+  if(b.id==='clearSample'){delTxMany(list().filter(t=>t.sample).map(t=>t.id));toast('حُذفت بيانات المثال');return}
   if(b.id==='wipeAsk'){openWipe();return}
   if(b.id==='copyBackup'||b.id==='fileBackup'){try{localStorage.setItem('masareef:lastBackup',today())}catch(e){}}
   if(b.id==='copyBackup'){const txt=backupText();
@@ -3687,7 +3710,7 @@ document.addEventListener('change',e=>{
   if(e.target.id==='restoreFile'&&e.target.files[0]){const r=new FileReader();r.onload=()=>openRestore(r.result,'من ملف');r.readAsText(e.target.files[0]);e.target.value=''}});
 
 /* ---------- 30. التشغيل ---------- */
-checkVersion();cacheLoad();migrateRecs();if(lockCfg())showLock();privBtnInit();render();dbBoot();handleLaunchUrl();Sync.start();setTimeout(notifyCarAlerts,1500);vaultLoad();
+checkVersion();cacheLoad();migrateRecs();secSeed();if(lockCfg())showLock();privBtnInit();render();dbBoot();handleLaunchUrl();Sync.start();setTimeout(notifyCarAlerts,1500);vaultLoad();
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.classList&&e.target.classList.contains('pin')){const b=document.getElementById(e.target.id==='vPin'?'vaultUnlock':'vaultSetup');b&&b.click()}});
 document.addEventListener('change',async e=>{if(e.target.id==='vaultImportFile'&&e.target.files[0]){const f=e.target.files[0];e.target.value='';const txt=await f.text();const L=document.getElementById('layer');
   L.innerHTML=`<div class="scrim" data-close></div><div class="sheet" data-vault role="dialog" aria-modal="true" aria-label="استيراد خزنة"><div class="in"><div class="grab"></div><h2 style="margin-top:0">استيراد خزنة</h2><div class="stack"><div class="field"><label for="vImpPin">رمز الخزنة التي صُدّر منها الملف</label><input class="inp num pin" id="vImpPin" type="password" inputmode="numeric" maxlength="8"></div><div class="actions"><button class="btn block" id="vImpGo">استيراد</button><button class="btn ghost block" data-close>إلغاء</button></div></div></div></div>`;

@@ -278,9 +278,6 @@ body:has(.sheet) .toast{bottom:auto;top:calc(12px + env(safe-area-inset-top,0px)
 .advparts{margin-top:12px;display:grid;gap:7px}
 .advpart{display:grid;grid-template-columns:110px 1fr 44px;gap:8px;align-items:center;font-size:12.5px}
 .advpart .meter{height:6px}.advpart b{font-size:12px;text-align:left}
-.allocbar{display:flex;height:14px;border-radius:99px;overflow:hidden;background:var(--surface-2);gap:2px}
-.allocbar i{display:block;height:100%}
-.swatch{display:inline-block;width:9px;height:9px;border-radius:3px;margin-inline-end:6px;vertical-align:middle}
 .chkbox{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-size:14px;font-weight:700;color:#fff;justify-self:center}
 .chk.done .chkbox{background:var(--inc);border-color:var(--inc)}
 .chk.done .advtx b{color:var(--muted);text-decoration:line-through}
@@ -339,7 +336,6 @@ body:has(.sheet) .toast{bottom:auto;top:calc(12px + env(safe-area-inset-top,0px)
 .recact{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .chip.unpay{color:var(--exp);border-color:var(--line);border-color:color-mix(in srgb,var(--exp) 35%,var(--line))}
 .recrow.done b{color:var(--muted)}
-.grouphead{font-size:13px;font-weight:600;color:var(--muted);margin:14px 4px 6px}
 .tag{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:99px;background:var(--accent-soft);color:var(--accent);margin-inline-end:6px;vertical-align:2px}
 .person{display:flex;flex-direction:column;gap:8px;padding-block:12px}
 .person+.person{border-top:1px solid var(--line)}
@@ -387,7 +383,6 @@ body:has(.sheet) .toast{bottom:auto;top:calc(12px + env(safe-area-inset-top,0px)
 .dnote-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
 .dnote p{margin:8px 0;text-align:center;white-space:pre-line;font-size:16.5px;line-height:1.9}
 .dnote p+p{border-top:1px dashed #D9C98F;padding-top:8px}
-.dnote-mini{margin-top:8px;padding:8px 10px;border-radius:12px;background:#FBF7EA;background:color-mix(in srgb,#E9D9A0 22%,var(--surface));font-size:13.5px;line-height:1.8;text-align:center;white-space:pre-line}
 .dntxt{min-height:180px;line-height:1.8}
 .dnsug{display:flex;flex-direction:column;gap:6px}
 .dnchip{border:1px solid var(--line);background:var(--surface);color:inherit;font:inherit;border-radius:12px;padding:8px 10px;text-align:right;display:flex;flex-direction:column;gap:2px;cursor:pointer}
@@ -429,8 +424,6 @@ body:has(.sheet) .toast{bottom:auto;top:calc(12px + env(safe-area-inset-top,0px)
 .wirdcard small{display:block;opacity:.85;font-size:12px;margin-top:2px}
 .wirdcard.done{background:var(--surface);color:var(--fg);border:1px solid var(--line)}
 .wd-ic{font-size:24px}
-.wd-go{font-size:13px;padding:6px 11px;border-radius:99px;background:rgba(255,255,255,.18);white-space:nowrap}
-.wirdcard.done .wd-go{background:var(--surface-2)}
 .sheet.quran{max-height:96%}
 .qhead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
 .qtools{display:flex;gap:6px}
@@ -439,7 +432,6 @@ body:has(.sheet) .toast{bottom:auto;top:calc(12px + env(safe-area-inset-top,0px)
 .qtext p{margin:0}
 .qbasm{text-align:center;margin-bottom:8px}
 .qn{color:#9A7B25;font-size:.8em;white-space:nowrap}
-.qnote{margin-top:10px;padding:10px;border-radius:12px;background:var(--surface-2);text-align:center;white-space:pre-line}
 @font-face{font-family:"Amiri Quran App";src:url(amiri-quran.woff) format("woff");font-display:swap}
 .qtext,.zk-q{font-family:"Amiri Quran App","Geeza Pro","Noto Naskh Arabic",serif}
 .qtext{line-height:2.5}
