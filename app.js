@@ -804,7 +804,7 @@ function vReports(){const seg=`<div class="row2" style="margin-bottom:12px"><but
 function vReportsMonth(){
   return `${S.month===ym(new Date())?forecastHtml():''}<h2 style="margin-top:4px">آخر ستة أشهر</h2><div class="panel">${trendChart(S.month)}</div>
   <h2>ملخص ${esc(monthName(S.month))}</h2>${monthStatsHtml(S.month)}${catBreakdownHtml(S.month)}${yearCmpHtml(S.month)}${catTrendHtml(S.month)}
-  <h2>بياناتك</h2>${syncHtml()}
+  <h2>بياناتك</h2><button class="btn ghost block" id="syncGo" style="margin-bottom:10px">☁️ المزامنة مع Google Drive: ${Sync.linked()?'مفعّلة':'غير مربوطة'}</button>
   <div class="panel stack">
    <div class="storbox" id="storBox"><div class="sumrow"><span>المساحة المستخدمة على جهازك</span><b class="note">جارٍ الحساب…</b></div></div>
    <button class="btn block" id="dbOpen">🗄️ قاعدة البيانات: الحفظ والفحص والاستعادة</button>
@@ -988,6 +988,13 @@ function people(){return S.settings.people||[]}
 function recs(){return S.settings.recurring||[]}
 function personName(id){const p=people().find(x=>x.id===id);return p?p.name:'شخص محذوف'}
 function personColor(id){const i=people().findIndex(x=>x.id===id);return AV_COLORS[(i<0?0:i)%AV_COLORS.length]}
+/* التاريخ بنظام يوم/شهر/سنة، مثل 5/11/2026 */
+function dmy(iso){if(!iso)return '—';const [y,m,d]=iso.split('-');return (+d)+'/'+(+m)+'/'+y}
+/* تاريخ استحقاق البند في الشهر m */
+function dueOf(i,m){const [y,mm]=m.split('-').map(Number);const d=Math.min(Math.max(1,+i.day||1),new Date(y,mm,0).getDate());return m+'-'+String(d).padStart(2,'0')}
+/* الدفع يُفتح من تاريخ الاستحقاق؛ قبله يحتاج وضع المدير */
+function payLocked(i,m){return !i.isPaid&&!(i.paidAmt>0.0005)&&dueOf(i,m)>today()}
+function nextDueTxt(i,m){const n=shiftMonth(m,1);const it=monthItems(n).find(x=>x.kind===i.kind&&x.id===i.id);return it?{amt:it.amount,date:dueOf(it,n)}:null}
 function recPaid(r,m){return list().find(t=>t.rec===r.id&&t.date&&t.date.slice(0,7)===m)}
 function recDate(r,m){const [y,mm]=m.split('-').map(Number);const dim=new Date(y,mm,0).getDate();const d=Math.min(Math.max(1,+r.day||1),dim);return m+'-'+String(d).padStart(2,'0')}
 function debtPaidIn(d,m){return (d.pays||[]).filter(p=>p.date&&p.date.slice(0,7)===m).reduce((x,p)=>x+(+p.amt||0),0)}
@@ -1040,16 +1047,29 @@ function personSplitHtml(a,title){const o=byPerson(a);const tot=Object.values(o)
 
 function vMonthly(){
   const m=S.month;const st=recStatus(m);const cur=m===ym(new Date());const todayD=new Date().getDate();
+  const PD={};list().forEach(t=>{if(t.rec&&t.date){const k=t.rec+'|'+t.date.slice(0,7);(PD[k]=PD[k]||[]).push(t.date)}});
+  const Y=m.slice(0,4),YM={};for(let k=1;k<=12;k++){const mm=Y+'-'+String(k).padStart(2,'0');YM[mm]={};monthItems(mm).forEach(x=>YM[mm][x.kind+x.id]=x)}
+  /* تفاصيل الدفع لكل أشهر السنة: الموعد والمبلغ وتاريخ الدفع، أخضر = مدفوع، أحمر = غير مدفوع */
+  const yearGridHtml=i=>{const td=today();const cells=Object.keys(YM).map(mm=>{const x=YM[mm][i.kind+i.id];const mn=MONTHS[+mm.slice(5)-1];
+      if(!x)return `<div class="yg-c off"><b>${mn}</b><small>—</small></div>`;
+      const du=dueOf(x,mm),pd=(x.kind==='rec'?(PD[x.id+'|'+mm]||[]):(x.ref.pays||[]).filter(p=>p.date&&p.date.slice(0,7)===mm).map(p=>p.date)).sort().pop();
+      const cls=x.isPaid?'ok':du<=td?'bad':x.paidAmt?'part':'up';
+      return `<button class="yg-c ${cls}${mm===m?' cur':''}" type="button" data-gomonth="${mm}" aria-label="${mn} ${Y}"><b>${mn}</b><span class="num">${money(x.isPaid?x.paidAmt:cls==='up'&&x.tracked?x.bill:Math.max(0,x.amount-(x.paidAmt||0)))}</span><small>${x.isPaid?'دُفع':'موعده'}</small><small class="num">${x.isPaid?dmy(pd):dmy(du)}</small></button>`}).join('');
+    return `<details class="ygrid"><summary>📅 تفاصيل الدفع لسنة ${Y}</summary><div class="yg">${cells}</div><div class="yg-key"><span class="ok">مدفوع</span><span class="bad">غير مدفوع</span><span class="up">قادم</span></div></details>`};
   const row=i=>{const late=!i.isPaid&&(m<ym(new Date())||(cur&&todayD>i.day));
-    const pill=i.isPaid?`<span class="pill paid">دُفع <span class="num">${amtH(i.paidAmt)}</span></span>`:late?'<span class="pill late">متأخر</span>':i.paidAmt?'<span class="pill soon">دُفع جزء</span>':`<span class="pill soon">يوم ${i.day}</span>`;
-    const pay=i.isPaid?'':`<button class="chip pay" ${i.kind==='debt'?'data-dpay':'data-rpay'}="${esc(i.id)}">دفعت</button>`;
+    const due=dueOf(i,m),pdates=i.kind==='rec'?(PD[i.id+'|'+m]||[]):(i.ref.pays||[]).filter(x=>x.date&&x.date.slice(0,7)===m).map(x=>x.date),lastPaid=pdates.slice().sort().pop();
+    const pill=i.isPaid?`<span class="pill paid">دُفع${lastPaid?' '+dmy(lastPaid):''}</span>`:late?`<span class="pill late">متأخر · موعده ${dmy(due)}</span>`:i.paidAmt?`<span class="pill soon">دُفع جزء · موعده ${dmy(due)}</span>`:`<span class="pill soon">موعده ${dmy(due)}</span>`;
+    const lockedPay=payLocked(i,m);
+    const pay=i.isPaid?'':`<button class="chip pay${lockedPay?' early':''}" ${i.kind==='debt'?'data-dpay':'data-rpay'}="${esc(i.id)}"${lockedPay?` data-early="${due}" aria-label="الدفع يُفتح في ${dmy(due)}"`:''}>${lockedPay?'🔒 يُفتح '+dmy(due):'دفعت'}</button>`;
+    const nx=i.isPaid?nextDueTxt(i,m):null;
+    const nextLine=nx?`<div class="nextdue">التالي: <b class="num">${amtH(nx.amt)}</b> · موعده ${dmy(nx.date)}${nx.date>today()?' · يُفتح الدفع في موعده':''}</div>`:'';
     const edit=`<button class="chip" ${i.kind==='debt'?'data-dedit':'data-redit'}="${esc(i.id)}" aria-label="تعديل ${esc(i.name)}"><span class="lk">🔒 </span>تعديل</button>`;
     const rem=r3(Math.max(0,i.amount-(i.paidAmt||0)));const pm0=shiftMonth(m,-1);
     const prevTag=i.prev>0.0005?`<span class="prevtag">+ متبقٍ من الشهر الماضي <span class="num">${amtH(i.prev)}</span></span>`:i.kind==='debt'&&+i.ref.balance>0&&!debtPaidIn(i.ref,pm0)&&(!i.ref.start||i.ref.start.slice(0,7)<=pm0)&&i.ref.mode!=='once'?'<span class="prevtag">لم يُسجَّل قسط الشهر الماضي</span>':'';
     const amtBox=`<div class="rec-amt${i.isPaid?' ok':i.paidAmt?' part':''}">${i.isPaid?`<small>مدفوع ✓</small><b class="num">${money(i.paidAmt)}</b>`:`<small>${i.paidAmt?'باقٍ':'المقرر'}</small><b class="num">${money(rem)}</b>`}</div>`;
     const op=(S.recOpen||{})[i.kind+i.id];
     return `<div class="recrow rec2${i.isPaid?' done':''}${op?' open':''}" data-rkey="${i.kind+esc(i.id)}">${i.kind==='debt'?debtBadge(i.ref):recBadge(i.ref)}<div class="rtog" data-rtog="${i.kind+esc(i.id)}" role="button" aria-expanded="${op?'true':'false'}" aria-label="عرض تفاصيل ${esc(i.name)}"><b>${i.kind==='debt'?'<span class="tag">دين</span>':''}${esc(i.name)}</b><small>${i.tracked?`فاتورة <span class="num">${amtH(i.bill)}</span>${i.prev>0.0005?' + متأخرات سابقة <span class="num amt-exp">'+amtH(i.prev)+'</span>':i.prev<-0.0005?' − رصيد لك <span class="num">'+amtH(-i.prev)+'</span>':''}${Math.abs(i.prev)>0.0005?' = <span class="num">'+amtH(i.amount)+'</span>':''}${i.paidAmt&&!i.isPaid?' · دفعت <span class="num">'+amtH(i.paidAmt)+'</span> · المتبقي <b class="num">'+amtH(i.amount-i.paidAmt)+'</b>'+((i.ref.later||{})[m]?' · تذكير '+fmtD(i.ref.later[m]):''):''}<br>`:`<span class="num">${money(i.amount)}</span> ${CUR}${i.variable?' تقريبًا':''} · `}يوم الدفع ${i.day}${i.kind==='rec'?' · تذكير يوم '+remindDay(i.ref)+' · 🔁 '+(i.ref.until?'حتى '+monthName(i.ref.until):'شهريًا مستمر'):''}${i.person?' · لـ'+esc(personName(i.person)):''}${i.kind==='debt'?' · متبقٍ <span class="num">'+amtH(i.ref.balance)+'</span>':''}</small>${prevTag}</div>${amtBox}
-      <div class="recact">${pill}${pay}${i.paidAmt>0.0005?`<button class="chip unpay" data-unpay="${i.kind}|${esc(i.id)}|${m}" aria-label="إلغاء دفع ${esc(i.name)}"><span class="lk">🔒 </span>إلغاء الدفع</button>`:''}${edit}</div>${i.kind==='rec'?recHistHtml(i.ref,m):debtHistHtml(i.ref)}</div>`};
+      ${nextLine}<div class="recact">${pill}${pay}${i.paidAmt>0.0005?`<button class="chip unpay" data-unpay="${i.kind}|${esc(i.id)}|${m}" aria-label="إلغاء دفع ${esc(i.name)}"><span class="lk">🔒 </span>إلغاء الدفع</button>`:''}${edit}</div>${yearGridHtml(i)}${i.kind==='rec'?recHistHtml(i.ref,m):debtHistHtml(i.ref)}</div>`};
   /* الأقسام: الفواتير، مصروف العائلة، أقساط الديون، وأخرى */
   const secOf=i=>{const k=i.ref.kind;if(i.kind==='debt'||k==='loan')return 'debt';if(['wifi','phone','elec','water','rent'].includes(k)||i.ref.cat==='bills')return 'bills';if(['family','maid'].includes(k)||i.ref.cat==='family'||i.person)return 'family';return 'other'};
   const SECS=[['bills','🧾'],['family','👨‍👩‍👧'],['debt','🏦'],['other','📌']].map(([k,ic])=>[k,ic+' '+esc(lbl('msec.'+k))]);
@@ -1229,7 +1249,7 @@ function openRecPay(id,m){const r=recs().find(x=>x.id===id);if(!r)return;const L
     if(x.id==='rpBack'){step='form';draw();return}
     if(x.id==='rpSave'){x.disabled=true;r.half=half;r.later=Object.assign({},r.later||{});if(after()>0.0005)r.later[m]=later;else delete r.later[m];await putSettings();const t=recTx(r,m);t.amount=amt;t.date=date;t.method=method;if(note)t.note=r.name+' · '+note;S.settings.lastMethod=method;
       await putTx(t);L.innerHTML='';st=recState(r,m);
-      toast(st.due>0.0005?'سُجّلت دفعة '+rial(amt)+'، المتبقي '+rial(st.due)+'، سأذكّرك '+fmtD(later):'سُدّد '+r.name+' بالكامل',async()=>{await delTx(t.id);toast('أُلغيت الدفعة')},9000)}}}
+      toast(st.due>0.0005?'سُجّلت دفعة '+rial(amt)+'، المتبقي '+rial(st.due)+'، سأذكّرك '+fmtD(later):(()=>{const nx=nextDueTxt({kind:'rec',id:r.id},m);return 'شكرًا على الدفع ✓ سُدّد '+r.name+' بالكامل'+(nx?' · التالي '+rial(nx.amt)+' بتاريخ '+dmy(nx.date):'')})(),async()=>{await delTx(t.id);toast('أُلغيت الدفعة')},9000)}}}
 /* كل التزام شهري خانة واحدة: أيقونته، ودفعاته، وتعديلاته، وسجل أشهره؛ ومنها يُطبع كشفه */
 const REC_IC={wifi:['wifi','#3E7CB1'],phone:['phone','#6B5CA5'],elec:['bolt','#C9881E'],water:['drop','#2E8BB5'],rent:['home','#2F7F7A'],maid:['family','#8A4F7D'],loan:['loan','#8A4F7D'],family:['family','#B0662F']};
 /* اختيار نوع الالتزام: كل الأنواع متاحة دائمًا ويمكن تكرارها (مثل كهرباء لبيتين) */
@@ -1327,7 +1347,7 @@ function openPayDel(txId){const t=S.tx[txId];if(!t)return;const L=document.getEl
   L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
     if(x.id==='pdYes'){const copy=Object.assign({},t);const rr=recs().find(y=>y.id===t.rec);if(rr){recLog(rr,'حذف دفعة '+rial(t.amount)+' بتاريخ '+fmtD(t.date));await putSettings()}await delTx(t.id);L.innerHTML='';toast('حُذفت الدفعة',async()=>{if(rr){rr.log=(rr.log||[]).slice(0,-1);await putSettings()}delete S.del[copy.id];await putTx(copy);toast('أُعيدت الدفعة')},9000)}}}
 function payAll(){const m=S.month,cur=m===ym(new Date());const L=document.getElementById('layer');
-  const items=monthItems(m).filter(i=>!i.isPaid).map(i=>{if(i.kind==='rec'){const st=recState(i.ref,m);return{i,amt:st.due}}const d=i.ref;return{i,amt:r3(Math.min(d.mode==='once'?+d.balance:+d.payment||0,(+d.balance)*(1+(+d.rate||0)/1200)))}}).filter(x=>x.amt>0);
+  const items=monthItems(m).filter(i=>!i.isPaid&&(!payLocked(i,m)||(admOn()&&admOpen()))).map(i=>{if(i.kind==='rec'){const st=recState(i.ref,m);return{i,amt:st.due}}const d=i.ref;return{i,amt:r3(Math.min(d.mode==='once'?+d.balance:+d.payment||0,(+d.balance)*(1+(+d.rate||0)/1200)))}}).filter(x=>x.amt>0);
   if(!items.length){toast('لا يوجد ما يُدفع');return}const tot=items.reduce((s,x)=>s+x.amt,0);
   L.innerHTML=`${sheetTop('تسجيل كل المتبقي')}<h2 style="margin-top:0">تسجيل كل المتبقي لـ${esc(monthName(m))}</h2>
    <div class="panel">${items.map(x=>`<div class="sumrow"><span>${esc(x.i.name)}</span><b class="num">${amtH(x.amt)}</b></div>`).join('')}<div class="sumrow total"><span>المجموع</span><b class="num">${amtH(tot)}</b></div></div>
@@ -2102,7 +2122,7 @@ function openDebtPay(id){const L=document.getElementById('layer');const d=debts(
     if(x.dataset.dpamt){document.getElementById('dpAmt').value=amtIn(+x.dataset.dpamt);dprev();return}
     if(x.id==='dpSave'){const amt=parseAmt(document.getElementById('dpAmt').value);if(!amt){L.innerHTML='';return}x.disabled=true;const snap=JSON.stringify(debts());const date=document.getElementById('dpDate').value||today();
       const p=await applyDebtPayment(d,amt,date,document.getElementById('dpTx').checked);
-      L.innerHTML='';await putSettings();render();toast(d.balance<=0?'مبروك! انتهى دين '+d.name:'سُجّل السداد. المتبقي '+rial(d.balance),async()=>{S.settings.debts=JSON.parse(snap);if(p.tx)await delTx(p.tx);await putSettings();render();toast('أُلغي السداد')},9000)}};
+      L.innerHTML='';await putSettings();render();toast(d.balance<=0?'مبروك! انتهى دين '+d.name:'شكرًا على الدفع ✓ المتبقي من '+d.name+' '+rial(d.balance)+(()=>{const nx=nextDueTxt({kind:'debt',id:d.id},ym(new Date()));return nx?' · القسط القادم بتاريخ '+dmy(nx.date):''})(),async()=>{S.settings.debts=JSON.parse(snap);if(p.tx)await delTx(p.tx);await putSettings();render();toast('أُلغي السداد')},9000)}};
 }
 
 /* سجل الدين: كل دفعة محفوظة بفائدتها وأصلها والمتبقي بعدها، وكل تعديل يُسجَّل داخل الدين */
@@ -2569,11 +2589,11 @@ function admAsk(then,why){let el=document.getElementById('admLayer');if(!el){el=
   if(!c.bio)setTimeout(()=>{const i=document.getElementById('admPin');if(i)i.focus()},60)}
 /* كل زر تعديل أو حذف أو تراجع أو اعتماد يمر من هنا أولًا */
 const ADM_SEL=['[data-edit]','[data-txdel]','[data-txedit]','[data-dpe]','[data-redit]','[data-dedit]','[data-tedit]','[data-cedit]','[data-gedit]','[data-pedit]','[data-sedit]','[data-rpedit]',
-  '[data-apv]','[data-apedit]','[data-unpay]','[data-recpick]','[data-secadd]','[data-rename]','#lblEdit','[data-acedit]','#acAdd','[data-trdel]','[data-subadd]','#dnEdit','#wdEdit','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','label[for="restoreFile2"]','[data-snaprest]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
+  '[data-apv]','[data-apedit]','[data-unpay]','[data-recpick]','[data-secadd]','[data-early]','[data-rename]','#lblEdit','[data-acedit]','#acAdd','[data-trdel]','[data-subadd]','#dnEdit','#wdEdit','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','label[for="restoreFile2"]','[data-snaprest]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
 document.addEventListener('click',e=>{if(!admOn())return;if(e.target.closest('#admLayer'))return;
   if(admOpen()){if(e.target.closest('button,label'))Adm.last=Date.now();return}
   const b=e.target.closest(ADM_SEL);if(!b)return;e.preventDefault();e.stopImmediatePropagation();
-  admAsk(()=>{if(b.isConnected)b.click()},b.matches('.toast button')?'التراجع عن عملية يحتاج صلاحية المدير.':b.matches('[data-apv],[data-apedit],#apvAll')?'اعتماد العمليات يحتاج صلاحية المدير.':b.matches('[data-rename],#lblEdit')?'تعديل أسماء الأقسام من وضع المدير فقط.':b.matches('[data-recpick],[data-secadd],[data-redit],[data-dedit],[data-rpedit]')?'إضافة الالتزامات الشهرية وتعديلها من وضع المدير فقط. الدفع متاح دائمًا.':null)},true);
+  admAsk(()=>{if(b.isConnected)b.click()},b.matches('.toast button')?'التراجع عن عملية يحتاج صلاحية المدير.':b.matches('[data-apv],[data-apedit],#apvAll')?'اعتماد العمليات يحتاج صلاحية المدير.':b.matches('[data-early]')?'الدفع قبل موعده يحتاج صلاحية المدير.':b.matches('[data-rename],#lblEdit')?'تعديل أسماء الأقسام من وضع المدير فقط.':b.matches('[data-recpick],[data-secadd],[data-redit],[data-dedit],[data-rpedit]')?'إضافة الالتزامات الشهرية وتعديلها من وضع المدير فقط. الدفع متاح دائمًا.':null)},true);
 /* العمليات بانتظار الاعتماد */
 function pendList(){return list().filter(t=>t.pend).sort((a,b)=>(b.date||'').localeCompare(a.date||''))}
 function pendHtml(){if(!admOn())return '';const P=pendList();if(!P.length)return '';const tot=P.filter(t=>t.type==='exp').reduce((s,t)=>s+(+t.amount||0),0);
@@ -2819,16 +2839,33 @@ const Sync=(()=>{
   function paint(){const el=document.getElementById('sync');if(!el)return;
     const map={off:[LOCK,'محفوظ في هاتفك فقط',''],idle:[CLOUD,'مرتبط بـ Google Drive',''],busy:[CLOUD,'جارٍ المزامنة…',''],
       ok:[CLOUD,'متزامن '+(cfg.last?hhmm(cfg.last):''),'good'],needtap:[CLOUD,'اضغط للمزامنة','warn'],offline:[CLOUD,'بدون إنترنت، سيتزامن لاحقًا',''],error:[CLOUD,'تعذّرت المزامنة، اضغط','warn']};
-    const m=map[state]||map.off;el.className='sync '+m[2];el.innerHTML=m[0]+'<span>'+m[1]+'</span>';
+    const m=map[state]||map.off;el.className='sync '+m[2]+(state==='busy'?' busy':'');el.innerHTML=m[0]+'<span>'+m[1]+'</span>';el.setAttribute('aria-label',m[1]);el.title=m[1];
     if(S.tab==='reports'){const st=document.getElementById('syncState');if(st)st.textContent=m[1]}}
   function set(s){state=s;paint()}
   function loadGsi(){return new Promise((res,rej)=>{if(window.google&&google.accounts&&google.accounts.oauth2)return res();
     const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.async=true;s.onload=()=>res();s.onerror=()=>rej(new Error('net'));document.head.appendChild(s)})}
   function tokenValid(){return cfg.token&&cfg.exp&&Date.now()<cfg.exp-60000}
-  async function getToken(interactive){if(tokenValid())return cfg.token;if(!interactive)return null;await loadGsi();
-    return new Promise((res,rej)=>{const tc=google.accounts.oauth2.initTokenClient({client_id:cfg.clientId,scope:SCOPE,prompt:cfg.linked?'':'consent',
-      callback:r=>{if(r&&r.access_token){cfg.token=r.access_token;cfg.exp=Date.now()+(+r.expires_in||3600)*1000;cfg.linked=true;saveCfg();res(cfg.token)}else rej(new Error((r&&r.error)||'auth'))},
-      error_callback:e=>rej(new Error((e&&e.type)||'popup'))});tc.requestAccessToken()})}
+  /* نافذة دخول Google تُجهَّز مسبقًا، وتُفتح مباشرة من ضغطتك؛ لأن Safari يمنع فتحها إذا تأخرت ولو لحظة */
+  let tc=null,tcCid='',pend=null;
+  function ensureTc(){if(!(window.google&&google.accounts&&google.accounts.oauth2)||!cfg.clientId)return null;if(tc&&tcCid===cfg.clientId)return tc;
+    tc=google.accounts.oauth2.initTokenClient({client_id:cfg.clientId,scope:SCOPE,
+      callback:r=>{const P=pend;pend=null;if(!P)return;if(r&&r.access_token){cfg.token=r.access_token;cfg.exp=Date.now()+(+r.expires_in||3600)*1000;cfg.linked=true;saveCfg();P.res(cfg.token)}else P.rej(new Error((r&&r.error)||'auth'))},
+      error_callback:e=>{const P=pend;pend=null;if(P)P.rej(new Error((e&&e.type)||'popup'))}});tcCid=cfg.clientId;return tc}
+  /* لا يُحمَّل شيء من Google إلا بعد أن تكتب رمزك أو تكون مربوطًا فعلًا */
+  function prime(force){if(!cfg.clientId&&!force)return;loadGsi().then(ensureTc).catch(()=>{})}
+  function ask(t){return new Promise((res,rej)=>{pend={res,rej};t.requestAccessToken({prompt:cfg.linked?'':'consent'})})}
+  async function getToken(interactive){if(tokenValid())return cfg.token;if(!interactive)return null;
+    const t=ensureTc();if(t)return ask(t);
+    await loadGsi();const t2=ensureTc();if(!t2)throw new Error('net');return ask(t2)}
+  /* طريقة بديلة: الانتقال لصفحة Google ثم الرجوع للتطبيق (تفيد إذا لم تفتح النافذة في تطبيق الشاشة الرئيسية) */
+  function redirectUri(){return location.origin+location.pathname.replace(/index\.html$/,'')}
+  function startRedirect(){const st=b64e(crypto.getRandomValues(new Uint8Array(12))).replace(/[^A-Za-z0-9]/g,'');cfg.rstate=st;saveCfg();
+    location.href='https://accounts.google.com/o/oauth2/v2/auth?'+new URLSearchParams({client_id:cfg.clientId,redirect_uri:redirectUri(),response_type:'token',scope:SCOPE,include_granted_scopes:'true',state:st,prompt:cfg.linked?'select_account':'consent'}).toString()}
+  function takeRedirect(){const h=location.hash||'';if(!/access_token=|error=/.test(h))return false;const q=new URLSearchParams(h.slice(1));
+    try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}
+    if(!cfg.rstate||q.get('state')!==cfg.rstate){return false}delete cfg.rstate;
+    if(q.get('access_token')){cfg.token=q.get('access_token');cfg.exp=Date.now()+(+q.get('expires_in')||3600)*1000;cfg.linked=true;saveCfg();return true}
+    saveCfg();setTimeout(()=>toast('لم يكتمل تسجيل الدخول إلى Google'),400);return false}
   async function api(url,opt){opt=opt||{};const r=await fetch(url,Object.assign({},opt,{headers:Object.assign({Authorization:'Bearer '+cfg.token},opt.headers||{})}));
     if(r.status===401){cfg.token='';saveCfg();throw new Error('auth')}if(!r.ok)throw new Error('http '+r.status);return r}
   async function findFile(){if(cfg.fileId)return cfg.fileId;
@@ -2852,15 +2889,18 @@ const Sync=(()=>{
       await push({app:'masareef',v:2,at:new Date().toISOString(),tx:S.tx,del:S.del,settings:S.settings});
       cfg.last=Date.now();saveCfg();cacheSave();render();set('ok');
       if(interactive)toast('تمت المزامنة مع Google Drive')}
-    catch(e){set(e.message==='auth'||e.message==='popup_closed'||e.message==='popup_failed_to_open'?'needtap':'error');if(interactive)toast(e.message==='net'?'تعذّر الاتصال بـ Google، تأكد من الإنترنت':e.message==='auth'||/popup/.test(e.message)?'لم يكتمل تسجيل الدخول إلى Google':'تعذّرت المزامنة، حاول مرة أخرى')}
+    catch(e){const m=e.message||'';cfg.lastErr=m;saveCfg();set(m==='auth'||/popup|access_denied/.test(m)?'needtap':'error');
+      if(interactive)toast(m==='net'?'تعذّر الاتصال بـ Google، تأكد من الإنترنت':m==='popup_failed_to_open'?'لم تُفتح نافذة Google. اضغط مرة أخرى، أو استخدم «تسجيل الدخول بطريقة بديلة» من ⚙️ الضبط':/popup_closed/.test(m)?'أُغلقت نافذة Google قبل إكمال الدخول':m==='auth'||/popup|access_denied/.test(m)?'لم يكتمل تسجيل الدخول إلى Google':/http 403/.test(m)?'Google رفض الوصول: تأكد من تفعيل Google Drive API في مشروعك':'تعذّرت المزامنة، حاول مرة أخرى',null,6000);
+      if(S.tab==='settings')render()}
     busy=false;if(pending){pending=false;setTimeout(()=>run(false),400)}}
   return{
     cfg:()=>cfg,linked:()=>!!cfg.linked,paint,
     soon(){if(!cfg.linked)return;clearTimeout(timer);timer=setTimeout(()=>run(false),2500)},
-    now:()=>run(true),
+    now:()=>run(true),prime,
+    redirect(id){if(id)cfg={clientId:id.trim()};saveCfg();startRedirect()},
     async link(id){cfg={clientId:id.trim()};saveCfg();await run(true)},
     unlink(){const t=cfg.token;cfg={};saveCfg();try{if(t&&window.google&&google.accounts&&google.accounts.oauth2)google.accounts.oauth2.revoke(t,()=>{})}catch(e){}set('off');render()},
-    start(){paint();if(cfg.linked)run(false);
+    start(){const back=takeRedirect();paint();if(back){setTimeout(()=>{run(false);toast('تم ربط Google Drive، جارٍ المزامنة')},300)}else if(cfg.linked)run(false);if(cfg.clientId)setTimeout(prime,1500);
       addEventListener('online',()=>run(false));
       document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')run(false)})}
   };
@@ -2868,15 +2908,19 @@ const Sync=(()=>{
 function syncHtml(){const c=Sync.cfg();
   if(c.linked)return `<div class="panel stack" style="margin-bottom:10px"><div style="display:flex;align-items:center;gap:10px"><span class="cbadge" style="background:var(--inc-soft);color:var(--inc)">${catIcon('iother').replace('<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>','<path d="M7 18a4.5 4.5 0 0 1-.6-9A6 6 0 0 1 18 8.5a4 4 0 0 1-.5 9.5z"/>')}</span><div style="min-width:0"><b>المزامنة مع Google Drive مفعّلة</b><div class="note" id="syncState">${c.last?'آخر مزامنة '+fmtD(isoD(new Date(c.last)))+' '+String(new Date(c.last).getHours()).padStart(2,'0')+':'+String(new Date(c.last).getMinutes()).padStart(2,'0'):'لم تتم مزامنة بعد'}</div></div></div>
     <div class="row2"><button class="btn" id="syncNow">مزامنة الآن</button><button class="btn ghost" id="syncUnlink">إلغاء الربط هنا</button></div>
+    ${c.lastErr&&!c.token?`<div class="warnbox" style="margin:0">آخر محاولة لم تكتمل. إذا لم تظهر نافذة Google عند الضغط، استخدم الطريقة البديلة.</div>`:''}
+    <button class="btn ghost block" id="syncRedir">تسجيل الدخول إلى Google بطريقة بديلة</button>
     <p class="note" style="margin:0">ثبّت التطبيق على أجهزتك الأخرى من نفس الرابط، واربطه بنفس حساب Google ونفس الرمز، فتظهر نفس البيانات عليها كلها.</p></div>`;
   return `<div class="panel stack" style="margin-bottom:10px"><b>استخدم التطبيق على أكثر من جهاز</b>
     <p class="note" style="margin:0">اربط التطبيق بحسابك في Google Drive، فتتزامن بياناتك بين الهاتف وMacBook وHP تلقائيًا. تُحفظ في مجلد خفي خاص بهذا التطبيق داخل حسابك، ولا يراها غيرك.</p>
     <div class="field"><label for="syncCid">رمز Google (Client ID)</label><input class="inp" id="syncCid" dir="ltr" value="${esc(c.clientId||'')}" placeholder="xxxx.apps.googleusercontent.com" autocomplete="off" style="font-size:13px"></div>
     <p class="note" id="syncErr" hidden style="color:var(--exp);margin:0"></p>
     <button class="btn block" id="syncLink">ربط Google Drive</button>
+    <button class="btn ghost block" id="syncRedir">الربط بطريقة بديلة (إذا لم تظهر نافذة Google)</button>
     <details><summary class="note" style="cursor:pointer">من أين أحصل على الرمز؟</summary><div class="note" style="margin-top:8px;line-height:1.8">
       إن كان عندك رمز برنامج «الزمرة الملكية» فاستخدم نفس الرمز، لأن التطبيقين على نفس الرابط في GitHub.<br>
-      وإن لم يكن عندك: ادخل console.cloud.google.com ← أنشئ مشروعًا ← فعّل Google Drive API ← APIs &amp; Services ← Credentials ← Create credentials ← OAuth client ID ← النوع Web application ← في Authorized JavaScript origins أضف رابط موقعك مثل https://اسمك.github.io ← انسخ الرمز والصقه هنا.</div></details></div>`;
+      وإن لم يكن عندك: ادخل console.cloud.google.com ← أنشئ مشروعًا ← فعّل Google Drive API ← APIs &amp; Services ← Credentials ← Create credentials ← OAuth client ID ← النوع Web application ← في Authorized JavaScript origins أضف رابط موقعك مثل https://اسمك.github.io ← انسخ الرمز والصقه هنا.<br>
+      للطريقة البديلة: أضف أيضًا في نفس الرمز ضمن Authorized redirect URIs رابط التطبيق كاملًا مثل https://اسمك.github.io/masareef/</div></details></div>`;
 }
 
 /* ---------- 23. المظهر والثيمات ---------- */
@@ -2910,8 +2954,9 @@ function openLook(){const L=document.getElementById('layer');
 
 /* ---------- 24. الإصدار وما الجديد ---------- */
 const DEV={name:'ماجد الرميمي',title:'مهندس ومطور تقنية معلومات',country:'سلطنة عُمان',phone:'95134234',intl:'96895134234'};
-const APP_VERSION='2.19.0';
+const APP_VERSION='2.20.0';
 const CHANGELOG=[
+ {v:'2.20.0',d:'2026-10-14',items:['القائمة الشهرية: مواعيد الدفع بنظام يوم/شهر/سنة (مثل 5/11/2026)، وتاريخ كل دفعة','«📅 تفاصيل الدفع للسنة» داخل كل بند: الأشهر الـ12 بالمبلغ والموعد وتاريخ الدفع، أخضر = مدفوع، أحمر = غير مدفوع، واضغط أي شهر لفتحه','المبلغ المدفوع بالأخضر وغير المدفوع بالأحمر','رسالة «شكرًا على الدفع» مع مبلغ وموعد الشهر التالي، ويظهر «التالي» تحت البند المدفوع','الدفع يُفتح من تاريخ الاستحقاق فقط؛ قبله يظهر «🔒 يُفتح في…»، والدفع المبكر من وضع المدير','«تسجيل كل المتبقي» لا يشمل ما لم يحن موعده','الصفحة ثابتة على قدّ الشاشة: لا تكبير بالإصبعين ولا بالنقر المزدوج، ولا تكبير تلقائي عند الكتابة','إصلاح زر المزامنة: نافذة دخول Google تُجهَّز مسبقًا وتُفتح مباشرة من ضغطتك، لأن Safari في الآيفون كان يمنعها فلا يحدث شيء','زر «الربط بطريقة بديلة»: ينتقل لصفحة Google ثم يرجع للتطبيق، إذا لم تظهر النافذة في تطبيق الشاشة الرئيسية','حالة المزامنة ظاهرة على الشاشات الصغيرة: الأيقونة تدور أثناء المزامنة، وتصير خضراء عند النجاح وحمراء عند الخطأ','رسائل أوضح عند فشل المزامنة (نافذة لم تُفتح، أُغلقت، رفض Google، لا إنترنت)','إعدادات المزامنة انتقلت إلى ⚙️ الضبط، وزر السحابة في الأعلى يفتحها إن لم تكن مربوطة']},
  {v:'2.19.0',d:'2026-10-14',items:['صفحة ⚙️ الضبط من زر جديد أعلى الشاشة: كل إعدادات التطبيق في مكان واحد','فتح قفل التطبيق ببصمة الوجه: تفعيل وإيقاف في أي وقت من الضبط (بالرمز ثم البصمة)','بصمة الوجه تُطلب تلقائيًا عند فتح التطبيق، أو بلمسة على شاشة القفل، والرمز يبقى احتياطيًا','اختيار وقت القفل بعد الخروج: فورًا، دقيقة، 5 أو 15 دقيقة، وتغيير رمز القفل بالرمز أو بالبصمة','تعديل أسماء الأقسام من وضع المدير: أقسام الشهرية، مجموعات الديون، أقسامي وعناوين صفحاتها، والشريط السفلي','زر ✏️ بجانب عناوين الشهرية ومجموعات الديون لتعديل الاسم مباشرة (للمدير)','زر + : اختر اسمًا من القائمة الشهرية فيُكتب المبلغ المتبقي والفئة والشخص، وتُسجَّل الدفعة في الشهرية مباشرة؛ وأقساط الديون تفتح نافذة السداد','الدخل/الإيداع من زر +: اختر من أسماء الأهل والقائمة الشهرية','إضافة التزام شهري أسهل: اختر مدة التكرار بضغطة (مستمر، 6 أشهر، سنة، سنتان، 3، 5، 10 سنوات) أو اكتب عدد الأشهر، ويظهر تاريخ الانتهاء والمجموع','«خيارات إضافية» في نموذج الالتزام قابلة للتصغير','إصلاح: بعد «حفظ وإضافة أخرى» كانت الكتابة السريعة في خانة الملاحظة تذهب أحيانًا إلى خانة المبلغ']},
  {v:'2.18.1',d:'2026-10-14',items:['التصغير والتكبير صار في كل التطبيق: اضغط على أي عنوان أساسي أو فرعي ليُصغَّر ما تحته أو يظهر','بطاقات الديون والخطط والأمانات والسيارات والمستندات والادخار تُصغَّر إلى اسمها بالضغط على رأسها','مجموعات أيام السجل، ومجموعات الديون، وصناديق التنبيهات قابلة للتصغير أيضًا','أقسام النوافذ مثل «قاعدة البيانات» تُصغَّر وتُكبَّر كذلك','زرا «تصغير الكل» و«توسيع الكل» أعلى كل صفحة فيها أكثر من قسم، ويُحفظ اختيارك في جهازك']},
  {v:'2.18.0',d:'2026-10-14',items:['مراجعة شاملة للتطبيق: توحيد أسماء الأقسام («الالتزامات الشهرية» و«ديوني» في كل مكان)','إصلاح مهم: إذا امتلأت ذاكرة التطبيق الأساسية لم تكن آخر تعديلاتك تُعتمد عند الفتح التالي؛ الآن تُستعاد تلقائيًا من قاعدة البيانات الداخلية','المزامنة بين الأجهزة تدمج كل قسم على حدة، فلا يضيع تعديل الديون على جهاز بسبب تعديل الالتزامات على جهاز آخر','«حذف كل البيانات» وحذف بيانات المثال واستيراد الرسائل والاعتماد صارت تُحفظ دفعة واحدة (أسرع بكثير مع البيانات الكبيرة)','الحسابات والتحويلات صارت أقسامًا مستقلة في قاعدة البيانات والنسخة الاحتياطية ومعاينة الاستعادة','تقريب المبالغ بدقة البيسة في كل المجاميع','تحسين ملف التشغيل بدون إنترنت: لا يحفظ صفحات الخطأ','حذف أكواد وتنسيقات غير مستخدمة، وتوحيد دوال التنزيل وأيام الشهر']},
@@ -3518,7 +3563,7 @@ function privBtnInit(){const h=document.querySelector('.hdr-actions');if(!h||doc
   {const g=document.createElement('button');g.id='setBtn';g.type='button';g.className='iconbtn';g.dataset.tab='settings';g.setAttribute('aria-label','الضبط');g.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';h.appendChild(g)}const b=document.createElement('button');b.id='privBtn';b.type='button';b.className='iconbtn privbtn';h.insertBefore(b,document.getElementById('lookBtn'));applyHideAmt()}
 /* ===== صفحة ⚙️ الضبط: كل إعدادات التطبيق في مكان واحد، وتُفتح من زر ⚙️ أعلى الشاشة ===== */
 const LOCK_AFTER=[[0,'فورًا'],[60,'بعد دقيقة'],[300,'بعد 5 دقائق'],[900,'بعد 15 دقيقة']];
-function vSettings(){const c=lockCfg(),af=c&&c.after!=null?+c.after:60;
+function vSettings(){const c=lockCfg(),af=c&&c.after!=null?+c.after:60;setTimeout(()=>Sync.prime(),0);
   return `<div class="backrow" style="margin-top:4px"><h2 style="margin:0">⚙️ الضبط</h2><button class="chip" data-tab="home">الرئيسية ‹</button></div>
   <h2>🔐 قفل التطبيق وبصمة الوجه</h2>
   <div class="panel stack setbox">
@@ -3529,6 +3574,7 @@ function vSettings(){const c=lockCfg(),af=c&&c.after!=null?+c.after:60;
    <div class="setrow"><div><b>رمز القفل</b><small>من 4 إلى 8 أرقام، محفوظ مشفّرًا في هذا الجهاز</small></div><button class="chip" id="lockPinChange">تغيير الرمز</button></div>`:''}
    <div class="setrow"><div><b>إخفاء المبالغ</b><small>زر 👁 في الأعلى يخفيها أمام الآخرين</small></div><button class="tgl${hideAmtOn()?' on':''}" id="hideAmt" role="switch" aria-checked="${hideAmtOn()}" aria-label="إخفاء المبالغ"><i></i></button></div>
    <span class="note">الإعدادات هنا خاصة بهذا الجهاز، ولا تدخل في المزامنة ولا في النسخة الاحتياطية. إعدادات الآيفون لا تعرض خيارات تطبيقات الويب، لذلك كل ضبط التطبيق هنا.</span></div>
+  <h2>☁️ المزامنة مع Google Drive</h2><div id="syncBox">${syncHtml()}</div>
   <h2>🛡️ وضع المدير</h2>${admHtml()}
   <h2>✏️ أسماء الأقسام</h2><div class="panel stack"><span class="note">غيّر أسماء أقسام القائمة الشهرية ومجموعات الديون وأقسامي والشريط السفلي. يمكنك أيضًا الضغط على ✏️ بجانب أي عنوان مباشرة.</span><button class="btn ghost block" id="lblEdit"><span class="lk">🔒 </span>تعديل أسماء الأقسام</button></div>
   <h2>🗂️ البيانات والمظهر</h2>
@@ -3706,6 +3752,7 @@ function proAdvice(add){capAlerts().slice(0,2).forEach(a=>add(a.pct>=100?86:66,'
 document.addEventListener('click',async e=>{
   {const rt=e.target.closest('[data-rtog]');if(rt&&!e.target.closest('button,a,summary,details')){const row=rt.closest('.recrow');const on=!row.classList.contains('open');row.classList.toggle('open',on);rt.setAttribute('aria-expanded',on);S.recOpen=S.recOpen||{};if(on)S.recOpen[rt.dataset.rtog]=1;else delete S.recOpen[rt.dataset.rtog];return}}
   const b=e.target.closest('button');if(!b||b.closest('#layer'))return;
+  if(b.dataset.early&&!(admOn()&&admOpen())){toast('موعد الدفع '+dmy(b.dataset.early)+'. الدفع قبل موعده من وضع المدير فقط',null,5000);return}
   if(b.dataset.tab){S.tab=b.dataset.tab;render();window.scrollTo(0,0);return}
   if(b.dataset.go){S.tab=b.dataset.go;render();return}
   if(b.dataset.dayplan){openDayPlan(b.dataset.dayplan==='pay');return}
@@ -3769,7 +3816,9 @@ document.addEventListener('click',async e=>{
   if(b.dataset.gorep){S.rmode=b.dataset.gorep==='year'?'year':'month';S.tab='reports';render();window.scrollTo(0,0);if(b.dataset.gorep==='print')openPrintSheet();return}
   if(b.id==='addBtn'||b.hasAttribute('data-open-add')){openSheet();return}
   if(b.id==='openImp2'){openImport();return}
-  if(b.id==='sync'){if(Sync.linked())Sync.now();else{S.tab='reports';render();setTimeout(()=>{const x=document.getElementById('syncCid');x&&x.scrollIntoView({block:'center'})},50)}return}
+  if(b.id==='sync'&&Sync.linked()){Sync.now();return}
+  if(b.id==='sync'||b.id==='syncGo'){S.tab='settings';render();setTimeout(()=>{const x=document.getElementById('syncBox');x&&x.scrollIntoView({block:'start'})},50);return}
+  if(b.id==='syncRedir'){const ci=document.getElementById('syncCid');const v=ci?(ci.value||'').trim():Sync.cfg().clientId;if(!/\.apps\.googleusercontent\.com$/.test(v||'')){toast('اكتب رمز Google (Client ID) أولًا');return}Sync.redirect(ci?v:null);return}
   if(b.id==='syncNow'){Sync.now();return}
   if(b.id==='printRep'){openPrintSheet();return}
   if(b.id==='quickPrint'){quickPrint();return}
@@ -3822,6 +3871,7 @@ document.addEventListener('click',async e=>{
   if(b.dataset.rall!==undefined){const on=b.dataset.rall==='1';foldAll(document.getElementById('view'),on);S.recOpen={};document.querySelectorAll('.recrow.rec2[data-rkey]').forEach(r=>{r.classList.toggle('open',on);if(on)S.recOpen[r.dataset.rkey]=1});if(on){document.querySelectorAll('.recsec.closed').forEach(sc=>{secToggle(sc.dataset.sec);sc.classList.remove('closed');const t=sc.querySelector('.chev');if(t)t.textContent='▾'})}return}
   if(b.dataset.recprint){printRec(b.dataset.recprint);return}
   if(b.id==='payAll'){payAll();return}
+  if(b.dataset.gomonth){S.month=b.dataset.gomonth;render();window.scrollTo(0,0);return}
   if(b.dataset.gadd){openGoal(null,b.dataset.gadd);return}
   if(b.dataset.gedit){const g=(S.settings.goals||[]).find(x=>x.id===b.dataset.gedit);if(g&&PLAN_T[g.kind])openPlanWizard(g.id);else openGoal(b.dataset.gedit);return}
   if(b.dataset.plannew){openPlanWizard();return}
@@ -3852,11 +3902,15 @@ document.addEventListener('click',async e=>{
     const csv='\ufeff'+rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\r\n');
     saveFile('idarat-shuooni-'+(yr?S.month.slice(0,4):S.month)+'.csv',csv,'text/csv');return}
 });
-let debtT;document.addEventListener('input',e=>{if(e.target.id==='q'){S.q=e.target.value;render()}
+let debtT;document.addEventListener('input',e=>{if(e.target.id==='syncCid'&&/\.apps\.googleusercontent\.com$/.test(e.target.value.trim()))Sync.prime(true);if(e.target.id==='q'){S.q=e.target.value;render()}
   if(e.target.id==='debtExtra'){S.settings.debtPlan=Object.assign(debtPlan(),{extra:parseAmt(e.target.value)});const r=document.getElementById('debtRes');if(r)r.innerHTML=debtResHtml();clearTimeout(debtT);debtT=setTimeout(putSettings,800)}});
 document.addEventListener('change',e=>{
   if(e.target.id==='restoreFile'&&e.target.files[0]){const r=new FileReader();r.onload=()=>openRestore(r.result,'من ملف');r.readAsText(e.target.files[0]);e.target.value=''}});
 
+/* منع تكبير الصفحة بالإصبعين (Safari لا يلتزم دائمًا بإعداد الصفحة، فنمنعه هنا أيضًا) */
+['gesturestart','gesturechange','gestureend'].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault(),{passive:false}));
+document.addEventListener('touchmove',e=>{if(e.touches&&e.touches.length>1)e.preventDefault()},{passive:false});
+document.addEventListener('dblclick',e=>{if(!e.target.closest('input,textarea'))e.preventDefault()},{passive:false});
 /* ---------- 30. التشغيل ---------- */
 checkVersion();cacheLoad();migrateRecs();secSeed();if(lockCfg())showLock();privBtnInit();render();dbBoot();handleLaunchUrl();Sync.start();setTimeout(notifyCarAlerts,1500);vaultLoad();
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.classList&&e.target.classList.contains('pin')){const b=document.getElementById(e.target.id==='vPin'?'vaultUnlock':'vaultSetup');b&&b.click()}});

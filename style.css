@@ -742,3 +742,46 @@ h2.fold-closed,.backrow.fold-closed{margin-bottom:4px}
 /* مدة تكرار الالتزام */
 .durchips{align-items:center}
 .durchips .chip{padding:6px 11px}
+/* حالة المزامنة ظاهرة حتى على الشاشات الصغيرة (لون الأيقونة ودورانها) */
+.sync{position:relative;border:0;background:none;padding:6px;border-radius:10px;cursor:pointer;font:inherit}
+.sync.good{color:var(--inc)}
+.sync.warn{color:var(--exp)}
+.sync.busy svg{animation:syncspin 1s linear infinite}
+@keyframes syncspin{to{transform:rotate(360deg)}}
+@media (max-width:430px){.sync.good::after,.sync.warn::after{content:"";position:absolute;top:4px;inset-inline-end:3px;width:7px;height:7px;border-radius:50%;background:currentColor}}
+
+/* ===== تفاصيل الدفع في القائمة الشهرية ===== */
+.rec-amt.part b{color:var(--exp)}
+.nextdue{grid-column:2/-1;font-size:12.5px;color:var(--muted);margin-top:-2px}
+.nextdue b{color:var(--fg)}
+.chip.pay.early{background:var(--surface-2);color:var(--muted);border-color:var(--line);font-weight:500}
+.recrow.rec2:not(.open) .ygrid,.recrow.rec2:not(.open) .nextdue{display:none}
+.ygrid{grid-column:1/-1;margin-top:6px}
+.ygrid>summary{cursor:pointer;font-size:13px;color:var(--accent);padding:4px 0}
+.yg{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:6px}
+.yg-c{display:flex;flex-direction:column;align-items:center;gap:1px;padding:7px 4px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font:inherit;color:inherit;min-width:0;cursor:pointer}
+.yg-c b{font-size:12px;font-weight:600}
+.yg-c .num{font-size:14px;font-weight:700}
+.yg-c small{font-size:10.5px;color:var(--muted);white-space:nowrap}
+.yg-c.ok{background:color-mix(in srgb,var(--inc) 12%,var(--surface));border-color:color-mix(in srgb,var(--inc) 40%,var(--line))}
+.yg-c.ok .num{color:var(--inc)}
+.yg-c.bad{background:color-mix(in srgb,var(--exp) 10%,var(--surface));border-color:color-mix(in srgb,var(--exp) 40%,var(--line))}
+.yg-c.bad .num,.yg-c.part .num{color:var(--exp)}
+.yg-c.up .num{color:var(--fg)}
+.yg-c.off{opacity:.45;cursor:default}
+.yg-c.cur{outline:2px solid var(--accent);outline-offset:1px}
+.yg-key{display:flex;gap:12px;justify-content:center;font-size:11.5px;color:var(--muted);margin-top:6px}
+.yg-key span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-inline-end:4px;vertical-align:middle;background:var(--muted)}
+.yg-key .ok::before{background:var(--inc)}.yg-key .bad::before{background:var(--exp)}
+
+/* ===== الصفحة ثابتة على قدّ الشاشة: بدون تكبير بالإصبعين أو بالنقر المزدوج ===== */
+html,body{touch-action:pan-x pan-y;overflow-x:hidden;max-width:100%}
+button,a,input,select,textarea,label{touch-action:manipulation}
+/* الآيفون يكبّر الصفحة تلقائيًا عند الكتابة في خانة خطها أصغر من 16، فنجعلها 16 */
+@supports (-webkit-touch-callout:none){input,select,textarea,.inp{font-size:16px!important}}
+.yg{grid-template-columns:repeat(3,minmax(0,1fr))}
+.yg-c small{line-height:1.35}
+.nextdue,.nextdue *{display:inline!important}
+.nextdue{display:block!important}
+.yg-c small.num{font-size:11px;font-weight:500;color:var(--muted)!important}
+.rec-amt.ok b{color:var(--inc)!important}
