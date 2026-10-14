@@ -642,10 +642,10 @@ function vHome(){
   const m=S.month,a=inMonth(m),inc=sum(a,'inc'),exp=sum(a,'exp'),left=inc-exp;
   const recent=a.slice().sort((x,y)=>(y.date+y.createdAt).localeCompare(x.date+x.createdAt)).slice(0,5);
   const empty=!list().length?`<div class="panel empty"><b>ابدأ بتسجيل أول عملية</b>اضغط زر + في الأسفل وسجّل راتبك أو أول مصروف. يمكنك أيضًا تجربة التطبيق ببيانات مثال ثم حذفها.<div style="margin-top:14px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button class="btn" data-open-add>إضافة عملية</button><button class="btn ghost" id="loadSample">تجربة ببيانات مثال</button></div></div>`:'';
-  return `<section class="hero"><div class="lbl">المتبقي في ${esc(MONTHS[+m.slice(5)-1])}</div>
+  return `${duaTickerHtml()}<section class="hero"><div class="lbl">المتبقي في ${esc(MONTHS[+m.slice(5)-1])}</div>
    <div class="big"><span class="num">${left<0?'−':''}${money(Math.abs(left))}</span> <small>${CUR}</small></div>
    <div class="row"><div class="cell"><span><span class="ar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 7 7 17M7 9v8h8"/></svg></span>الدخل</span><b class="num">${amtH(inc)}</b></div><div class="cell"><span><span class="ar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></span>المصاريف</span><b class="num">${amtH(exp)}</b></div></div></section>${todayHtml()}
-   ${pendHtml()||billAlertsHtml()||trustAlertsHtml()||carAlertsHtml()||docAlertsHtml()?'<div style="margin-top:14px">'+pendHtml()+billAlertsHtml()+trustAlertsHtml()+carAlertsHtml()+docAlertsHtml()+'</div>':''}${widgetNudgeHtml()}${empty}${advHomeHtml()}${quickHtml()}${plansHomeHtml()}${repHomeHtml()}<h2>أقسامي</h2>${dashHtml()}
+   ${pendHtml()||billAlertsHtml()||trustAlertsHtml()||carAlertsHtml()||docAlertsHtml()?'<div style="margin-top:14px">'+pendHtml()+billAlertsHtml()+trustAlertsHtml()+carAlertsHtml()+docAlertsHtml()+'</div>':''}${wirdHomeHtml()}${widgetNudgeHtml()}${empty}${advHomeHtml()}${quickHtml()}${plansHomeHtml()}${repHomeHtml()}<h2>أقسامي</h2>${dashHtml()}
    ${recent.length?`<h2>آخر العمليات</h2><div class="panel" style="padding:6px 10px">${recent.map(txRow).join('')}</div><div style="margin-top:8px"><button class="chip" data-tab="log">عرض كل العمليات</button></div>`:''}${debtHomeHtml()}`;
 }
 
@@ -1723,6 +1723,60 @@ function openDebtNote(){const L=document.getElementById('layer');let txt=S.setti
   L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
     if(x.dataset.dns){const d=DEBT_DUA[+x.dataset.dns];const t=d[0]+'\n('+d[1]+')';if(txt.includes(d[0])){toast('موجودة مسبقًا');return}txt=(txt.trim()?txt.trim()+'\n\n':'')+t;const a=document.getElementById('dnTxt');a.value=txt;a.scrollTop=a.scrollHeight;x.classList.add('on');return}
     if(x.id==='dnSave'){S.settings.debtNote=txt.trim().slice(0,3000);await putSettings();L.innerHTML='';render();toast(S.settings.debtNote?'حُفظ التذكير':'حُذف التذكير')}}}
+/* سورة الملك: نص مشروع تنزيل (tanzil.net)، برسمين: الإملائي والعثماني. النص ثابت ولا يُعدَّل من التطبيق حفاظًا على صحته */
+const MULK={"simple":{"b":"بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ","v":["تَبَارَكَ الَّذِي بِيَدِهِ الْمُلْكُ وَهُوَ عَلَىٰ كُلِّ شَيْءٍ قَدِيرٌ","الَّذِي خَلَقَ الْمَوْتَ وَالْحَيَاةَ لِيَبْلُوَكُمْ أَيُّكُمْ أَحْسَنُ عَمَلًا وَهُوَ الْعَزِيزُ الْغَفُورُ","الَّذِي خَلَقَ سَبْعَ سَمَاوَاتٍ طِبَاقًا مَّا تَرَىٰ فِي خَلْقِ الرَّحْمَٰنِ مِن تَفَاوُتٍ فَارْجِعِ الْبَصَرَ هَلْ تَرَىٰ مِن فُطُورٍ","ثُمَّ ارْجِعِ الْبَصَرَ كَرَّتَيْنِ يَنقَلِبْ إِلَيْكَ الْبَصَرُ خَاسِئًا وَهُوَ حَسِيرٌ","وَلَقَدْ زَيَّنَّا السَّمَاءَ الدُّنْيَا بِمَصَابِيحَ وَجَعَلْنَاهَا رُجُومًا لِّلشَّيَاطِينِ وَأَعْتَدْنَا لَهُمْ عَذَابَ السَّعِيرِ","وَلِلَّذِينَ كَفَرُوا بِرَبِّهِمْ عَذَابُ جَهَنَّمَ وَبِئْسَ الْمَصِيرُ","إِذَا أُلْقُوا فِيهَا سَمِعُوا لَهَا شَهِيقًا وَهِيَ تَفُورُ","تَكَادُ تَمَيَّزُ مِنَ الْغَيْظِ كُلَّمَا أُلْقِيَ فِيهَا فَوْجٌ سَأَلَهُمْ خَزَنَتُهَا أَلَمْ يَأْتِكُمْ نَذِيرٌ","قَالُوا بَلَىٰ قَدْ جَاءَنَا نَذِيرٌ فَكَذَّبْنَا وَقُلْنَا مَا نَزَّلَ اللَّهُ مِن شَيْءٍ إِنْ أَنتُمْ إِلَّا فِي ضَلَالٍ كَبِيرٍ","وَقَالُوا لَوْ كُنَّا نَسْمَعُ أَوْ نَعْقِلُ مَا كُنَّا فِي أَصْحَابِ السَّعِيرِ","فَاعْتَرَفُوا بِذَنبِهِمْ فَسُحْقًا لِّأَصْحَابِ السَّعِيرِ","إِنَّ الَّذِينَ يَخْشَوْنَ رَبَّهُم بِالْغَيْبِ لَهُم مَّغْفِرَةٌ وَأَجْرٌ كَبِيرٌ","وَأَسِرُّوا قَوْلَكُمْ أَوِ اجْهَرُوا بِهِ إِنَّهُ عَلِيمٌ بِذَاتِ الصُّدُورِ","أَلَا يَعْلَمُ مَنْ خَلَقَ وَهُوَ اللَّطِيفُ الْخَبِيرُ","هُوَ الَّذِي جَعَلَ لَكُمُ الْأَرْضَ ذَلُولًا فَامْشُوا فِي مَنَاكِبِهَا وَكُلُوا مِن رِّزْقِهِ وَإِلَيْهِ النُّشُورُ","أَأَمِنتُم مَّن فِي السَّمَاءِ أَن يَخْسِفَ بِكُمُ الْأَرْضَ فَإِذَا هِيَ تَمُورُ","أَمْ أَمِنتُم مَّن فِي السَّمَاءِ أَن يُرْسِلَ عَلَيْكُمْ حَاصِبًا فَسَتَعْلَمُونَ كَيْفَ نَذِيرِ","وَلَقَدْ كَذَّبَ الَّذِينَ مِن قَبْلِهِمْ فَكَيْفَ كَانَ نَكِيرِ","أَوَلَمْ يَرَوْا إِلَى الطَّيْرِ فَوْقَهُمْ صَافَّاتٍ وَيَقْبِضْنَ مَا يُمْسِكُهُنَّ إِلَّا الرَّحْمَٰنُ إِنَّهُ بِكُلِّ شَيْءٍ بَصِيرٌ","أَمَّنْ هَٰذَا الَّذِي هُوَ جُندٌ لَّكُمْ يَنصُرُكُم مِّن دُونِ الرَّحْمَٰنِ إِنِ الْكَافِرُونَ إِلَّا فِي غُرُورٍ","أَمَّنْ هَٰذَا الَّذِي يَرْزُقُكُمْ إِنْ أَمْسَكَ رِزْقَهُ بَل لَّجُّوا فِي عُتُوٍّ وَنُفُورٍ","أَفَمَن يَمْشِي مُكِبًّا عَلَىٰ وَجْهِهِ أَهْدَىٰ أَمَّن يَمْشِي سَوِيًّا عَلَىٰ صِرَاطٍ مُّسْتَقِيمٍ","قُلْ هُوَ الَّذِي أَنشَأَكُمْ وَجَعَلَ لَكُمُ السَّمْعَ وَالْأَبْصَارَ وَالْأَفْئِدَةَ قَلِيلًا مَّا تَشْكُرُونَ","قُلْ هُوَ الَّذِي ذَرَأَكُمْ فِي الْأَرْضِ وَإِلَيْهِ تُحْشَرُونَ","وَيَقُولُونَ مَتَىٰ هَٰذَا الْوَعْدُ إِن كُنتُمْ صَادِقِينَ","قُلْ إِنَّمَا الْعِلْمُ عِندَ اللَّهِ وَإِنَّمَا أَنَا نَذِيرٌ مُّبِينٌ","فَلَمَّا رَأَوْهُ زُلْفَةً سِيئَتْ وُجُوهُ الَّذِينَ كَفَرُوا وَقِيلَ هَٰذَا الَّذِي كُنتُم بِهِ تَدَّعُونَ","قُلْ أَرَأَيْتُمْ إِنْ أَهْلَكَنِيَ اللَّهُ وَمَن مَّعِيَ أَوْ رَحِمَنَا فَمَن يُجِيرُ الْكَافِرِينَ مِنْ عَذَابٍ أَلِيمٍ","قُلْ هُوَ الرَّحْمَٰنُ آمَنَّا بِهِ وَعَلَيْهِ تَوَكَّلْنَا فَسَتَعْلَمُونَ مَنْ هُوَ فِي ضَلَالٍ مُّبِينٍ","قُلْ أَرَأَيْتُمْ إِنْ أَصْبَحَ مَاؤُكُمْ غَوْرًا فَمَن يَأْتِيكُم بِمَاءٍ مَّعِينٍ"]},"uthmani":{"b":"بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ","v":["تَبَٰرَكَ ٱلَّذِى بِيَدِهِ ٱلْمُلْكُ وَهُوَ عَلَىٰ كُلِّ شَىْءٍ قَدِيرٌ","ٱلَّذِى خَلَقَ ٱلْمَوْتَ وَٱلْحَيَوٰةَ لِيَبْلُوَكُمْ أَيُّكُمْ أَحْسَنُ عَمَلًا وَهُوَ ٱلْعَزِيزُ ٱلْغَفُورُ","ٱلَّذِى خَلَقَ سَبْعَ سَمَٰوَٰتٍ طِبَاقًا مَّا تَرَىٰ فِى خَلْقِ ٱلرَّحْمَٰنِ مِن تَفَٰوُتٍ فَٱرْجِعِ ٱلْبَصَرَ هَلْ تَرَىٰ مِن فُطُورٍ","ثُمَّ ٱرْجِعِ ٱلْبَصَرَ كَرَّتَيْنِ يَنقَلِبْ إِلَيْكَ ٱلْبَصَرُ خَاسِئًا وَهُوَ حَسِيرٌ","وَلَقَدْ زَيَّنَّا ٱلسَّمَآءَ ٱلدُّنْيَا بِمَصَٰبِيحَ وَجَعَلْنَٰهَا رُجُومًا لِّلشَّيَٰطِينِ وَأَعْتَدْنَا لَهُمْ عَذَابَ ٱلسَّعِيرِ","وَلِلَّذِينَ كَفَرُوا۟ بِرَبِّهِمْ عَذَابُ جَهَنَّمَ وَبِئْسَ ٱلْمَصِيرُ","إِذَآ أُلْقُوا۟ فِيهَا سَمِعُوا۟ لَهَا شَهِيقًا وَهِىَ تَفُورُ","تَكَادُ تَمَيَّزُ مِنَ ٱلْغَيْظِ كُلَّمَآ أُلْقِىَ فِيهَا فَوْجٌ سَأَلَهُمْ خَزَنَتُهَآ أَلَمْ يَأْتِكُمْ نَذِيرٌ","قَالُوا۟ بَلَىٰ قَدْ جَآءَنَا نَذِيرٌ فَكَذَّبْنَا وَقُلْنَا مَا نَزَّلَ ٱللَّهُ مِن شَىْءٍ إِنْ أَنتُمْ إِلَّا فِى ضَلَٰلٍ كَبِيرٍ","وَقَالُوا۟ لَوْ كُنَّا نَسْمَعُ أَوْ نَعْقِلُ مَا كُنَّا فِىٓ أَصْحَٰبِ ٱلسَّعِيرِ","فَٱعْتَرَفُوا۟ بِذَنۢبِهِمْ فَسُحْقًا لِّأَصْحَٰبِ ٱلسَّعِيرِ","إِنَّ ٱلَّذِينَ يَخْشَوْنَ رَبَّهُم بِٱلْغَيْبِ لَهُم مَّغْفِرَةٌ وَأَجْرٌ كَبِيرٌ","وَأَسِرُّوا۟ قَوْلَكُمْ أَوِ ٱجْهَرُوا۟ بِهِۦٓ إِنَّهُۥ عَلِيمٌۢ بِذَاتِ ٱلصُّدُورِ","أَلَا يَعْلَمُ مَنْ خَلَقَ وَهُوَ ٱللَّطِيفُ ٱلْخَبِيرُ","هُوَ ٱلَّذِى جَعَلَ لَكُمُ ٱلْأَرْضَ ذَلُولًا فَٱمْشُوا۟ فِى مَنَاكِبِهَا وَكُلُوا۟ مِن رِّزْقِهِۦ وَإِلَيْهِ ٱلنُّشُورُ","ءَأَمِنتُم مَّن فِى ٱلسَّمَآءِ أَن يَخْسِفَ بِكُمُ ٱلْأَرْضَ فَإِذَا هِىَ تَمُورُ","أَمْ أَمِنتُم مَّن فِى ٱلسَّمَآءِ أَن يُرْسِلَ عَلَيْكُمْ حَاصِبًا فَسَتَعْلَمُونَ كَيْفَ نَذِيرِ","وَلَقَدْ كَذَّبَ ٱلَّذِينَ مِن قَبْلِهِمْ فَكَيْفَ كَانَ نَكِيرِ","أَوَلَمْ يَرَوْا۟ إِلَى ٱلطَّيْرِ فَوْقَهُمْ صَٰٓفَّٰتٍ وَيَقْبِضْنَ مَا يُمْسِكُهُنَّ إِلَّا ٱلرَّحْمَٰنُ إِنَّهُۥ بِكُلِّ شَىْءٍۭ بَصِيرٌ","أَمَّنْ هَٰذَا ٱلَّذِى هُوَ جُندٌ لَّكُمْ يَنصُرُكُم مِّن دُونِ ٱلرَّحْمَٰنِ إِنِ ٱلْكَٰفِرُونَ إِلَّا فِى غُرُورٍ","أَمَّنْ هَٰذَا ٱلَّذِى يَرْزُقُكُمْ إِنْ أَمْسَكَ رِزْقَهُۥ بَل لَّجُّوا۟ فِى عُتُوٍّ وَنُفُورٍ","أَفَمَن يَمْشِى مُكِبًّا عَلَىٰ وَجْهِهِۦٓ أَهْدَىٰٓ أَمَّن يَمْشِى سَوِيًّا عَلَىٰ صِرَٰطٍ مُّسْتَقِيمٍ","قُلْ هُوَ ٱلَّذِىٓ أَنشَأَكُمْ وَجَعَلَ لَكُمُ ٱلسَّمْعَ وَٱلْأَبْصَٰرَ وَٱلْأَفْـِٔدَةَ قَلِيلًا مَّا تَشْكُرُونَ","قُلْ هُوَ ٱلَّذِى ذَرَأَكُمْ فِى ٱلْأَرْضِ وَإِلَيْهِ تُحْشَرُونَ","وَيَقُولُونَ مَتَىٰ هَٰذَا ٱلْوَعْدُ إِن كُنتُمْ صَٰدِقِينَ","قُلْ إِنَّمَا ٱلْعِلْمُ عِندَ ٱللَّهِ وَإِنَّمَآ أَنَا۠ نَذِيرٌ مُّبِينٌ","فَلَمَّا رَأَوْهُ زُلْفَةً سِيٓـَٔتْ وُجُوهُ ٱلَّذِينَ كَفَرُوا۟ وَقِيلَ هَٰذَا ٱلَّذِى كُنتُم بِهِۦ تَدَّعُونَ","قُلْ أَرَءَيْتُمْ إِنْ أَهْلَكَنِىَ ٱللَّهُ وَمَن مَّعِىَ أَوْ رَحِمَنَا فَمَن يُجِيرُ ٱلْكَٰفِرِينَ مِنْ عَذَابٍ أَلِيمٍ","قُلْ هُوَ ٱلرَّحْمَٰنُ ءَامَنَّا بِهِۦ وَعَلَيْهِ تَوَكَّلْنَا فَسَتَعْلَمُونَ مَنْ هُوَ فِى ضَلَٰلٍ مُّبِينٍ","قُلْ أَرَءَيْتُمْ إِنْ أَصْبَحَ مَآؤُكُمْ غَوْرًا فَمَن يَأْتِيكُم بِمَآءٍ مَّعِينٍۭ"]}};
+
+const AR_D=n=>String(n).replace(/\d/g,d=>'٠١٢٣٤٥٦٧٨٩'[d]);
+/* شريط الأدعية المتحرك في الرئيسية: نسخة من خانة «تذكير» في قسم الديون */
+function duaTickerHtml(){const P=debtNoteParts().map(p=>p.replace(/\s*\n\s*/g,' '));if(!P.length)return '';
+  const st=Math.floor(Date.now()/864e5)%P.length;const L=P.slice(st).concat(P.slice(0,st));const one=L.map(p=>`<span>${esc(p)}</span>`).join('<i>✦</i>');
+  const dur=Math.max(25,Math.round(L.join('').length*0.28));
+  return `<button class="ticker" data-duaread="1" aria-label="أدعية التيسير، اضغط لقراءتها كاملة"><span class="tk-ic">🤲</span><span class="tk-win"><span class="tk-run" style="animation-duration:${dur}s">${one}<i>✦</i>${one}<i>✦</i></span></span></button>`}
+function openDuaRead(){const P=debtNoteParts();const L=document.getElementById('layer');
+  L.innerHTML=`${sheetTop('الأدعية')}<h2 style="margin-top:0">🤲 أدعية التيسير وقضاء الدين</h2><div class="duaread">${P.map(p=>`<p>${esc(p)}</p>`).join('')}</div>
+   <div class="actions"><button class="btn ghost block" data-tab="debts" data-close>قسم الديون</button><button class="btn ghost block" data-close>إغلاق</button></div></div></div>`;
+  L.oninput=L.onchange=null;L.onclick=e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.dataset.tab){L.innerHTML='';S.tab='debts';render();window.scrollTo(0,0);return}if(x.hasAttribute('data-close'))L.innerHTML=''}}
+/* ورد سورة الملك: الزر في الرئيسية، وإعداداته من وضع المدير فقط */
+function wird(){return Object.assign({show:true,title:'سورة الملك',sub:'وردي كل ليلة قبل النوم',script:'simple',note:'',log:[]},S.settings.wird||{})}
+function wirdStreak(){const W=wird(),s=new Set(W.log||[]);let n=0;const d=new Date();if(!s.has(isoD(d)))d.setDate(d.getDate()-1);while(s.has(isoD(d))){n++;d.setDate(d.getDate()-1)}return n}
+function wirdHomeHtml(){const W=wird();if(!W.show)return '';const done=(W.log||[]).includes(today()),n=wirdStreak();
+  return `<button class="wirdcard${done?' done':''}" data-wird="1"><span class="wd-ic">📖</span><span class="wd-main"><b>${esc(W.title)}</b><small>${done?'قرأتها اليوم ✓':esc(W.sub)}${n>1?' · '+countWord(n,'ليلة','ليلتان','ليالٍ','ليلة')+' متتالية':''}</small></span><span class="wd-go">${done?'اقرأ مرة أخرى':'اقرأ الآن'} ‹</span></button>`}
+let wakeL=null;
+function openWird(){const W=wird();const L=document.getElementById('layer');const T=MULK[W.script==='uthmani'?'uthmani':'simple'];
+  let fs=24;try{fs=+localStorage.getItem('masareef:qfs')||24}catch(e){}
+  const draw=()=>{const done=(W.log||[]).includes(today()),n=wirdStreak();
+   L.innerHTML=`<div class="scrim" data-close></div><div class="sheet quran" role="dialog" aria-modal="true" aria-label="${esc(W.title)}"><div class="in"><div class="grab"></div>
+    <div class="qhead"><div><h2 style="margin:0">${esc(W.title)}</h2><small class="note">٣٠ آية · مكية</small></div>
+     <div class="qtools"><button class="iconbtn" data-qfs="-2" aria-label="تصغير الخط">أ−</button><button class="iconbtn" data-qfs="2" aria-label="تكبير الخط">أ+</button></div></div>
+    <div class="qtext" style="font-size:${fs}px"><div class="qbasm">${T.b}</div><p>${T.v.map((v,i)=>`<span class="qv">${v}</span> <span class="qn">﴿${AR_D(i+1)}﴾</span>`).join(' ')}</p></div>
+    ${W.note?`<div class="qnote">${esc(W.note)}</div>`:''}
+    <div class="actions"><button class="btn block${done?' ghost':''}" id="wdDone">${done?'قرأتها اليوم ✓':'أتممت القراءة'}</button>
+     <div class="row2"><button class="btn ghost" id="wdEdit">⚙️ إعدادات (المدير)</button><button class="btn ghost" data-close>إغلاق</button></div>
+     <p class="note" style="margin:0;text-align:center">${n>1?'قرأتها '+countWord(n,'ليلة واحدة','ليلتين','ليالٍ','ليلة')+' متتالية · ':''}نص المصحف من مشروع تنزيل (tanzil.net)</p></div></div></div>`};
+  draw();try{navigator.wakeLock&&navigator.wakeLock.request('screen').then(w=>{wakeL=w}).catch(()=>{})}catch(e){}
+  const close=()=>{L.innerHTML='';try{wakeL&&wakeL.release();wakeL=null}catch(e){}};
+  L.oninput=L.onchange=null;
+  L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){close();return}
+    if(x.dataset.qfs){fs=Math.min(44,Math.max(18,fs+ +x.dataset.qfs));try{localStorage.setItem('masareef:qfs',fs)}catch(er){}const t=L.querySelector('.qtext');if(t)t.style.fontSize=fs+'px';return}
+    if(x.id==='wdDone'){if(!(W.log||[]).includes(today())){W.log=(W.log||[]).concat([today()]).slice(-400);S.settings.wird=W;await putSettings();toast('تقبّل الله منك')}close();render();return}
+    if(x.id==='wdEdit'){close();openWirdSettings();return}}}
+function openWirdSettings(){const W=wird();const L=document.getElementById('layer');
+  L.innerHTML=`${sheetTop('إعدادات الورد')}<h2 style="margin-top:0">⚙️ إعدادات ${esc(W.title)}</h2><div class="stack">
+   <label class="toggle"><input type="checkbox" id="wsShow" ${W.show?'checked':''}><span>إظهار الزر في الرئيسية</span></label>
+   <div class="field"><label for="wsTitle">اسم الزر</label><input class="inp" id="wsTitle" value="${esc(W.title)}" maxlength="30"></div>
+   <div class="field"><label for="wsSub">السطر الصغير تحته</label><input class="inp" id="wsSub" value="${esc(W.sub)}" maxlength="60"></div>
+   <div class="field"><label>الرسم</label><div class="seg"><button class="n" data-wss="simple" aria-pressed="${W.script!=='uthmani'}">الرسم الإملائي (أوضح)</button><button class="n" data-wss="uthmani" aria-pressed="${W.script==='uthmani'}">رسم المصحف العثماني</button></div></div>
+   <div class="field"><label for="wsNote">ملاحظة أو دعاء بعد القراءة (اختياري)</label><textarea class="inp" id="wsNote" rows="3" maxlength="400">${esc(W.note)}</textarea></div>
+   <p class="note" style="margin:0">نص السورة نفسه ثابت من مصدر موثوق ولا يُعدَّل، حفاظًا على صحته.</p>
+   <button class="btn ghost block" id="wsReset" style="color:var(--exp)">مسح سجل الليالي (${(W.log||[]).length})</button></div>
+   <div class="actions"><button class="btn block" id="wsSave">حفظ</button><button class="btn ghost block" data-close>إلغاء</button></div></div></div>`;
+  L.oninput=L.onchange=null;
+  L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
+    if(x.dataset.wss){W.script=x.dataset.wss;L.querySelectorAll('[data-wss]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.wss===W.script));return}
+    if(x.id==='wsReset'){W.log=[];x.textContent='مسح سجل الليالي (0)';return}
+    if(x.id==='wsSave'){const g=i=>document.getElementById(i);W.show=g('wsShow').checked;W.title=g('wsTitle').value.trim()||'سورة الملك';W.sub=g('wsSub').value.trim();W.note=g('wsNote').value.trim();
+      S.settings.wird=W;await putSettings();L.innerHTML='';render();toast('حُفظت إعدادات الورد')}}}
+
 function vDebts(){const Ds=debts(),P=debtPlan();
   const head=`<div class="backrow"><h2 style="margin:4px 0">قسم الديون</h2><button class="chip" data-tab="home">الرئيسية ‹</button></div>`;
   if(!Ds.length)return head+`<div class="panel empty"><b>اعرف ديونك ومتى تتخلص منها</b>أضف القروض وبطاقات الائتمان، والديون لأشخاص، وأي دين شخصي. أرتّبها لك في أقسام، وأحسب موعد انتهاء كل دين ومدته، وأحتفظ بسجل كامل لكل دين حتى بعد انتهائه.</div><button class="btn block" data-dadd="1" style="margin-top:12px">+ أضف دينًا</button>${debtNoteHtml()}`;
@@ -1764,7 +1818,7 @@ function debtHomeHtml(){const Ds=debts();if(!Ds.length)return '';const act=Ds.fi
     <div><span>المتبقي</span><b class="num">${amtH(F.rem)}</b></div><div><span>باقٍ عليك</span><b>${F.left?countWord(F.left,'قسط واحد','قسطان','أقساط','قسطًا'):'—'}</b></div>
     <div><span>يوم التحرر</span><b>${fmtD(F.date)}</b></div><div><span>العد التنازلي</span><b>⏳ ${daysWord(F.days)}</b></div></div></div>
     <div class="note hp-meta">${F.next?(F.next.late?'<b class="amt-exp">قسط '+esc(F.next.name)+' متأخر</b> (كان يوم '+F.next.day+')':'القادم: '+esc(F.next.name)+' يوم '+F.next.day)+' · <span class="num">'+amtH(F.next.amt)+'</span>':'دفعت أقساط هذا الشهر كلها ✓'}</div>`:''}
-   <div class="hp-list">${rows}${doneRow}</div>${debtNoteToday()?`<div class="dnote-mini">🤲 ${esc(debtNoteToday())}</div>`:''}</div>`}
+   <div class="hp-list">${rows}${doneRow}</div></div>`}
 function openDebt(id){const L=document.getElementById('layer');const A=S.settings.debts||(S.settings.debts=[]);const ex=id?A.find(x=>x.id===id):null;
   const d=ex?Object.assign({},ex,{original:ex.original?money(ex.original):'',balance:money(ex.balance),payment:+ex.payment?money(ex.payment):'',rate:ex.rate||'',mode:ex.mode||'inst',start:debtStart(ex),end:ex.end||''}):{id:uidGen(),type:'loan',name:'',lender:'',original:'',balance:'',payment:'',rate:'',day:1,pays:[],mode:'inst',start:today(),end:''};let askDel=false;
   const draw=()=>{L.innerHTML=`${sheetTop('دين')}
@@ -2300,7 +2354,7 @@ function admAsk(then,why){let el=document.getElementById('admLayer');if(!el){el=
   if(!c.bio)setTimeout(()=>{const i=document.getElementById('admPin');if(i)i.focus()},60)}
 /* كل زر تعديل أو حذف أو تراجع أو اعتماد يمر من هنا أولًا */
 const ADM_SEL=['[data-edit]','[data-txdel]','[data-txedit]','[data-dpe]','[data-redit]','[data-dedit]','[data-tedit]','[data-cedit]','[data-gedit]','[data-pedit]','[data-sedit]','[data-rpedit]',
-  '[data-apv]','[data-apedit]','[data-unpay]','#dnEdit','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','label[for="restoreFile2"]','[data-snaprest]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
+  '[data-apv]','[data-apedit]','[data-unpay]','#dnEdit','#wdEdit','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','label[for="restoreFile2"]','[data-snaprest]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
 document.addEventListener('click',e=>{if(!admOn())return;if(e.target.closest('#admLayer'))return;
   if(admOpen()){if(e.target.closest('button,label'))Adm.last=Date.now();return}
   const b=e.target.closest(ADM_SEL);if(!b)return;e.preventDefault();e.stopImmediatePropagation();
@@ -2625,8 +2679,9 @@ function openLook(){const L=document.getElementById('layer');
 
 /* ---------- 24. الإصدار وما الجديد ---------- */
 const DEV={name:'ماجد الرميمي',title:'مهندس ومطور تقنية معلومات',country:'سلطنة عُمان',phone:'95134234',intl:'96895134234'};
-const APP_VERSION='2.13.0';
+const APP_VERSION='2.14.0';
 const CHANGELOG=[
+ {v:'2.14.0',d:'2026-10-14',items:['شريط متحرك في أعلى الرئيسية بأدعية التيسير وقضاء الدين من خانة «تذكير»، يتوقف عند لمسه، وبالضغط تقرؤها كاملة بخط كبير','زر «📖 سورة الملك» في الرئيسية: قارئ مريح بخط كبير قابل للتكبير، والشاشة لا تنطفئ أثناء القراءة','«أتممت القراءة» يسجّل الليلة ويعرض عدد الليالي المتتالية','نص السورة من مشروع تنزيل الموثوق، بالرسم الإملائي أو العثماني','إعدادات الزر (الاسم، الظهور، الرسم، ملاحظة بعد القراءة) من وضع المدير فقط']},
  {v:'2.13.0',d:'2026-10-14',items:['قاعدة بيانات داخلية ثانية مقسّمة: كل عملية سجل مستقل، وكل قسم (الديون، الالتزامات، الخطط، الأمانات، السيارات، الأهل) في خانة مستقلة، تُحدَّث تلقائيًا بعد كل حفظ','استعادة تلقائية من قاعدة البيانات الداخلية إذا تلفت ذاكرة التطبيق أو فرغت','لقطات تلقائية: يومية لآخر 14 يومًا، وقبل كل تحديث أو استعادة أو حذف شامل، مع استعادتها أو حفظها كملف','«🗄️ قاعدة البيانات» في التقارير: أين تُحفظ بياناتك، عدد السجلات في كل قسم، فحص السلامة، بصمة البيانات، والتصدير لكل قسم','نسخة احتياطية جديدة مقسّمة إلى أقسام واضحة مع عدد السجلات وبصمة تتحقق من سلامة الملف','الاستعادة صارت بمعاينة: تقارن ما في الملف بما عندك، وتختار استبدالًا كاملًا أو دمجًا، مع «تراجع»']},
  {v:'2.12.1',d:'2026-10-14',items:['خانة «🤲 تذكير» في قسم الديون: اكتب فيها أدعية وآيات التيسير وقضاء الدين، وتعديلها من وضع المدير فقط','مقترحات جاهزة من القرآن والأدعية المأثورة تضيفها بضغطة','تظهر كاملة أعلى قسم الديون، وواحدة منها كل يوم في الرئيسية، وفي أعلى تقرير الديون المطبوع']},
  {v:'2.12.0',d:'2026-10-14',items:['تصدير Excel / Numbers (.xlsx) حقيقي من داخل التطبيق: كل قسم في ورقة مرتبة من اليمين لليسار، مع أسهم الفلترة والترتيب ومجاميع بالمعادلات','أوراق الديون: الديون الحالية بأقسامها، كل الدفعات بالفائدة والمتبقي بعد كل دفعة، والديون المنتهية بمدتها وطريقة التخلص منها','أوراق أخرى: الملخص، الالتزامات الشهرية بكل شهر ودفعاته، العمليات، الخطط، الأمانات','«تقرير الديون» للطباعة أو PDF: كل قسم في جدول، شريط التقدّم، ما سدّدته شهرًا بشهر، سجل المنتهية، وعمود ☐ للمراجعة','نافذة «تصدير وطباعة التقارير» من التقارير، وأزرار مباشرة في قسم الديون والالتزامات الشهرية','على الآيفون: اختر «Numbers» من قائمة المشاركة لفتح الملف وتعديله، أو «حفظ في الملفات»']},
@@ -3124,6 +3179,8 @@ document.addEventListener('click',async e=>{
   if(b.dataset.xopen){openExport(b.dataset.xopen);return}
   if(b.id==='expOpen'){openExport();return}
   if(b.id==='dnEdit'){openDebtNote();return}
+  if(b.dataset.duaread){openDuaRead();return}
+  if(b.dataset.wird){openWird();return}
   if(b.dataset.dpe){const [did,pid]=b.dataset.dpe.split('|');openDebtPayEdit(did,pid);return}
   if(b.dataset.dprint){printDebt(b.dataset.dprint);return}
   if(b.dataset.cdview){const id=b.dataset.cdview;withVault(()=>viewDoc(id));return}
