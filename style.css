@@ -713,3 +713,32 @@ h2.fold-closed,.backrow.fold-closed{margin-bottom:4px}
 @media print{.fold-b[hidden]{display:contents!important}.fold-tools{display:none}}
 .dayhead.fold-h,.ghead.fold-h,.carhead.fold-h,.savhead.fold-h,.alerthead.fold-h,.dghead.fold-h{justify-content:flex-start;gap:8px}
 .dayhead.fold-h>:last-child,.ghead.fold-h>:last-child,.carhead.fold-h>:last-child,.savhead.fold-h>:last-child,.alerthead.fold-h>:last-child,.dghead.fold-h>:last-child{margin-inline-start:auto}
+
+/* ===== صفحة ⚙️ الضبط ===== */
+.setbox{gap:0}
+.setrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.setrow:first-child{border-top:none;padding-top:2px}
+.setrow>div:first-child{display:flex;flex-direction:column;gap:2px;min-width:0}
+.setrow small{color:var(--muted);font-size:12.5px;line-height:1.6}
+.setrow.col{flex-direction:column;align-items:stretch}
+.setrow .seg{margin:0}
+.setbox>.note{padding-top:10px;border-top:1px solid var(--line)}
+.tgl{flex:none;position:relative;width:50px;height:30px;border-radius:99px;border:0;padding:0;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line);cursor:pointer;transition:background .18s}
+.tgl i{position:absolute;top:3px;inset-inline-start:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:inset-inline-start .18s}
+.tgl.on{background:var(--inc,#1E7A4F);box-shadow:none}
+.tgl.on i{inset-inline-start:23px}
+/* زر ✏️ تعديل اسم القسم (للمدير) */
+.chip.ren{flex:none;padding:4px 9px;font-size:13px;line-height:1.2;align-self:center}
+.recsec-h .chip.ren{margin-inline-start:auto}
+.dghead .chip.ren{margin-inline-start:6px}
+.lblbox{gap:10px}
+/* اختيار سريع من أسماء القائمة الشهرية في نافذة الإضافة */
+.npick{display:flex;flex-direction:column;gap:6px}
+.npk{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.npk::-webkit-scrollbar{display:none}
+.npk .chip{flex:none;white-space:nowrap}
+.npk .chip small{opacity:.75;font-size:11.5px}
+.okline{color:var(--inc)}
+/* مدة تكرار الالتزام */
+.durchips{align-items:center}
+.durchips .chip{padding:6px 11px}
