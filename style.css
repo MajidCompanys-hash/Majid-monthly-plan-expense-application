@@ -794,3 +794,13 @@ button.sync.warn{color:var(--exp);font-weight:600}
 .syncdot{flex:none;width:12px;height:12px;border-radius:50%;background:var(--exp);box-shadow:0 0 0 4px color-mix(in srgb,var(--exp) 20%,transparent)}
 .syncstat.good .syncdot{background:var(--inc);box-shadow:0 0 0 4px color-mix(in srgb,var(--inc) 20%,transparent)}
 .syncstate{color:var(--muted);font-size:12.5px}
+/* ===== إدارة البيانات ===== */
+.mdlist{padding-block:4px}
+.mdrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+.mdrow:first-child{border-top:none}
+.mdrow>div{display:flex;flex-direction:column;min-width:0}
+.mdrow small{color:var(--muted);font-size:12.5px}
+.mdrow .chip{flex:none}
+.mdintro .row2 .btn{font-size:14px}
+.mderr{margin:6px 0 0;padding-inline-start:18px;font-size:12.5px;line-height:1.7}
+nav.tabs button{font-size:11px;white-space:nowrap}
