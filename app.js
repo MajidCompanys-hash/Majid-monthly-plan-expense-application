@@ -942,16 +942,19 @@ function vMonthly(){
     const rem=r3(Math.max(0,i.amount-(i.paidAmt||0)));const pm0=shiftMonth(m,-1);
     const prevTag=i.prev>0.0005?`<span class="prevtag">+ متبقٍ من الشهر الماضي <span class="num">${amtH(i.prev)}</span></span>`:i.kind==='debt'&&+i.ref.balance>0&&!debtPaidIn(i.ref,pm0)&&(!i.ref.start||i.ref.start.slice(0,7)<=pm0)&&i.ref.mode!=='once'?'<span class="prevtag">لم يُسجَّل قسط الشهر الماضي</span>':'';
     const amtBox=`<div class="rec-amt${i.isPaid?' ok':i.paidAmt?' part':''}">${i.isPaid?`<small>مدفوع ✓</small><b class="num">${money(i.paidAmt)}</b>`:`<small>${i.paidAmt?'باقٍ':'المقرر'}</small><b class="num">${money(rem)}</b>`}</div>`;
-    return `<div class="recrow rec2${i.isPaid?' done':''}">${i.kind==='debt'?debtBadge(i.ref):recBadge(i.ref)}<div><b>${i.kind==='debt'?'<span class="tag">دين</span>':''}${esc(i.name)}</b><small>${i.tracked?`فاتورة <span class="num">${amtH(i.bill)}</span>${i.prev>0.0005?' + متأخرات سابقة <span class="num amt-exp">'+amtH(i.prev)+'</span>':i.prev<-0.0005?' − رصيد لك <span class="num">'+amtH(-i.prev)+'</span>':''}${Math.abs(i.prev)>0.0005?' = <span class="num">'+amtH(i.amount)+'</span>':''}${i.paidAmt&&!i.isPaid?' · دفعت <span class="num">'+amtH(i.paidAmt)+'</span> · المتبقي <b class="num">'+amtH(i.amount-i.paidAmt)+'</b>'+((i.ref.later||{})[m]?' · تذكير '+fmtD(i.ref.later[m]):''):''}<br>`:`<span class="num">${money(i.amount)}</span> ${CUR}${i.variable?' تقريبًا':''} · `}يوم الدفع ${i.day}${i.kind==='rec'?' · تذكير يوم '+remindDay(i.ref)+' · 🔁 '+(i.ref.until?'حتى '+monthName(i.ref.until):'شهريًا مستمر'):''}${i.person?' · لـ'+esc(personName(i.person)):''}${i.kind==='debt'?' · متبقٍ <span class="num">'+amtH(i.ref.balance)+'</span>':''}</small>${prevTag}</div>${amtBox}
+    const op=(S.recOpen||{})[i.kind+i.id];
+    return `<div class="recrow rec2${i.isPaid?' done':''}${op?' open':''}" data-rkey="${i.kind+esc(i.id)}">${i.kind==='debt'?debtBadge(i.ref):recBadge(i.ref)}<div class="rtog" data-rtog="${i.kind+esc(i.id)}" role="button" aria-expanded="${op?'true':'false'}" aria-label="عرض تفاصيل ${esc(i.name)}"><b>${i.kind==='debt'?'<span class="tag">دين</span>':''}${esc(i.name)}</b><small>${i.tracked?`فاتورة <span class="num">${amtH(i.bill)}</span>${i.prev>0.0005?' + متأخرات سابقة <span class="num amt-exp">'+amtH(i.prev)+'</span>':i.prev<-0.0005?' − رصيد لك <span class="num">'+amtH(-i.prev)+'</span>':''}${Math.abs(i.prev)>0.0005?' = <span class="num">'+amtH(i.amount)+'</span>':''}${i.paidAmt&&!i.isPaid?' · دفعت <span class="num">'+amtH(i.paidAmt)+'</span> · المتبقي <b class="num">'+amtH(i.amount-i.paidAmt)+'</b>'+((i.ref.later||{})[m]?' · تذكير '+fmtD(i.ref.later[m]):''):''}<br>`:`<span class="num">${money(i.amount)}</span> ${CUR}${i.variable?' تقريبًا':''} · `}يوم الدفع ${i.day}${i.kind==='rec'?' · تذكير يوم '+remindDay(i.ref)+' · 🔁 '+(i.ref.until?'حتى '+monthName(i.ref.until):'شهريًا مستمر'):''}${i.person?' · لـ'+esc(personName(i.person)):''}${i.kind==='debt'?' · متبقٍ <span class="num">'+amtH(i.ref.balance)+'</span>':''}</small>${prevTag}</div>${amtBox}
       <div class="recact">${pill}${pay}${i.paidAmt>0.0005?`<button class="chip unpay" data-unpay="${i.kind}|${esc(i.id)}|${m}" aria-label="إلغاء دفع ${esc(i.name)}"><span class="lk">🔒 </span>إلغاء الدفع</button>`:''}${edit}</div>${i.kind==='rec'?recHistHtml(i.ref,m):debtHistHtml(i.ref)}</div>`};
   /* الأقسام: الفواتير، مصروف العائلة، أقساط الديون، وأخرى */
   const secOf=i=>{const k=i.ref.kind;if(i.kind==='debt'||k==='loan')return 'debt';if(['wifi','phone','elec','water','rent'].includes(k)||i.ref.cat==='bills')return 'bills';if(['family','maid'].includes(k)||i.ref.cat==='family'||i.person)return 'family';return 'other'};
   const SECS=[['bills','🧾 الفواتير والسكن'],['family','👨‍👩‍👧 مصروف العائلة والرواتب'],['debt','🏦 أقساط الديون'],['other','📌 التزامات أخرى']];
-  const recRows=SECS.map(([k,title])=>{const I=st.R.filter(i=>secOf(i)===k);if(!I.length)return '';
+  const recRows=`<div class="chips rec-tools"><button class="chip" data-rall="1">⊕ توسيع الكل</button><button class="chip" data-rall="0">⊖ تصغير الكل</button></div>`+SECS.map(([k,title])=>{const I=st.R.filter(i=>secOf(i)===k);if(!I.length)return '';
     const tot=I.reduce((s,i)=>s+i.amount,0),pd=I.reduce((s,i)=>s+Math.min(i.amount,i.paidAmt||0),0),left=r3(Math.max(0,tot-pd)),np=I.filter(i=>i.isPaid).length;
     const rows=I.slice().sort((x,y)=>(x.isPaid-y.isPaid)||(x.day-y.day));
-    return `<div class="recsec"><div class="recsec-h"><div><b>${title}</b><small>${np} من ${I.length} مدفوع · المقرر <span class="num">${amtH(tot)}</span></small></div><div class="recsec-left ${left<=0.0005?'ok':''}">${left<=0.0005?'<b>✓ مدفوع بالكامل</b>':`<small>المتبقي</small><b class="num">${money(left)}</b>`}</div></div>
-     <div class="panel" style="padding-block:4px">${rows.map(row).join('')}</div></div>`}).join('');
+    const closed=secClosed(k);
+    return `<div class="recsec${closed?' closed':''}" data-sec="${k}"><div class="recsec-h"><button class="recsec-t" data-stog="${k}" aria-expanded="${!closed}"><span class="chev">${closed?'◂':'▾'}</span><span class="rst"><b>${title}</b><small>${np} من ${I.length} مدفوع · المقرر <span class="num">${amtH(tot)}</span></small></span></button>
+      <div class="recsec-left ${left<=0.0005?'ok':''}">${left<=0.0005?'<b>✓ مدفوع بالكامل</b>':`<small>المتبقي</small><b class="num">${money(left)}</b>`}</div></div>
+     <div class="recsec-body"><div class="panel" style="padding-block:4px">${rows.map(row).join('')}</div><button class="chip secadd" data-secadd="${k}"><span class="lk">🔒 </span>+ إضافة في ${title.replace(/^\S+\s/,'')}</button></div></div>`}).join('');
   return `<div class="backrow" style="margin-top:4px"><h2 style="margin:0">الالتزامات الشهرية</h2><span style="display:flex;gap:6px"><button class="chip" data-paycal="1">📅 التقويم</button><button class="chip pay" data-recpick="1"><span class="lk">🔒 </span>+ إضافة التزام</button></span></div>
   ${st.R.length?`<div class="planbox"><span class="note" style="color:var(--fg)">${st.left?'دفعت '+st.paid.length+' من '+st.R.length+' هذا الشهر'+(st.partial.length?' · '+countWord(st.partial.length,'واحدة مدفوعة جزئيًا','اثنتان مدفوعتان جزئيًا','مدفوعة جزئيًا','مدفوعة جزئيًا'):'')+' · باقٍ عليك '+money(st.dueLeft):'دفعت كل مصاريفك الثابتة هذا الشهر'}</span>
     <span class="big2"><span class="num">${amtH(st.paidAmt)}</span> <small style="font-size:14px;font-weight:400">من <span class="num">${money(st.total)}</span> ${CUR}</small></span></div>
@@ -1117,10 +1120,14 @@ function openRecPay(id,m){const r=recs().find(x=>x.id===id);if(!r)return;const L
 /* كل التزام شهري خانة واحدة: أيقونته، ودفعاته، وتعديلاته، وسجل أشهره؛ ومنها يُطبع كشفه */
 const REC_IC={wifi:['wifi','#3E7CB1'],phone:['phone','#6B5CA5'],elec:['bolt','#C9881E'],water:['drop','#2E8BB5'],rent:['home','#2F7F7A'],maid:['family','#8A4F7D'],loan:['loan','#8A4F7D'],family:['family','#B0662F']};
 /* اختيار نوع الالتزام: كل الأنواع متاحة دائمًا ويمكن تكرارها (مثل كهرباء لبيتين) */
-function openRecPick(){const L=document.getElementById('layer');const have={};recs().forEach(r=>have[r.kind]=(have[r.kind]||0)+1);
-  L.innerHTML=`${sheetTop('إضافة التزام')}<h2 style="margin-top:0">إضافة التزام شهري</h2>
-   <div class="recpick">${Object.entries(REC_KINDS).filter(([k])=>k!=='loan').map(([k,v])=>`<button class="rp" data-radd="${k}">${recBadge({kind:k,cat:v.cat})}<b>${esc(v.n)}</b>${have[k]?`<small>عندك ${have[k]}</small>`:''}</button>`).join('')}
-   <button class="rp" data-dadd="1">${debtBadge({type:'other'})}<b>دين أو قسط</b><small>${debts().length?'عندك '+debts().length:''}</small></button></div>
+const SEC_KINDS={bills:['elec','water','wifi','phone','rent','custom'],family:['family','maid'],other:['custom']};
+const SEC_NAME={bills:'الفواتير والسكن',family:'مصروف العائلة والرواتب',debt:'أقساط الديون',other:'التزامات أخرى'};
+function secClosed(k){try{return (JSON.parse(localStorage.getItem('masareef:msec')||'{}'))[k]===1}catch(e){return false}}
+function secToggle(k){let o={};try{o=JSON.parse(localStorage.getItem('masareef:msec')||'{}')}catch(e){}o[k]=o[k]===1?0:1;try{localStorage.setItem('masareef:msec',JSON.stringify(o))}catch(e){}return o[k]===1}
+function openRecPick(sec){if(sec==='debt'){openDebt();return}if(sec==='other'){openRec(null,'custom');return}const L=document.getElementById('layer');const have={};recs().forEach(r=>have[r.kind]=(have[r.kind]||0)+1);
+  L.innerHTML=`${sheetTop('إضافة التزام')}<h2 style="margin-top:0">${sec?'إضافة في '+SEC_NAME[sec]:'إضافة التزام شهري'}</h2>
+   <div class="recpick">${Object.entries(REC_KINDS).filter(([k])=>k!=='loan'&&(!sec||SEC_KINDS[sec].includes(k))).map(([k,v])=>`<button class="rp" data-radd="${k}">${recBadge({kind:k,cat:v.cat})}<b>${esc(v.n)}</b>${have[k]?`<small>عندك ${have[k]}</small>`:''}</button>`).join('')}
+   ${sec?'':`<button class="rp" data-dadd="1">${debtBadge({type:'other'})}<b>دين أو قسط</b><small>${debts().length?'عندك '+debts().length:''}</small></button>`}</div>
    <p class="note">يمكنك إضافة نفس النوع أكثر من مرة، مثل كهرباء لبيتين أو اشتراكين مختلفين، وتسميته باسم مختلف.</p>
    <div class="actions"><button class="btn ghost block" data-close>إغلاق</button></div></div></div>`;
   L.oninput=L.onchange=null;
@@ -2449,11 +2456,11 @@ function admAsk(then,why){let el=document.getElementById('admLayer');if(!el){el=
   if(!c.bio)setTimeout(()=>{const i=document.getElementById('admPin');if(i)i.focus()},60)}
 /* كل زر تعديل أو حذف أو تراجع أو اعتماد يمر من هنا أولًا */
 const ADM_SEL=['[data-edit]','[data-txdel]','[data-txedit]','[data-dpe]','[data-redit]','[data-dedit]','[data-tedit]','[data-cedit]','[data-gedit]','[data-pedit]','[data-sedit]','[data-rpedit]',
-  '[data-apv]','[data-apedit]','[data-unpay]','[data-recpick]','[data-acedit]','#acAdd','[data-trdel]','[data-subadd]','#dnEdit','#wdEdit','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','label[for="restoreFile2"]','[data-snaprest]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
+  '[data-apv]','[data-apedit]','[data-unpay]','[data-recpick]','[data-secadd]','[data-acedit]','#acAdd','[data-trdel]','[data-subadd]','#dnEdit','#wdEdit','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','label[for="restoreFile2"]','[data-snaprest]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
 document.addEventListener('click',e=>{if(!admOn())return;if(e.target.closest('#admLayer'))return;
   if(admOpen()){if(e.target.closest('button,label'))Adm.last=Date.now();return}
   const b=e.target.closest(ADM_SEL);if(!b)return;e.preventDefault();e.stopImmediatePropagation();
-  admAsk(()=>{if(b.isConnected)b.click()},b.matches('.toast button')?'التراجع عن عملية يحتاج صلاحية المدير.':b.matches('[data-apv],[data-apedit],#apvAll')?'اعتماد العمليات يحتاج صلاحية المدير.':b.matches('[data-recpick],[data-redit],[data-dedit],[data-rpedit]')?'إضافة الالتزامات الشهرية وتعديلها من وضع المدير فقط. الدفع متاح دائمًا.':null)},true);
+  admAsk(()=>{if(b.isConnected)b.click()},b.matches('.toast button')?'التراجع عن عملية يحتاج صلاحية المدير.':b.matches('[data-apv],[data-apedit],#apvAll')?'اعتماد العمليات يحتاج صلاحية المدير.':b.matches('[data-recpick],[data-secadd],[data-redit],[data-dedit],[data-rpedit]')?'إضافة الالتزامات الشهرية وتعديلها من وضع المدير فقط. الدفع متاح دائمًا.':null)},true);
 /* العمليات بانتظار الاعتماد */
 function pendList(){return list().filter(t=>t.pend).sort((a,b)=>(b.date||'').localeCompare(a.date||''))}
 function pendHtml(){if(!admOn())return '';const P=pendList();if(!P.length)return '';const tot=P.filter(t=>t.type==='exp').reduce((s,t)=>s+(+t.amount||0),0);
@@ -2783,8 +2790,9 @@ function openLook(){const L=document.getElementById('layer');
 
 /* ---------- 24. الإصدار وما الجديد ---------- */
 const DEV={name:'ماجد الرميمي',title:'مهندس ومطور تقنية معلومات',country:'سلطنة عُمان',phone:'95134234',intl:'96895134234'};
-const APP_VERSION='2.17.0';
+const APP_VERSION='2.17.1';
 const CHANGELOG=[
+ {v:'2.17.1',d:'2026-10-14',items:['تصغير وتكبير كل قسم في الالتزامات الشهرية بالضغط على عنوانه، ويُحفظ اختيارك','كل بند يظهر مختصرًا (الاسم والمبلغ وزر «دفعت»)، وبالضغط على اسمه تظهر تفاصيله وسجله وأزرار التعديل','«توسيع الكل» و«تصغير الكل»','زر «+ إضافة في …» داخل كل قسم يضيف التزامًا من نوع القسم مباشرة، من وضع المدير']},
  {v:'2.17.0',d:'2026-10-14',items:['«حساباتي»: رصيد الجاري والكاش والبطاقات، والتحويل بينها (لا يُحسب دخلًا ولا مصروفًا)، ومطابقة الرصيد الفعلي مع كشف الفرق','«هل نزل راتبك؟» في يوم الراتب بالمبلغ المعتاد، وتؤكده بضغطة','توقّع الأشهر الثلاثة القادمة في التقارير، وتنبيه المستشار إذا كان شهر متوقعًا بالسالب','قفل التطبيق ببصمة الوجه أو رمز عند فتحه، وإخفاء المبالغ بزر 👁 في الأعلى','نسخة احتياطية مشفّرة بكلمة سر، وتذكير بحفظ نسخة كل أسبوع','إرفاق صورة الإيصال بأي عملية، محفوظة مشفّرة في خزنة «مستنداتي»','تقويم المدفوعات: الفواتير والأقساط والراتب والخطط والتجديدات على شهر كامل','حاسبة الزكاة: النصاب بسعر الذهب، وخصم الأمانات والديون الحالّة، وموعد الحول','تنبيه عند الوصول إلى 80% من سقف أي فئة، وكشف الاشتراكات المتكررة','مقارنة بنفس الشهر من العام الماضي، واتجاه أهم الفئات لستة أشهر','الالتزامات الشهرية مقسّمة: الفواتير والسكن، مصروف العائلة والرواتب، أقساط الديون، وأخرى؛ لكل قسم المقرر والمتبقي بخط كبير، والمدفوع بالأخضر','«متبقٍ من الشهر الماضي» يظهر بوضوح على الالتزام الذي لم يُسدَّد كاملًا، وتتجدد القائمة كل شهر تلقائيًا','تسجيل رسائل البنك تلقائيًا عبر اختصارات الآيفون، وتسجيل مصروف سريع من رابط','مساحة التطبيق على جهازك في التقارير وقاعدة البيانات']},
  {v:'2.16.1',d:'2026-10-14',items:['قائمة الالتزامات الشهرية ثابتة: إضافة التزام (مصاريف الأهل، رواتب، كهرباء، ماء، إنترنت...) وتعديله وحذفه وتعديل مبلغه من وضع المدير فقط','زر «دفعت» يبقى متاحًا دائمًا من الوضع العادي','علامة 🔒 على أزرار الإضافة والتعديل وإلغاء الدفع عندما يكون وضع المدير مقفلًا']},
  {v:'2.16.0',d:'2026-10-14',items:['إصلاح: رسائل التحويل الواردة (مثل «تم تحويل مبلغ إلى حسابك» و«transferred to your account» و«payment received») كانت تُقرأ مصروفًا، وصارت تُقرأ دخلًا','قراءة اتجاه الرسالة صارت بموازنة كلمات الإيداع والخصم، والراتب والاسترداد دخل دائمًا','إصلاح: المبلغ المكتوب بالأرقام العربية مع الفاصلة العربية (مثل ١٬٢٥٠٫٥٠٠) كان يُقرأ خطأ، وصار يُقرأ 1,250.5','عند تحديد يوم الراتب: الرئيسية تعرض دخل ومصاريف دورة الراتب الحالية (من يوم نزوله) بدل الشهر الميلادي','تنبيه في الرئيسية إذا كان الراتب مسجّلًا في آخر الشهر السابق، مع زر «حدّد يوم الراتب»','عند استيراد رسالة بتاريخ شهر آخر يظهر تنبيه بالشهر الذي ستُحسب فيه']},
@@ -3531,6 +3539,7 @@ function proAdvice(add){capAlerts().slice(0,2).forEach(a=>add(a.pct>=100?86:66,'
 
 /* ---------- 29. الأحداث (الضغط والكتابة) ---------- */
 document.addEventListener('click',async e=>{
+  {const rt=e.target.closest('[data-rtog]');if(rt&&!e.target.closest('button,a,summary,details')){const row=rt.closest('.recrow');const on=!row.classList.contains('open');row.classList.toggle('open',on);rt.setAttribute('aria-expanded',on);S.recOpen=S.recOpen||{};if(on)S.recOpen[rt.dataset.rtog]=1;else delete S.recOpen[rt.dataset.rtog];return}}
   const b=e.target.closest('button');if(!b||b.closest('#layer'))return;
   if(b.dataset.tab){S.tab=b.dataset.tab;render();window.scrollTo(0,0);return}
   if(b.dataset.go){S.tab=b.dataset.go;render();return}
@@ -3637,6 +3646,9 @@ document.addEventListener('click',async e=>{
   if(b.dataset.txdel){openPayDel(b.dataset.txdel);return}
   if(b.dataset.txedit){openPayEdit(b.dataset.txedit);return}
   if(b.dataset.recpick){openRecPick();return}
+  if(b.dataset.secadd){openRecPick(b.dataset.secadd);return}
+  if(b.dataset.stog){const c=secToggle(b.dataset.stog);const sec=b.closest('.recsec');if(sec){sec.classList.toggle('closed',c);b.setAttribute('aria-expanded',!c);b.querySelector('.chev').textContent=c?'◂':'▾'}return}
+  if(b.dataset.rall!==undefined){const on=b.dataset.rall==='1';S.recOpen={};document.querySelectorAll('.recrow.rec2[data-rkey]').forEach(r=>{r.classList.toggle('open',on);if(on)S.recOpen[r.dataset.rkey]=1});if(on){document.querySelectorAll('.recsec.closed').forEach(sc=>{secToggle(sc.dataset.sec);sc.classList.remove('closed');const t=sc.querySelector('.chev');if(t)t.textContent='▾'})}return}
   if(b.dataset.recprint){printRec(b.dataset.recprint);return}
   if(b.id==='payAll'){payAll();return}
   if(b.dataset.gadd){openGoal(null,b.dataset.gadd);return}
