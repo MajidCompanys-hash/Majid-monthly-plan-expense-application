@@ -785,3 +785,12 @@ button,a,input,select,textarea,label{touch-action:manipulation}
 .nextdue{display:block!important}
 .yg-c small.num{font-size:11px;font-weight:500;color:var(--muted)!important}
 .rec-amt.ok b{color:var(--inc)!important}
+/* زر السحابة: أخضر متصل، أحمر غير متصل */
+button.sync.good{color:var(--inc)}
+button.sync.warn{color:var(--exp);font-weight:600}
+.syncstat{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--exp) 9%,var(--surface))}
+.syncstat.good{background:color-mix(in srgb,var(--inc) 10%,var(--surface))}
+.syncstat>div{display:flex;flex-direction:column;min-width:0}
+.syncdot{flex:none;width:12px;height:12px;border-radius:50%;background:var(--exp);box-shadow:0 0 0 4px color-mix(in srgb,var(--exp) 20%,transparent)}
+.syncstat.good .syncdot{background:var(--inc);box-shadow:0 0 0 4px color-mix(in srgb,var(--inc) 20%,transparent)}
+.syncstate{color:var(--muted);font-size:12.5px}

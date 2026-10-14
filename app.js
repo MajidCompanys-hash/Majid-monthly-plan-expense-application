@@ -804,7 +804,7 @@ function vReports(){const seg=`<div class="row2" style="margin-bottom:12px"><but
 function vReportsMonth(){
   return `${S.month===ym(new Date())?forecastHtml():''}<h2 style="margin-top:4px">آخر ستة أشهر</h2><div class="panel">${trendChart(S.month)}</div>
   <h2>ملخص ${esc(monthName(S.month))}</h2>${monthStatsHtml(S.month)}${catBreakdownHtml(S.month)}${yearCmpHtml(S.month)}${catTrendHtml(S.month)}
-  <h2>بياناتك</h2><button class="btn ghost block" id="syncGo" style="margin-bottom:10px">☁️ المزامنة مع Google Drive: ${Sync.linked()?'مفعّلة':'غير مربوطة'}</button>
+  <h2>بياناتك</h2>
   <div class="panel stack">
    <div class="storbox" id="storBox"><div class="sumrow"><span>المساحة المستخدمة على جهازك</span><b class="note">جارٍ الحساب…</b></div></div>
    <button class="btn block" id="dbOpen">🗄️ قاعدة البيانات: الحفظ والفحص والاستعادة</button>
@@ -993,7 +993,10 @@ function dmy(iso){if(!iso)return '—';const [y,m,d]=iso.split('-');return (+d)+
 /* تاريخ استحقاق البند في الشهر m */
 function dueOf(i,m){const [y,mm]=m.split('-').map(Number);const d=Math.min(Math.max(1,+i.day||1),new Date(y,mm,0).getDate());return m+'-'+String(d).padStart(2,'0')}
 /* الدفع يُفتح من تاريخ الاستحقاق؛ قبله يحتاج وضع المدير */
-function payLocked(i,m){return !i.isPaid&&!(i.paidAmt>0.0005)&&dueOf(i,m)>today()}
+/* إعداد قفل الدفع (من ⚙️ الضبط): مفعّل؟ على أي أشهر؟ ويُفتح قبل الموعد بكم يوم؟ */
+function payLockCfg(){return Object.assign({on:true,scope:'all',before:0},S.settings.payLock||{})}
+function payOpenDate(i,m){return addDays(dueOf(i,m),-(+payLockCfg().before||0))}
+function payLocked(i,m){const c=payLockCfg();if(!c.on||i.isPaid||i.paidAmt>0.0005)return false;if(c.scope==='future'&&m<=ym(new Date()))return false;return payOpenDate(i,m)>today()}
 function nextDueTxt(i,m){const n=shiftMonth(m,1);const it=monthItems(n).find(x=>x.kind===i.kind&&x.id===i.id);return it?{amt:it.amount,date:dueOf(it,n)}:null}
 function recPaid(r,m){return list().find(t=>t.rec===r.id&&t.date&&t.date.slice(0,7)===m)}
 function recDate(r,m){const [y,mm]=m.split('-').map(Number);const dim=new Date(y,mm,0).getDate();const d=Math.min(Math.max(1,+r.day||1),dim);return m+'-'+String(d).padStart(2,'0')}
@@ -1060,9 +1063,9 @@ function vMonthly(){
     const due=dueOf(i,m),pdates=i.kind==='rec'?(PD[i.id+'|'+m]||[]):(i.ref.pays||[]).filter(x=>x.date&&x.date.slice(0,7)===m).map(x=>x.date),lastPaid=pdates.slice().sort().pop();
     const pill=i.isPaid?`<span class="pill paid">دُفع${lastPaid?' '+dmy(lastPaid):''}</span>`:late?`<span class="pill late">متأخر · موعده ${dmy(due)}</span>`:i.paidAmt?`<span class="pill soon">دُفع جزء · موعده ${dmy(due)}</span>`:`<span class="pill soon">موعده ${dmy(due)}</span>`;
     const lockedPay=payLocked(i,m);
-    const pay=i.isPaid?'':`<button class="chip pay${lockedPay?' early':''}" ${i.kind==='debt'?'data-dpay':'data-rpay'}="${esc(i.id)}"${lockedPay?` data-early="${due}" aria-label="الدفع يُفتح في ${dmy(due)}"`:''}>${lockedPay?'🔒 يُفتح '+dmy(due):'دفعت'}</button>`;
+    const pay=i.isPaid?'':`<button class="chip pay${lockedPay?' early':''}" ${i.kind==='debt'?'data-dpay':'data-rpay'}="${esc(i.id)}"${lockedPay?` data-early="${payOpenDate(i,m)}" aria-label="الدفع يُفتح في ${dmy(payOpenDate(i,m))}"`:''}>${lockedPay?'🔒 يُفتح '+dmy(payOpenDate(i,m)):'دفعت'}</button>`;
     const nx=i.isPaid?nextDueTxt(i,m):null;
-    const nextLine=nx?`<div class="nextdue">التالي: <b class="num">${amtH(nx.amt)}</b> · موعده ${dmy(nx.date)}${nx.date>today()?' · يُفتح الدفع في موعده':''}</div>`:'';
+    const nextLine=nx?`<div class="nextdue">التالي: <b class="num">${amtH(nx.amt)}</b> · موعده ${dmy(nx.date)}${payLockCfg().on&&nx.date>today()?' · يُفتح الدفع '+(+payLockCfg().before?'في '+dmy(addDays(nx.date,-payLockCfg().before)):'في موعده'):''}</div>`:'';
     const edit=`<button class="chip" ${i.kind==='debt'?'data-dedit':'data-redit'}="${esc(i.id)}" aria-label="تعديل ${esc(i.name)}"><span class="lk">🔒 </span>تعديل</button>`;
     const rem=r3(Math.max(0,i.amount-(i.paidAmt||0)));const pm0=shiftMonth(m,-1);
     const prevTag=i.prev>0.0005?`<span class="prevtag">+ متبقٍ من الشهر الماضي <span class="num">${amtH(i.prev)}</span></span>`:i.kind==='debt'&&+i.ref.balance>0&&!debtPaidIn(i.ref,pm0)&&(!i.ref.start||i.ref.start.slice(0,7)<=pm0)&&i.ref.mode!=='once'?'<span class="prevtag">لم يُسجَّل قسط الشهر الماضي</span>':'';
@@ -2589,11 +2592,11 @@ function admAsk(then,why){let el=document.getElementById('admLayer');if(!el){el=
   if(!c.bio)setTimeout(()=>{const i=document.getElementById('admPin');if(i)i.focus()},60)}
 /* كل زر تعديل أو حذف أو تراجع أو اعتماد يمر من هنا أولًا */
 const ADM_SEL=['[data-edit]','[data-txdel]','[data-txedit]','[data-dpe]','[data-redit]','[data-dedit]','[data-tedit]','[data-cedit]','[data-gedit]','[data-pedit]','[data-sedit]','[data-rpedit]',
-  '[data-apv]','[data-apedit]','[data-unpay]','[data-recpick]','[data-secadd]','[data-early]','[data-rename]','#lblEdit','[data-acedit]','#acAdd','[data-trdel]','[data-subadd]','#dnEdit','#wdEdit','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','label[for="restoreFile2"]','[data-snaprest]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
+  '[data-apv]','[data-apedit]','[data-unpay]','[data-recpick]','[data-secadd]','[data-early]','#plOn','[data-plscope]','[data-plbefore]','[data-rename]','#lblEdit','[data-acedit]','#acAdd','[data-trdel]','[data-subadd]','#dnEdit','#wdEdit','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','label[for="restoreFile2"]','[data-snaprest]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
 document.addEventListener('click',e=>{if(!admOn())return;if(e.target.closest('#admLayer'))return;
   if(admOpen()){if(e.target.closest('button,label'))Adm.last=Date.now();return}
   const b=e.target.closest(ADM_SEL);if(!b)return;e.preventDefault();e.stopImmediatePropagation();
-  admAsk(()=>{if(b.isConnected)b.click()},b.matches('.toast button')?'التراجع عن عملية يحتاج صلاحية المدير.':b.matches('[data-apv],[data-apedit],#apvAll')?'اعتماد العمليات يحتاج صلاحية المدير.':b.matches('[data-early]')?'الدفع قبل موعده يحتاج صلاحية المدير.':b.matches('[data-rename],#lblEdit')?'تعديل أسماء الأقسام من وضع المدير فقط.':b.matches('[data-recpick],[data-secadd],[data-redit],[data-dedit],[data-rpedit]')?'إضافة الالتزامات الشهرية وتعديلها من وضع المدير فقط. الدفع متاح دائمًا.':null)},true);
+  admAsk(()=>{if(b.isConnected)b.click()},b.matches('.toast button')?'التراجع عن عملية يحتاج صلاحية المدير.':b.matches('[data-apv],[data-apedit],#apvAll')?'اعتماد العمليات يحتاج صلاحية المدير.':b.matches('[data-early]')?'الدفع قبل موعده يحتاج صلاحية المدير.':b.matches('#plOn,[data-plscope],[data-plbefore]')?'تغيير قفل الدفع من صلاحيات المدير.':b.matches('[data-rename],#lblEdit')?'تعديل أسماء الأقسام من وضع المدير فقط.':b.matches('[data-recpick],[data-secadd],[data-redit],[data-dedit],[data-rpedit]')?'إضافة الالتزامات الشهرية وتعديلها من وضع المدير فقط. الدفع متاح دائمًا.':null)},true);
 /* العمليات بانتظار الاعتماد */
 function pendList(){return list().filter(t=>t.pend).sort((a,b)=>(b.date||'').localeCompare(a.date||''))}
 function pendHtml(){if(!admOn())return '';const P=pendList();if(!P.length)return '';const tot=P.filter(t=>t.type==='exp').reduce((s,t)=>s+(+t.amount||0),0);
@@ -2834,13 +2837,14 @@ const Sync=(()=>{
   const saveCfg=()=>{try{localStorage.setItem(CFG_KEY,JSON.stringify(cfg))}catch(e){}};
   let timer=null,busy=false,pending=false,state=cfg.linked?'idle':'off';
   const LOCK='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+  const CLOUD_OFF='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.6-9A6 6 0 0 1 18 8.5a4 4 0 0 1-.5 9.5z"/><path d="M3 3l18 18"/></svg>';
   const CLOUD='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.6-9A6 6 0 0 1 18 8.5a4 4 0 0 1-.5 9.5z"/></svg>';
   function hhmm(t){const d=new Date(t);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')}
   function paint(){const el=document.getElementById('sync');if(!el)return;
-    const map={off:[LOCK,'محفوظ في هاتفك فقط',''],idle:[CLOUD,'مرتبط بـ Google Drive',''],busy:[CLOUD,'جارٍ المزامنة…',''],
-      ok:[CLOUD,'متزامن '+(cfg.last?hhmm(cfg.last):''),'good'],needtap:[CLOUD,'اضغط للمزامنة','warn'],offline:[CLOUD,'بدون إنترنت، سيتزامن لاحقًا',''],error:[CLOUD,'تعذّرت المزامنة، اضغط','warn']};
+    const map={off:[CLOUD_OFF,'غير متصل بـ Google Drive','warn'],idle:[CLOUD,'متصل بـ Google Drive','good'],busy:[CLOUD,'جارٍ المزامنة…','good'],
+      ok:[CLOUD,'متصل · آخر مزامنة '+(cfg.last?hhmm(cfg.last):''),'good'],needtap:[CLOUD_OFF,'غير متصل، اضغط للمزامنة','warn'],offline:[CLOUD_OFF,'بدون إنترنت، سيتزامن لاحقًا','warn'],error:[CLOUD_OFF,'تعذّرت المزامنة، اضغط','warn']};
     const m=map[state]||map.off;el.className='sync '+m[2]+(state==='busy'?' busy':'');el.innerHTML=m[0]+'<span>'+m[1]+'</span>';el.setAttribute('aria-label',m[1]);el.title=m[1];
-    if(S.tab==='reports'){const st=document.getElementById('syncState');if(st)st.textContent=m[1]}}
+    if(S.tab==='settings'){const st=document.getElementById('syncState');if(st){st.textContent=m[1];st.className='syncstate '+m[2]}}}
   function set(s){state=s;paint()}
   function loadGsi(){return new Promise((res,rej)=>{if(window.google&&google.accounts&&google.accounts.oauth2)return res();
     const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.async=true;s.onload=()=>res();s.onerror=()=>rej(new Error('net'));document.head.appendChild(s)})}
@@ -2857,15 +2861,6 @@ const Sync=(()=>{
   async function getToken(interactive){if(tokenValid())return cfg.token;if(!interactive)return null;
     const t=ensureTc();if(t)return ask(t);
     await loadGsi();const t2=ensureTc();if(!t2)throw new Error('net');return ask(t2)}
-  /* طريقة بديلة: الانتقال لصفحة Google ثم الرجوع للتطبيق (تفيد إذا لم تفتح النافذة في تطبيق الشاشة الرئيسية) */
-  function redirectUri(){return location.origin+location.pathname.replace(/index\.html$/,'')}
-  function startRedirect(){const st=b64e(crypto.getRandomValues(new Uint8Array(12))).replace(/[^A-Za-z0-9]/g,'');cfg.rstate=st;saveCfg();
-    location.href='https://accounts.google.com/o/oauth2/v2/auth?'+new URLSearchParams({client_id:cfg.clientId,redirect_uri:redirectUri(),response_type:'token',scope:SCOPE,include_granted_scopes:'true',state:st,prompt:cfg.linked?'select_account':'consent'}).toString()}
-  function takeRedirect(){const h=location.hash||'';if(!/access_token=|error=/.test(h))return false;const q=new URLSearchParams(h.slice(1));
-    try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}
-    if(!cfg.rstate||q.get('state')!==cfg.rstate){return false}delete cfg.rstate;
-    if(q.get('access_token')){cfg.token=q.get('access_token');cfg.exp=Date.now()+(+q.get('expires_in')||3600)*1000;cfg.linked=true;saveCfg();return true}
-    saveCfg();setTimeout(()=>toast('لم يكتمل تسجيل الدخول إلى Google'),400);return false}
   async function api(url,opt){opt=opt||{};const r=await fetch(url,Object.assign({},opt,{headers:Object.assign({Authorization:'Bearer '+cfg.token},opt.headers||{})}));
     if(r.status===401){cfg.token='';saveCfg();throw new Error('auth')}if(!r.ok)throw new Error('http '+r.status);return r}
   async function findFile(){if(cfg.fileId)return cfg.fileId;
@@ -2890,37 +2885,33 @@ const Sync=(()=>{
       cfg.last=Date.now();saveCfg();cacheSave();render();set('ok');
       if(interactive)toast('تمت المزامنة مع Google Drive')}
     catch(e){const m=e.message||'';cfg.lastErr=m;saveCfg();set(m==='auth'||/popup|access_denied/.test(m)?'needtap':'error');
-      if(interactive)toast(m==='net'?'تعذّر الاتصال بـ Google، تأكد من الإنترنت':m==='popup_failed_to_open'?'لم تُفتح نافذة Google. اضغط مرة أخرى، أو استخدم «تسجيل الدخول بطريقة بديلة» من ⚙️ الضبط':/popup_closed/.test(m)?'أُغلقت نافذة Google قبل إكمال الدخول':m==='auth'||/popup|access_denied/.test(m)?'لم يكتمل تسجيل الدخول إلى Google':/http 403/.test(m)?'Google رفض الوصول: تأكد من تفعيل Google Drive API في مشروعك':'تعذّرت المزامنة، حاول مرة أخرى',null,6000);
+      if(interactive)toast(m==='net'?'تعذّر الاتصال بـ Google، تأكد من الإنترنت':m==='popup_failed_to_open'?'لم تُفتح نافذة Google. اضغط السحابة ☁️ مرة أخرى':/popup_closed/.test(m)?'أُغلقت نافذة Google قبل إكمال الدخول':m==='auth'||/popup|access_denied/.test(m)?'لم يكتمل تسجيل الدخول إلى Google':/http 403/.test(m)?'Google رفض الوصول: تأكد من تفعيل Google Drive API في مشروعك':'تعذّرت المزامنة، حاول مرة أخرى',null,6000);
       if(S.tab==='settings')render()}
     busy=false;if(pending){pending=false;setTimeout(()=>run(false),400)}}
   return{
     cfg:()=>cfg,linked:()=>!!cfg.linked,paint,
     soon(){if(!cfg.linked)return;clearTimeout(timer);timer=setTimeout(()=>run(false),2500)},
     now:()=>run(true),prime,
-    redirect(id){if(id)cfg={clientId:id.trim()};saveCfg();startRedirect()},
     async link(id){cfg={clientId:id.trim()};saveCfg();await run(true)},
     unlink(){const t=cfg.token;cfg={};saveCfg();try{if(t&&window.google&&google.accounts&&google.accounts.oauth2)google.accounts.oauth2.revoke(t,()=>{})}catch(e){}set('off');render()},
-    start(){const back=takeRedirect();paint();if(back){setTimeout(()=>{run(false);toast('تم ربط Google Drive، جارٍ المزامنة')},300)}else if(cfg.linked)run(false);if(cfg.clientId)setTimeout(prime,1500);
+    start(){paint();if(cfg.linked)run(false);if(cfg.clientId)setTimeout(prime,1500);
       addEventListener('online',()=>run(false));
       document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')run(false)})}
   };
 })();
 function syncHtml(){const c=Sync.cfg();
-  if(c.linked)return `<div class="panel stack" style="margin-bottom:10px"><div style="display:flex;align-items:center;gap:10px"><span class="cbadge" style="background:var(--inc-soft);color:var(--inc)">${catIcon('iother').replace('<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>','<path d="M7 18a4.5 4.5 0 0 1-.6-9A6 6 0 0 1 18 8.5a4 4 0 0 1-.5 9.5z"/>')}</span><div style="min-width:0"><b>المزامنة مع Google Drive مفعّلة</b><div class="note" id="syncState">${c.last?'آخر مزامنة '+fmtD(isoD(new Date(c.last)))+' '+String(new Date(c.last).getHours()).padStart(2,'0')+':'+String(new Date(c.last).getMinutes()).padStart(2,'0'):'لم تتم مزامنة بعد'}</div></div></div>
-    <div class="row2"><button class="btn" id="syncNow">مزامنة الآن</button><button class="btn ghost" id="syncUnlink">إلغاء الربط هنا</button></div>
-    ${c.lastErr&&!c.token?`<div class="warnbox" style="margin:0">آخر محاولة لم تكتمل. إذا لم تظهر نافذة Google عند الضغط، استخدم الطريقة البديلة.</div>`:''}
-    <button class="btn ghost block" id="syncRedir">تسجيل الدخول إلى Google بطريقة بديلة</button>
-    <p class="note" style="margin:0">ثبّت التطبيق على أجهزتك الأخرى من نفس الرابط، واربطه بنفس حساب Google ونفس الرمز، فتظهر نفس البيانات عليها كلها.</p></div>`;
-  return `<div class="panel stack" style="margin-bottom:10px"><b>استخدم التطبيق على أكثر من جهاز</b>
-    <p class="note" style="margin:0">اربط التطبيق بحسابك في Google Drive، فتتزامن بياناتك بين الهاتف وMacBook وHP تلقائيًا. تُحفظ في مجلد خفي خاص بهذا التطبيق داخل حسابك، ولا يراها غيرك.</p>
-    <div class="field"><label for="syncCid">رمز Google (Client ID)</label><input class="inp" id="syncCid" dir="ltr" value="${esc(c.clientId||'')}" placeholder="xxxx.apps.googleusercontent.com" autocomplete="off" style="font-size:13px"></div>
-    <p class="note" id="syncErr" hidden style="color:var(--exp);margin:0"></p>
-    <button class="btn block" id="syncLink">ربط Google Drive</button>
-    <button class="btn ghost block" id="syncRedir">الربط بطريقة بديلة (إذا لم تظهر نافذة Google)</button>
-    <details><summary class="note" style="cursor:pointer">من أين أحصل على الرمز؟</summary><div class="note" style="margin-top:8px;line-height:1.8">
+  const how=`<details><summary class="note" style="cursor:pointer">من أين أحصل على الرمز؟</summary><div class="note" style="margin-top:8px;line-height:1.8">
       إن كان عندك رمز برنامج «الزمرة الملكية» فاستخدم نفس الرمز، لأن التطبيقين على نفس الرابط في GitHub.<br>
-      وإن لم يكن عندك: ادخل console.cloud.google.com ← أنشئ مشروعًا ← فعّل Google Drive API ← APIs &amp; Services ← Credentials ← Create credentials ← OAuth client ID ← النوع Web application ← في Authorized JavaScript origins أضف رابط موقعك مثل https://اسمك.github.io ← انسخ الرمز والصقه هنا.<br>
-      للطريقة البديلة: أضف أيضًا في نفس الرمز ضمن Authorized redirect URIs رابط التطبيق كاملًا مثل https://اسمك.github.io/masareef/</div></details></div>`;
+      وإن لم يكن عندك: ادخل console.cloud.google.com ← أنشئ مشروعًا ← فعّل Google Drive API ← APIs &amp; Services ← Credentials ← Create credentials ← OAuth client ID ← النوع Web application ← في Authorized JavaScript origins أضف رابط موقعك مثل https://اسمك.github.io ← انسخ الرمز والصقه هنا.</div></details>`;
+  const on=!!c.linked;
+  return `<div class="panel stack syncbox">
+    <div class="syncstat ${on?'good':'warn'}"><span class="syncdot"></span><div><b>${on?'متصل بـ Google Drive':'غير متصل'}</b><small class="syncstate ${on?'good':'warn'}" id="syncState">${on?(c.last?'آخر مزامنة '+fmtD(isoD(new Date(c.last)))+' '+String(new Date(c.last).getHours()).padStart(2,'0')+':'+String(new Date(c.last).getMinutes()).padStart(2,'0'):'لم تتم مزامنة بعد'):'بياناتك محفوظة في هذا الجهاز فقط'}</small></div></div>
+    <p class="note" style="margin:0">زر السحابة ☁️ في أعلى الشاشة هو زر المزامنة: <b class="amt-inc">أخضر</b> = متصل، <b class="amt-exp">أحمر</b> = غير متصل. اضغطه للمزامنة في أي وقت.</p>
+    ${on?`<button class="btn ghost block" id="syncUnlink">إلغاء الربط على هذا الجهاز</button>`
+    :`<div class="field"><label for="syncCid">رمز Google (Client ID)</label><input class="inp" id="syncCid" dir="ltr" value="${esc(c.clientId||'')}" placeholder="xxxx.apps.googleusercontent.com" autocomplete="off" style="font-size:13px"></div>
+    <p class="note" id="syncErr" hidden style="color:var(--exp);margin:0"></p>
+    <button class="btn block" id="syncLink">ربط Google Drive</button>${how}`}
+    <p class="note" style="margin:0">البيانات تُحفظ في مجلد خفي خاص بالتطبيق داخل حسابك، ولا يراها غيرك. اربط أجهزتك الأخرى بنفس الحساب ونفس الرمز.</p></div>`;
 }
 
 /* ---------- 23. المظهر والثيمات ---------- */
@@ -2954,8 +2945,9 @@ function openLook(){const L=document.getElementById('layer');
 
 /* ---------- 24. الإصدار وما الجديد ---------- */
 const DEV={name:'ماجد الرميمي',title:'مهندس ومطور تقنية معلومات',country:'سلطنة عُمان',phone:'95134234',intl:'96895134234'};
-const APP_VERSION='2.20.0';
+const APP_VERSION='2.20.1';
 const CHANGELOG=[
+ {v:'2.20.1',d:'2026-10-14',items:['المزامنة من زر واحد فقط: أيقونة السحابة ☁️ في الأعلى. حُذفت الأزرار المكررة («مزامنة الآن» والطريقة البديلة وزر التقارير)، وبقي في الضبط الربط أول مرة وإلغاء الربط','السحابة ☁️ خضراء عندما يكون التطبيق متصلًا بـ Google Drive، وحمراء عندما يكون غير متصل، وتدور أثناء المزامنة','بطاقة المزامنة في الضبط أُعيدت صياغتها: حالة الاتصال وآخر مزامنة وزر واحد فقط','«🔒 قفل الدفع قبل الموعد» صار قابلًا للتعديل من ⚙️ الضبط (من وضع المدير): تشغيل/إيقاف، كل الأشهر أو الأشهر القادمة فقط، ويُفتح يوم الموعد أو قبله بـ3 أيام أو أسبوع أو 15 يومًا']},
  {v:'2.20.0',d:'2026-10-14',items:['القائمة الشهرية: مواعيد الدفع بنظام يوم/شهر/سنة (مثل 5/11/2026)، وتاريخ كل دفعة','«📅 تفاصيل الدفع للسنة» داخل كل بند: الأشهر الـ12 بالمبلغ والموعد وتاريخ الدفع، أخضر = مدفوع، أحمر = غير مدفوع، واضغط أي شهر لفتحه','المبلغ المدفوع بالأخضر وغير المدفوع بالأحمر','رسالة «شكرًا على الدفع» مع مبلغ وموعد الشهر التالي، ويظهر «التالي» تحت البند المدفوع','الدفع يُفتح من تاريخ الاستحقاق فقط؛ قبله يظهر «🔒 يُفتح في…»، والدفع المبكر من وضع المدير','«تسجيل كل المتبقي» لا يشمل ما لم يحن موعده','الصفحة ثابتة على قدّ الشاشة: لا تكبير بالإصبعين ولا بالنقر المزدوج، ولا تكبير تلقائي عند الكتابة','إصلاح زر المزامنة: نافذة دخول Google تُجهَّز مسبقًا وتُفتح مباشرة من ضغطتك، لأن Safari في الآيفون كان يمنعها فلا يحدث شيء','زر «الربط بطريقة بديلة»: ينتقل لصفحة Google ثم يرجع للتطبيق، إذا لم تظهر النافذة في تطبيق الشاشة الرئيسية','حالة المزامنة ظاهرة على الشاشات الصغيرة: الأيقونة تدور أثناء المزامنة، وتصير خضراء عند النجاح وحمراء عند الخطأ','رسائل أوضح عند فشل المزامنة (نافذة لم تُفتح، أُغلقت، رفض Google، لا إنترنت)','إعدادات المزامنة انتقلت إلى ⚙️ الضبط، وزر السحابة في الأعلى يفتحها إن لم تكن مربوطة']},
  {v:'2.19.0',d:'2026-10-14',items:['صفحة ⚙️ الضبط من زر جديد أعلى الشاشة: كل إعدادات التطبيق في مكان واحد','فتح قفل التطبيق ببصمة الوجه: تفعيل وإيقاف في أي وقت من الضبط (بالرمز ثم البصمة)','بصمة الوجه تُطلب تلقائيًا عند فتح التطبيق، أو بلمسة على شاشة القفل، والرمز يبقى احتياطيًا','اختيار وقت القفل بعد الخروج: فورًا، دقيقة، 5 أو 15 دقيقة، وتغيير رمز القفل بالرمز أو بالبصمة','تعديل أسماء الأقسام من وضع المدير: أقسام الشهرية، مجموعات الديون، أقسامي وعناوين صفحاتها، والشريط السفلي','زر ✏️ بجانب عناوين الشهرية ومجموعات الديون لتعديل الاسم مباشرة (للمدير)','زر + : اختر اسمًا من القائمة الشهرية فيُكتب المبلغ المتبقي والفئة والشخص، وتُسجَّل الدفعة في الشهرية مباشرة؛ وأقساط الديون تفتح نافذة السداد','الدخل/الإيداع من زر +: اختر من أسماء الأهل والقائمة الشهرية','إضافة التزام شهري أسهل: اختر مدة التكرار بضغطة (مستمر، 6 أشهر، سنة، سنتان، 3، 5، 10 سنوات) أو اكتب عدد الأشهر، ويظهر تاريخ الانتهاء والمجموع','«خيارات إضافية» في نموذج الالتزام قابلة للتصغير','إصلاح: بعد «حفظ وإضافة أخرى» كانت الكتابة السريعة في خانة الملاحظة تذهب أحيانًا إلى خانة المبلغ']},
  {v:'2.18.1',d:'2026-10-14',items:['التصغير والتكبير صار في كل التطبيق: اضغط على أي عنوان أساسي أو فرعي ليُصغَّر ما تحته أو يظهر','بطاقات الديون والخطط والأمانات والسيارات والمستندات والادخار تُصغَّر إلى اسمها بالضغط على رأسها','مجموعات أيام السجل، ومجموعات الديون، وصناديق التنبيهات قابلة للتصغير أيضًا','أقسام النوافذ مثل «قاعدة البيانات» تُصغَّر وتُكبَّر كذلك','زرا «تصغير الكل» و«توسيع الكل» أعلى كل صفحة فيها أكثر من قسم، ويُحفظ اختيارك في جهازك']},
@@ -3574,12 +3566,20 @@ function vSettings(){const c=lockCfg(),af=c&&c.after!=null?+c.after:60;setTimeou
    <div class="setrow"><div><b>رمز القفل</b><small>من 4 إلى 8 أرقام، محفوظ مشفّرًا في هذا الجهاز</small></div><button class="chip" id="lockPinChange">تغيير الرمز</button></div>`:''}
    <div class="setrow"><div><b>إخفاء المبالغ</b><small>زر 👁 في الأعلى يخفيها أمام الآخرين</small></div><button class="tgl${hideAmtOn()?' on':''}" id="hideAmt" role="switch" aria-checked="${hideAmtOn()}" aria-label="إخفاء المبالغ"><i></i></button></div>
    <span class="note">الإعدادات هنا خاصة بهذا الجهاز، ولا تدخل في المزامنة ولا في النسخة الاحتياطية. إعدادات الآيفون لا تعرض خيارات تطبيقات الويب، لذلك كل ضبط التطبيق هنا.</span></div>
+  <h2>🔒 قفل الدفع قبل الموعد</h2>${payLockHtml()}
   <h2>☁️ المزامنة مع Google Drive</h2><div id="syncBox">${syncHtml()}</div>
   <h2>🛡️ وضع المدير</h2>${admHtml()}
   <h2>✏️ أسماء الأقسام</h2><div class="panel stack"><span class="note">غيّر أسماء أقسام القائمة الشهرية ومجموعات الديون وأقسامي والشريط السفلي. يمكنك أيضًا الضغط على ✏️ بجانب أي عنوان مباشرة.</span><button class="btn ghost block" id="lblEdit"><span class="lk">🔒 </span>تعديل أسماء الأقسام</button></div>
   <h2>🗂️ البيانات والمظهر</h2>
   <div class="stack"><button class="btn ghost block" id="dbOpen">🗄️ قاعدة البيانات والنسخ الاحتياطي</button><button class="btn ghost block" id="lookBtn2">🎨 المظهر والألوان</button><button class="btn ghost block" data-tab="reports">📊 التقارير والمزامنة</button></div>
   <p class="note" style="text-align:center;margin-top:14px">إدارة شؤوني · الإصدار ${APP_VERSION}</p>`}
+function payLockHtml(){const c=payLockCfg();
+  return `<div class="panel stack setbox">
+   <div class="setrow"><div><b>قفل زر «دفعت» حتى يحين الموعد</b><small>${c.on?'مفعّل: يظهر «🔒 يُفتح في…» حتى تاريخ الفتح':'متوقف: الدفع متاح في أي وقت'}</small></div><button class="tgl${c.on?' on':''}" id="plOn" role="switch" aria-checked="${c.on}" aria-label="قفل الدفع حتى الموعد"><i></i></button></div>
+   ${c.on?`<div class="setrow col"><div><b>يُطبَّق على</b></div><div class="seg"><button class="n" data-plscope="all" aria-pressed="${c.scope==='all'}">كل الأشهر</button><button class="n" data-plscope="future" aria-pressed="${c.scope==='future'}">الأشهر القادمة فقط</button></div></div>
+   <div class="setrow col"><div><b>يُفتح الدفع</b></div><div class="seg">${[[0,'يوم الموعد'],[3,'قبله بـ3 أيام'],[7,'قبله بأسبوع'],[15,'قبله بـ15 يومًا']].map(([v,n])=>`<button class="n" data-plbefore="${v}" aria-pressed="${+c.before===v}">${n}</button>`).join('')}</div></div>`:''}
+   <span class="note">الدفع المبكر متاح دائمًا من وضع المدير. وموعد كل بند تغيّره من «تعديل» البند نفسه (يوم الدفع في الشهر).</span></div>`}
+function payLockSet(o){S.settings.payLock=Object.assign(payLockCfg(),o);putSettings();render()}
 /* التحقق بالرمز الحالي (أو بصمة الوجه إن كانت مفعّلة) قبل تغيير إعدادات القفل */
 function lockAsk(title,why,done){const L=document.getElementById('layer');const c=lockCfg();
   L.innerHTML=`${sheetTop(title)}<h2 style="margin-top:0">${title}</h2><p class="note">${why}</p><div class="stack">
@@ -3752,7 +3752,7 @@ function proAdvice(add){capAlerts().slice(0,2).forEach(a=>add(a.pct>=100?86:66,'
 document.addEventListener('click',async e=>{
   {const rt=e.target.closest('[data-rtog]');if(rt&&!e.target.closest('button,a,summary,details')){const row=rt.closest('.recrow');const on=!row.classList.contains('open');row.classList.toggle('open',on);rt.setAttribute('aria-expanded',on);S.recOpen=S.recOpen||{};if(on)S.recOpen[rt.dataset.rtog]=1;else delete S.recOpen[rt.dataset.rtog];return}}
   const b=e.target.closest('button');if(!b||b.closest('#layer'))return;
-  if(b.dataset.early&&!(admOn()&&admOpen())){toast('موعد الدفع '+dmy(b.dataset.early)+'. الدفع قبل موعده من وضع المدير فقط',null,5000);return}
+  if(b.dataset.early&&!(admOn()&&admOpen())){toast('الدفع يُفتح في '+dmy(b.dataset.early)+'. للدفع الآن: وضع المدير، أو غيّر «قفل الدفع» من ⚙️ الضبط',null,6000);return}
   if(b.dataset.tab){S.tab=b.dataset.tab;render();window.scrollTo(0,0);return}
   if(b.dataset.go){S.tab=b.dataset.go;render();return}
   if(b.dataset.dayplan){openDayPlan(b.dataset.dayplan==='pay');return}
@@ -3796,6 +3796,9 @@ document.addEventListener('click',async e=>{
   if(b.id==='lockPinChange'){lockPinChange();return}
   if(b.dataset.lockafter!==undefined){const c=lockCfg();if(c){lockSave(Object.assign({},c,{after:+b.dataset.lockafter}));render();toast('يُقفل التطبيق '+LOCK_AFTER.find(x=>x[0]===+b.dataset.lockafter)[1]+' من الخروج منه')}return}
   if(b.id==='lookBtn2'){openLook();return}
+  if(b.id==='plOn'){payLockSet({on:!payLockCfg().on});toast(payLockCfg().on?'فُعّل قفل الدفع حتى الموعد':'أُوقف قفل الدفع: الدفع متاح في أي وقت');return}
+  if(b.dataset.plscope){payLockSet({scope:b.dataset.plscope});return}
+  if(b.dataset.plbefore!==undefined){payLockSet({before:+b.dataset.plbefore});return}
   if(b.dataset.rename||b.id==='lblEdit'){if(!admOn()){toast('فعّل وضع المدير أولًا من ⚙️ الضبط، فتعديل الأسماء من صلاحيات المدير');return}b.id==='lblEdit'?openLabels():openRename(b.dataset.rename);return}
   if(b.id==='scGuide'){openShortcutGuide();return}
   if(b.dataset.dpe){const [did,pid]=b.dataset.dpe.split('|');openDebtPayEdit(did,pid);return}
@@ -3817,9 +3820,7 @@ document.addEventListener('click',async e=>{
   if(b.id==='addBtn'||b.hasAttribute('data-open-add')){openSheet();return}
   if(b.id==='openImp2'){openImport();return}
   if(b.id==='sync'&&Sync.linked()){Sync.now();return}
-  if(b.id==='sync'||b.id==='syncGo'){S.tab='settings';render();setTimeout(()=>{const x=document.getElementById('syncBox');x&&x.scrollIntoView({block:'start'})},50);return}
-  if(b.id==='syncRedir'){const ci=document.getElementById('syncCid');const v=ci?(ci.value||'').trim():Sync.cfg().clientId;if(!/\.apps\.googleusercontent\.com$/.test(v||'')){toast('اكتب رمز Google (Client ID) أولًا');return}Sync.redirect(ci?v:null);return}
-  if(b.id==='syncNow'){Sync.now();return}
+  if(b.id==='sync'){S.tab='settings';render();setTimeout(()=>{const x=document.getElementById('syncBox');x&&x.scrollIntoView({block:'start'})},50);return}
   if(b.id==='printRep'){openPrintSheet();return}
   if(b.id==='quickPrint'){quickPrint();return}
   if(b.id==='checkUpd'){if(!('serviceWorker' in navigator)){toast('أنت على آخر إصدار');return}toast('جارٍ البحث عن تحديث…');try{const r=await navigator.serviceWorker.getRegistration();if(r){await r.update();if(r.installing||r.waiting){toast('وُجد تحديث، جارٍ تحميله…');return}}toast('أنت على آخر إصدار ('+APP_VERSION+')')}catch(e){toast('تعذّر البحث، تأكد من الإنترنت')}return}
