@@ -480,6 +480,8 @@ body:has(.sheet) .toast{bottom:auto;top:calc(12px + env(safe-area-inset-top,0px)
 .infobox{display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--surface);font-size:13px;line-height:1.7}
 .infobox .chip{flex:none}
 .impwarn{color:#B07A12;margin:2px 2px 0}
+.lk{display:none}
+body.adm-locked .lk{display:inline}
 .duaread p{margin:0;padding:14px 4px;border-bottom:1px dashed #D9C98F;text-align:center;font-size:19px;line-height:2;white-space:pre-line}
 .plangrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .pt{border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:12px;display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:right;box-shadow:var(--shadow)}

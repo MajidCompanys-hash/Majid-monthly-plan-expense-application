@@ -919,20 +919,20 @@ function vMonthly(){
   const row=i=>{const late=!i.isPaid&&(m<ym(new Date())||(cur&&todayD>i.day));
     const pill=i.isPaid?`<span class="pill paid">دُفع <span class="num">${amtH(i.paidAmt)}</span></span>`:late?'<span class="pill late">متأخر</span>':i.paidAmt?'<span class="pill soon">دُفع جزء</span>':`<span class="pill soon">يوم ${i.day}</span>`;
     const pay=i.isPaid?'':`<button class="chip pay" ${i.kind==='debt'?'data-dpay':'data-rpay'}="${esc(i.id)}">دفعت</button>`;
-    const edit=`<button class="chip" ${i.kind==='debt'?'data-dedit':'data-redit'}="${esc(i.id)}" aria-label="تعديل ${esc(i.name)}">تعديل</button>`;
+    const edit=`<button class="chip" ${i.kind==='debt'?'data-dedit':'data-redit'}="${esc(i.id)}" aria-label="تعديل ${esc(i.name)}"><span class="lk">🔒 </span>تعديل</button>`;
     return `<div class="recrow rec2${i.isPaid?' done':''}">${i.kind==='debt'?debtBadge(i.ref):recBadge(i.ref)}<div><b>${i.kind==='debt'?'<span class="tag">دين</span>':''}${esc(i.name)}</b><small>${i.tracked?`فاتورة <span class="num">${amtH(i.bill)}</span>${i.prev>0.0005?' + متأخرات سابقة <span class="num amt-exp">'+amtH(i.prev)+'</span>':i.prev<-0.0005?' − رصيد لك <span class="num">'+amtH(-i.prev)+'</span>':''}${Math.abs(i.prev)>0.0005?' = <span class="num">'+amtH(i.amount)+'</span>':''}${i.paidAmt&&!i.isPaid?' · دفعت <span class="num">'+amtH(i.paidAmt)+'</span> · المتبقي <b class="num">'+amtH(i.amount-i.paidAmt)+'</b>'+((i.ref.later||{})[m]?' · تذكير '+fmtD(i.ref.later[m]):''):''}<br>`:`<span class="num">${money(i.amount)}</span> ${CUR}${i.variable?' تقريبًا':''} · `}يوم الدفع ${i.day}${i.kind==='rec'?' · تذكير يوم '+remindDay(i.ref)+' · 🔁 '+(i.ref.until?'حتى '+monthName(i.ref.until):'شهريًا مستمر'):''}${i.person?' · لـ'+esc(personName(i.person)):''}${i.kind==='debt'?' · متبقٍ <span class="num">'+amtH(i.ref.balance)+'</span>':''}</small></div>
-      <div class="recact">${pill}${pay}${i.paidAmt>0.0005?`<button class="chip unpay" data-unpay="${i.kind}|${esc(i.id)}|${m}" aria-label="إلغاء دفع ${esc(i.name)}">إلغاء الدفع</button>`:''}${edit}</div>${i.kind==='rec'?recHistHtml(i.ref,m):debtHistHtml(i.ref)}</div>`};
+      <div class="recact">${pill}${pay}${i.paidAmt>0.0005?`<button class="chip unpay" data-unpay="${i.kind}|${esc(i.id)}|${m}" aria-label="إلغاء دفع ${esc(i.name)}"><span class="lk">🔒 </span>إلغاء الدفع</button>`:''}${edit}</div>${i.kind==='rec'?recHistHtml(i.ref,m):debtHistHtml(i.ref)}</div>`};
   const pending=st.R.filter(i=>!i.isPaid).sort((x,y)=>x.day-y.day),done=st.R.filter(i=>i.isPaid).sort((x,y)=>x.day-y.day);
   const recRows=(pending.length?`<div class="grouphead">بانتظار الدفع <span class="num">(${pending.length})</span></div><div class="panel" style="padding-block:4px">${pending.map(row).join('')}</div>`:'<div class="okbox" style="margin-top:10px">دفعت كل مصاريفك وأقساطك الثابتة لهذا الشهر.</div>')
     +(done.length?`<div class="grouphead">تم الدفع <span class="num">(${done.length})</span></div><div class="panel" style="padding-block:4px">${done.map(row).join('')}</div>`:'');
-  return `<div class="backrow" style="margin-top:4px"><h2 style="margin:0">المصاريف والأقساط الشهرية</h2><button class="chip pay" data-recpick="1">+ إضافة التزام</button></div>
+  return `<div class="backrow" style="margin-top:4px"><h2 style="margin:0">المصاريف والأقساط الشهرية</h2><button class="chip pay" data-recpick="1"><span class="lk">🔒 </span>+ إضافة التزام</button></div>
   ${st.R.length?`<div class="planbox"><span class="note" style="color:var(--fg)">${st.left?'دفعت '+st.paid.length+' من '+st.R.length+' هذا الشهر'+(st.partial.length?' · '+countWord(st.partial.length,'واحدة مدفوعة جزئيًا','اثنتان مدفوعتان جزئيًا','مدفوعة جزئيًا','مدفوعة جزئيًا'):'')+' · باقٍ عليك '+money(st.dueLeft):'دفعت كل مصاريفك الثابتة هذا الشهر'}</span>
     <span class="big2"><span class="num">${amtH(st.paidAmt)}</span> <small style="font-size:14px;font-weight:400">من <span class="num">${money(st.total)}</span> ${CUR}</small></span></div>
     ${recRows}
     ${st.left>1?`<button class="btn ghost block" id="payAll" style="margin-top:10px">تسجيل كل المتبقي بنفس المبالغ</button>`:''}
     <div class="chips" style="margin-top:10px"><button class="chip" data-xopen="monthly">📊 تصدير الالتزامات Excel / PDF</button></div>`
    :`<div class="panel empty" style="padding:18px 12px"><b>رتّب فواتيرك الشهرية في مكان واحد</b>أضف الإنترنت والكهرباء والإيجار وأي مصروف يتكرر كل شهر، وتظهر أقساط ديونك هنا تلقائيًا. كل شهر تضغط «دفعت» فيُسجَّل المصروف تلقائيًا، وتعرف ما بقي عليك.</div>`}
-  <button class="btn ghost block" data-recpick="1" style="margin-top:12px">+ إضافة التزام آخر</button>
+  <button class="btn ghost block" data-recpick="1" style="margin-top:12px"><span class="lk">🔒 </span>+ إضافة التزام آخر</button>
   ${recs().length?`<div class="panel stack" style="margin-top:12px"><b>تذكير الفواتير</b><div class="note">يظهر التذكير في الرئيسية من يوم التذكير الذي تحدده لكل فاتورة حتى تدفعها. ولتصلك تنبيهات حتى والتطبيق مغلق، أضفها لتقويم هاتفك.</div><div class="row2"><button class="btn ghost" id="billsIcs">إضافة التذكيرات للتقويم</button><button class="btn ghost" id="askNotify">تفعيل الإشعارات</button></div></div>`:''}`;
 }
 
@@ -2396,7 +2396,7 @@ async function admHash(pin,salt){const base=await crypto.subtle.importKey('raw',
 async function admPinOk(pin){const c=admCfg();if(!c||!pin)return false;return await admHash(String(pin),b64d(c.salt))===c.hash}
 setInterval(()=>{if(Adm.open&&Date.now()-Adm.last>ADM_IDLE)admLock(true)},30000);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&Adm.open){Adm.hid=Date.now()}else if(Adm.hid){if(Date.now()-Adm.hid>60000)admLock(true);Adm.hid=0}});
-function admChip(){const h=document.querySelector('.hdr-actions');if(!h)return;let b=document.getElementById('admChip');
+function admChip(){document.body.classList.toggle('adm-locked',admOn()&&!Adm.open);const h=document.querySelector('.hdr-actions');if(!h)return;let b=document.getElementById('admChip');
   if(!admOn()){if(b)b.remove();return}
   if(!b){b=document.createElement('button');b.id='admChip';b.type='button';h.prepend(b)}
   const o=Adm.open;b.className='admchip'+(o?' on':'');b.textContent=o?'🛡️ المدير':'🔒';b.setAttribute('aria-label',o?'وضع المدير مفتوح، اضغط للقفل':'وضع المدير مقفل، اضغط للفتح')}
@@ -2421,11 +2421,11 @@ function admAsk(then,why){let el=document.getElementById('admLayer');if(!el){el=
   if(!c.bio)setTimeout(()=>{const i=document.getElementById('admPin');if(i)i.focus()},60)}
 /* كل زر تعديل أو حذف أو تراجع أو اعتماد يمر من هنا أولًا */
 const ADM_SEL=['[data-edit]','[data-txdel]','[data-txedit]','[data-dpe]','[data-redit]','[data-dedit]','[data-tedit]','[data-cedit]','[data-gedit]','[data-pedit]','[data-sedit]','[data-rpedit]',
-  '[data-apv]','[data-apedit]','[data-unpay]','#dnEdit','#wdEdit','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','label[for="restoreFile2"]','[data-snaprest]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
+  '[data-apv]','[data-apedit]','[data-unpay]','[data-recpick]','#dnEdit','#wdEdit','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','label[for="restoreFile2"]','[data-snaprest]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
 document.addEventListener('click',e=>{if(!admOn())return;if(e.target.closest('#admLayer'))return;
   if(admOpen()){if(e.target.closest('button,label'))Adm.last=Date.now();return}
   const b=e.target.closest(ADM_SEL);if(!b)return;e.preventDefault();e.stopImmediatePropagation();
-  admAsk(()=>{if(b.isConnected)b.click()},b.matches('.toast button')?'التراجع عن عملية يحتاج صلاحية المدير.':b.matches('[data-apv],[data-apedit],#apvAll')?'اعتماد العمليات يحتاج صلاحية المدير.':null)},true);
+  admAsk(()=>{if(b.isConnected)b.click()},b.matches('.toast button')?'التراجع عن عملية يحتاج صلاحية المدير.':b.matches('[data-apv],[data-apedit],#apvAll')?'اعتماد العمليات يحتاج صلاحية المدير.':b.matches('[data-recpick],[data-redit],[data-dedit],[data-rpedit]')?'إضافة الالتزامات الشهرية وتعديلها من وضع المدير فقط. الدفع متاح دائمًا.':null)},true);
 /* العمليات بانتظار الاعتماد */
 function pendList(){return list().filter(t=>t.pend).sort((a,b)=>(b.date||'').localeCompare(a.date||''))}
 function pendHtml(){if(!admOn())return '';const P=pendList();if(!P.length)return '';const tot=P.filter(t=>t.type==='exp').reduce((s,t)=>s+(+t.amount||0),0);
@@ -2753,8 +2753,9 @@ function openLook(){const L=document.getElementById('layer');
 
 /* ---------- 24. الإصدار وما الجديد ---------- */
 const DEV={name:'ماجد الرميمي',title:'مهندس ومطور تقنية معلومات',country:'سلطنة عُمان',phone:'95134234',intl:'96895134234'};
-const APP_VERSION='2.16.0';
+const APP_VERSION='2.16.1';
 const CHANGELOG=[
+ {v:'2.16.1',d:'2026-10-14',items:['قائمة الالتزامات الشهرية ثابتة: إضافة التزام (مصاريف الأهل، رواتب، كهرباء، ماء، إنترنت...) وتعديله وحذفه وتعديل مبلغه من وضع المدير فقط','زر «دفعت» يبقى متاحًا دائمًا من الوضع العادي','علامة 🔒 على أزرار الإضافة والتعديل وإلغاء الدفع عندما يكون وضع المدير مقفلًا']},
  {v:'2.16.0',d:'2026-10-14',items:['إصلاح: رسائل التحويل الواردة (مثل «تم تحويل مبلغ إلى حسابك» و«transferred to your account» و«payment received») كانت تُقرأ مصروفًا، وصارت تُقرأ دخلًا','قراءة اتجاه الرسالة صارت بموازنة كلمات الإيداع والخصم، والراتب والاسترداد دخل دائمًا','إصلاح: المبلغ المكتوب بالأرقام العربية مع الفاصلة العربية (مثل ١٬٢٥٠٫٥٠٠) كان يُقرأ خطأ، وصار يُقرأ 1,250.5','عند تحديد يوم الراتب: الرئيسية تعرض دخل ومصاريف دورة الراتب الحالية (من يوم نزوله) بدل الشهر الميلادي','تنبيه في الرئيسية إذا كان الراتب مسجّلًا في آخر الشهر السابق، مع زر «حدّد يوم الراتب»','عند استيراد رسالة بتاريخ شهر آخر يظهر تنبيه بالشهر الذي ستُحسب فيه']},
  {v:'2.15.1',d:'2026-10-14',items:['أسماء الخانات الطويلة تتحرك تلقائيًا ذهابًا وإيابًا لتظهر كاملة، والقصيرة تبقى ثابتة','يشمل: أقسام الرئيسية، العمليات، الالتزامات، الديون، الخطط، التنبيهات، المستندات، وغيرها']},
  {v:'2.15.0',d:'2026-10-14',items:['زر سورة الملك وبجانبه «أذكار الصباح والمساء» تحت شريط الأدعية مباشرة، مع خيار المكان: تحت الشريط، بعد التنبيهات، أسفل الرئيسية، أو مخفي (من وضع المدير)','بعد السورة قسم «🤲 أدعية طلب الرزق والبركة»: آيات الرزق والتيسير من المصحف، وأدعية قضاء الدين والهم والكرب من حصن المسلم، ويعدّلها المدير','أذكار الصباح والمساء من حصن المسلم مع عدّاد لكل ذكر بالضغط، ويختار الصباح أو المساء حسب الوقت','قسم الأدعية في قسم الديون صار شريطًا متحركًا مثل الرئيسية، وتعديله من وضع المدير','خط Amiri Quran المخصص للمصحف داخل التطبيق ليظهر الرسم العثماني بعلاماته كاملة وبدون إنترنت','التحقق من نص السورة بمقارنته حرفًا حرفًا مع مصحف مجمع الملك فهد (حفص) ومصادر أخرى']},
