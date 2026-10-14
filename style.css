@@ -380,6 +380,19 @@ body:has(.sheet) .toast{bottom:auto;top:calc(12px + env(safe-area-inset-top,0px)
 .dgroupnote{margin:-4px 2px 0}
 .hp-r{display:flex;flex-direction:column;align-items:flex-end;white-space:nowrap}
 .hp-r small{font-size:11px;color:var(--muted)}
+.dexp{margin-top:12px}
+.expinfo{display:flex;flex-direction:column;gap:8px}
+/* خانة التذكير في قسم الديون */
+.dnote{margin-top:12px;border:1px solid #D9C98F;background:#FBF7EA;background:color-mix(in srgb,#E9D9A0 22%,var(--surface))}
+.dnote-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.dnote p{margin:8px 0;text-align:center;white-space:pre-line;font-size:16.5px;line-height:1.9}
+.dnote p+p{border-top:1px dashed #D9C98F;padding-top:8px}
+.dnote-mini{margin-top:8px;padding:8px 10px;border-radius:12px;background:#FBF7EA;background:color-mix(in srgb,#E9D9A0 22%,var(--surface));font-size:13.5px;line-height:1.8;text-align:center;white-space:pre-line}
+.dntxt{min-height:180px;line-height:1.8}
+.dnsug{display:flex;flex-direction:column;gap:6px}
+.dnchip{border:1px solid var(--line);background:var(--surface);color:inherit;font:inherit;border-radius:12px;padding:8px 10px;text-align:right;display:flex;flex-direction:column;gap:2px;cursor:pointer}
+.dnchip small{color:var(--muted);font-size:11.5px}
+.dnchip.on{border-color:var(--inc)}
 .plangrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .pt{border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:12px;display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:right;box-shadow:var(--shadow)}
 .pt b{font-size:14px}

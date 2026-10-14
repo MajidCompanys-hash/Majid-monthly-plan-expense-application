@@ -28,7 +28,7 @@
  *  23. المظهر والثيمات
  *  24. الإصدار وما الجديد
  *  25. بيانات المثال
- *  26. التقارير للطباعة وحفظ PDF
+ *  26. التقارير: الطباعة وPDF وExcel / Numbers
  *  27. ويدجت الآيفون والماك
  *  28. الأحداث (الضغط والكتابة)
  *  29. التشغيل
@@ -542,6 +542,7 @@ function vReportsMonth(){
   <h2>ملخص ${esc(monthName(S.month))}</h2>${monthStatsHtml(S.month)}${catBreakdownHtml(S.month)}
   <h2>بياناتك</h2>${syncHtml()}
   <div class="panel stack">
+   <button class="btn block" id="expOpen">تصدير Excel / Numbers / PDF</button>
    <button class="btn ghost block" id="csvBtn" data-x="1">${S.rmode==='year'?'تنزيل عمليات السنة كملف Excel (CSV)':'تنزيل عمليات الشهر كملف Excel (CSV)'}</button>
    <button class="btn ghost block" data-wopen="1">ويدجت الآيفون والماك</button>
    <button class="btn ghost block" id="fileBackup">حفظ نسخة احتياطية كملف</button>
@@ -706,7 +707,7 @@ function debtPaidIn(d,m){return (d.pays||[]).filter(p=>p.date&&p.date.slice(0,7)
 function monthItems(m){const out=[];
   recs().forEach(r=>{if(!recActive(r,m))return;const L=billLedger(r,m);if(L){out.push({kind:'rec',id:r.id,name:r.name,amount:L.total,bill:L.bill,prev:L.prev,day:+r.day||1,person:r.person||'',variable:!!(REC_KINDS[r.kind]&&REC_KINDS[r.kind].variable),isPaid:L.remaining<=0.0005,paidAmt:L.paid,tracked:true,ref:r});return}
     const p=recPaid(r,m);out.push({kind:'rec',id:r.id,name:r.name,amount:billAmt(r,m),day:+r.day||1,person:r.person||'',variable:!!(REC_KINDS[r.kind]&&REC_KINDS[r.kind].variable),isPaid:!!p,paidAmt:p?+p.amount:0,ref:r})});
-  debts().forEach(d=>{const pa=debtPaidIn(d,m);if(!(+d.balance>0)&&!pa)return;const once=d.mode==='once';if(once&&!pa&&(!d.end||d.end.slice(0,7)!==m))return;out.push({kind:'debt',id:d.id,name:(once?'سداد ':'قسط ')+d.name,amount:once?r3((+d.balance)+pa):+d.payment||0,day:+d.day||1,person:'',variable:false,isPaid:pa>0,paidAmt:pa,ref:d})});
+  debts().forEach(d=>{const pa=debtPaidIn(d,m);if(!(+d.balance>0)&&!pa)return;if(d.start&&m<d.start.slice(0,7)&&!pa)return;const once=d.mode==='once';if(once&&!pa&&(!d.end||d.end.slice(0,7)!==m))return;out.push({kind:'debt',id:d.id,name:(once?'سداد ':'قسط ')+d.name,amount:once?r3((+d.balance)+pa):+d.payment||0,day:+d.day||1,person:'',variable:false,isPaid:pa>0,paidAmt:pa,ref:d})});
   return out}
 function recStatus(m){const R=monthItems(m);const paid=R.filter(i=>i.isPaid);const total=R.reduce((x,i)=>x+i.amount,0);const paidAmt=R.reduce((x,i)=>x+(i.paidAmt||0),0);const partial=R.filter(i=>!i.isPaid&&i.paidAmt>0);return{R,paid,partial,total,paidAmt,dueLeft:r3(R.filter(i=>!i.isPaid).reduce((x,i)=>x+i.amount-(i.paidAmt||0),0)),left:R.length-paid.length}}
 /* حساب الفاتورة: فاتورة كل شهر + المتأخرات السابقة − ما دفعته = المتبقي (للفواتير التي فيها «since») */
@@ -765,7 +766,8 @@ function vMonthly(){
   ${st.R.length?`<div class="planbox"><span class="note" style="color:var(--fg)">${st.left?'دفعت '+st.paid.length+' من '+st.R.length+' هذا الشهر'+(st.partial.length?' · '+countWord(st.partial.length,'واحدة مدفوعة جزئيًا','اثنتان مدفوعتان جزئيًا','مدفوعة جزئيًا','مدفوعة جزئيًا'):'')+' · باقٍ عليك '+money(st.dueLeft):'دفعت كل مصاريفك الثابتة هذا الشهر'}</span>
     <span class="big2"><span class="num">${amtH(st.paidAmt)}</span> <small style="font-size:14px;font-weight:400">من <span class="num">${money(st.total)}</span> ${CUR}</small></span></div>
     ${recRows}
-    ${st.left>1?`<button class="btn ghost block" id="payAll" style="margin-top:10px">تسجيل كل المتبقي بنفس المبالغ</button>`:''}`
+    ${st.left>1?`<button class="btn ghost block" id="payAll" style="margin-top:10px">تسجيل كل المتبقي بنفس المبالغ</button>`:''}
+    <div class="chips" style="margin-top:10px"><button class="chip" data-xopen="monthly">📊 تصدير الالتزامات Excel / PDF</button></div>`
    :`<div class="panel empty" style="padding:18px 12px"><b>رتّب فواتيرك الشهرية في مكان واحد</b>أضف الإنترنت والكهرباء والإيجار وأي مصروف يتكرر كل شهر، وتظهر أقساط ديونك هنا تلقائيًا. كل شهر تضغط «دفعت» فيُسجَّل المصروف تلقائيًا، وتعرف ما بقي عليك.</div>`}
   <button class="btn ghost block" data-recpick="1" style="margin-top:12px">+ إضافة التزام آخر</button>
   ${recs().length?`<div class="panel stack" style="margin-top:12px"><b>تذكير الفواتير</b><div class="note">يظهر التذكير في الرئيسية من يوم التذكير الذي تحدده لكل فاتورة حتى تدفعها. ولتصلك تنبيهات حتى والتطبيق مغلق، أضفها لتقويم هاتفك.</div><div class="row2"><button class="btn ghost" id="billsIcs">إضافة التذكيرات للتقويم</button><button class="btn ghost" id="askNotify">تفعيل الإشعارات</button></div></div>`:''}`;
@@ -1555,9 +1557,32 @@ function debtDoneCard(d){const t=DEBT_T[d.type]||DEBT_T.other;const c=d.closed||
      <div><span>طريقة التخلص منه</span><b>${CLOSE_M[c.method]}${c.count>1?' ('+countWord(c.count,'دفعة واحدة','دفعتان','دفعات','دفعة')+')':''}</b></div></div>
     <div class="gbtns"><button class="chip" data-dprint="${esc(d.id)}">كشف للطباعة</button><button class="chip" data-dedit="${esc(d.id)}">تعديل</button></div>
     ${debtHistHtml(d)}</div>`}
+/* خانة التذكير في قسم الديون: أدعية وآيات التيسير وقضاء الدين. تعديلها من وضع المدير فقط */
+const DEBT_DUA=[
+ ['﴿فَإِنَّ مَعَ الْعُسْرِ يُسْرًا • إِنَّ مَعَ الْعُسْرِ يُسْرًا﴾','سورة الشرح: 5-6'],
+ ['﴿وَمَن يَتَّقِ اللَّهَ يَجْعَل لَّهُ مَخْرَجًا • وَيَرْزُقْهُ مِنْ حَيْثُ لَا يَحْتَسِبُ﴾','سورة الطلاق: 2-3'],
+ ['﴿سَيَجْعَلُ اللَّهُ بَعْدَ عُسْرٍ يُسْرًا﴾','سورة الطلاق: 7'],
+ ['اللهم اكفني بحلالك عن حرامك، وأغنني بفضلك عمّن سواك','رواه الترمذي'],
+ ['اللهم إني أعوذ بك من الهمّ والحزن، والعجز والكسل، والبخل والجبن، وضلَع الدَّين وغلبة الرجال','رواه البخاري'],
+ ['اللهم لا سهل إلا ما جعلته سهلًا، وأنت تجعل الحَزْن إذا شئت سهلًا','رواه ابن حبان']];
+function debtNoteParts(){return String(S.settings.debtNote||'').split(/\n\s*\n/).map(x=>x.trim()).filter(Boolean)}
+function debtNoteHtml(){const P=debtNoteParts();const lock=admOn()&&!Adm.open;
+  if(!P.length)return `<div class="panel dnote empty"><div class="dnote-h"><b>🤲 تذكير</b><button class="chip" id="dnEdit">${lock?'🔒 ':''}+ إضافة</button></div><span class="note">اكتب هنا أدعية وآيات التيسير وقضاء الدين لتكون أمامك كلما فتحت قسم الديون.${admOn()?' تعديلها من وضع المدير فقط.':''}</span></div>`;
+  return `<div class="panel dnote"><div class="dnote-h"><b>🤲 تذكير</b><button class="chip" id="dnEdit" aria-label="تعديل التذكير">${lock?'🔒 ':''}تعديل</button></div>${P.map(p=>`<p>${esc(p)}</p>`).join('')}${admOn()?'':'<span class="note">فعّل «وضع المدير» من التقارير لتصبح هذه الخانة محمية من التعديل.</span>'}</div>`}
+function debtNoteToday(){const P=debtNoteParts();if(!P.length)return '';const n=new Date();const d=Math.floor((n-new Date(n.getFullYear(),0,0))/864e5);return P[d%P.length]}
+function openDebtNote(){const L=document.getElementById('layer');let txt=S.settings.debtNote||'';
+  const draw=()=>{L.innerHTML=`${sheetTop('تذكير')}<h2 style="margin-top:0">🤲 تذكير قسم الديون</h2>
+   <div class="stack"><div class="field"><label for="dnTxt">أدعية وآيات وكلمات تذكّرك (اترك سطرًا فارغًا بين كل واحدة)</label><textarea class="inp dntxt" id="dnTxt" maxlength="3000" rows="9">${esc(txt)}</textarea></div>
+   <div class="field"><label>إضافة من المقترحات</label><div class="dnsug">${DEBT_DUA.map((d,i)=>`<button class="dnchip" data-dns="${i}"><span>${esc(d[0])}</span><small>${esc(d[1])}</small></button>`).join('')}</div></div>
+   <p class="note" style="margin:0">تظهر كاملة أعلى قسم الديون، وواحدة منها كل يوم في الرئيسية.</p></div>
+   <div class="actions"><button class="btn block" id="dnSave">حفظ</button><button class="btn ghost block" data-close>إلغاء</button></div></div></div>`};
+  draw();L.onchange=null;L.oninput=e=>{if(e.target.id==='dnTxt')txt=e.target.value};
+  L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
+    if(x.dataset.dns){const d=DEBT_DUA[+x.dataset.dns];const t=d[0]+'\n('+d[1]+')';if(txt.includes(d[0])){toast('موجودة مسبقًا');return}txt=(txt.trim()?txt.trim()+'\n\n':'')+t;const a=document.getElementById('dnTxt');a.value=txt;a.scrollTop=a.scrollHeight;x.classList.add('on');return}
+    if(x.id==='dnSave'){S.settings.debtNote=txt.trim().slice(0,3000);await putSettings();L.innerHTML='';render();toast(S.settings.debtNote?'حُفظ التذكير':'حُذف التذكير')}}}
 function vDebts(){const Ds=debts(),P=debtPlan();
   const head=`<div class="backrow"><h2 style="margin:4px 0">قسم الديون</h2><button class="chip" data-tab="home">الرئيسية ‹</button></div>`;
-  if(!Ds.length)return head+`<div class="panel empty"><b>اعرف ديونك ومتى تتخلص منها</b>أضف القروض وبطاقات الائتمان، والديون لأشخاص، وأي دين شخصي. أرتّبها لك في أقسام، وأحسب موعد انتهاء كل دين ومدته، وأحتفظ بسجل كامل لكل دين حتى بعد انتهائه.</div><button class="btn block" data-dadd="1" style="margin-top:12px">+ أضف دينًا</button>`;
+  if(!Ds.length)return head+`<div class="panel empty"><b>اعرف ديونك ومتى تتخلص منها</b>أضف القروض وبطاقات الائتمان، والديون لأشخاص، وأي دين شخصي. أرتّبها لك في أقسام، وأحسب موعد انتهاء كل دين ومدته، وأحتفظ بسجل كامل لكل دين حتى بعد انتهائه.</div><button class="btn block" data-dadd="1" style="margin-top:12px">+ أضف دينًا</button>${debtNoteHtml()}`;
   const act=Ds.filter(d=>+d.balance>0.0005),done=Ds.filter(d=>!(+d.balance>0.0005));const pl=debtSim();const F=debtFree();
   const g=S.debtGrp||'all',k=S.debtSort||'end';
   const rem=act.reduce((s,d)=>s+(+d.balance),0),inst=act.reduce((s,d)=>s+debtInst(d),0);
@@ -1575,7 +1600,8 @@ function vDebts(){const Ds=debts(),P=debtPlan();
     <div class="row"><div class="cell"><span>الأقساط الشهرية</span><b class="num">${amtH(inst)}</b></div><div class="cell"><span>سدّدت حتى الآن</span><b class="num">${F?F.pct:0}%</b></div></div>
     ${F&&!F.stuck?`<div class="lbl" style="margin-top:12px">يوم التحرر من الديون <b>${fmtD(F.date)}</b> · باقٍ ${countWord(F.left,'قسط واحد','قسطان','أقساط','قسطًا')} (⏳ ${daysWord(F.days)})</div>`:''}</section>
     <div class="dgrid">${grpCells}</div>`:`<div class="okbox">لا ديون متبقية. مبروك!</div>`)
-  +`<div class="backrow" style="margin-top:16px"><h2 style="margin:0">ديوني</h2><button class="chip pay" data-dadd="1">+ دين جديد</button></div>${filt}${list}${arch}
+  +debtNoteHtml()+`<div class="row2 dexp"><button class="btn ghost" data-dexp="pdf">🖨️ طباعة / PDF</button><button class="btn ghost" data-dexp="xlsx">📊 Excel / Numbers</button></div>
+  <div class="backrow" style="margin-top:16px"><h2 style="margin:0">ديوني</h2><button class="chip pay" data-dadd="1">+ دين جديد</button></div>${filt}${list}${arch}
   ${act.length?`<h2>خطة التخلص من الديون</h2>
   <div class="panel stack">
    <div class="seg" role="group" aria-label="ترتيب السداد"><button class="n" data-dstrat="avalanche" aria-pressed="${P.strategy!=='snowball'}">الأعلى فائدة أولًا</button><button class="n" data-dstrat="snowball" aria-pressed="${P.strategy==='snowball'}">الأصغر مبلغًا أولًا</button></div>
@@ -1595,7 +1621,7 @@ function debtHomeHtml(){const Ds=debts();if(!Ds.length)return '';const act=Ds.fi
     <div><span>المتبقي</span><b class="num">${amtH(F.rem)}</b></div><div><span>باقٍ عليك</span><b>${F.left?countWord(F.left,'قسط واحد','قسطان','أقساط','قسطًا'):'—'}</b></div>
     <div><span>يوم التحرر</span><b>${fmtD(F.date)}</b></div><div><span>العد التنازلي</span><b>⏳ ${daysWord(F.days)}</b></div></div></div>
     <div class="note hp-meta">${F.next?(F.next.late?'<b class="amt-exp">قسط '+esc(F.next.name)+' متأخر</b> (كان يوم '+F.next.day+')':'القادم: '+esc(F.next.name)+' يوم '+F.next.day)+' · <span class="num">'+amtH(F.next.amt)+'</span>':'دفعت أقساط هذا الشهر كلها ✓'}</div>`:''}
-   <div class="hp-list">${rows}${doneRow}</div></div>`}
+   <div class="hp-list">${rows}${doneRow}</div>${debtNoteToday()?`<div class="dnote-mini">🤲 ${esc(debtNoteToday())}</div>`:''}</div>`}
 function openDebt(id){const L=document.getElementById('layer');const A=S.settings.debts||(S.settings.debts=[]);const ex=id?A.find(x=>x.id===id):null;
   const d=ex?Object.assign({},ex,{original:ex.original?money(ex.original):'',balance:money(ex.balance),payment:+ex.payment?money(ex.payment):'',rate:ex.rate||'',mode:ex.mode||'inst',start:debtStart(ex),end:ex.end||''}):{id:uidGen(),type:'loan',name:'',lender:'',original:'',balance:'',payment:'',rate:'',day:1,pays:[],mode:'inst',start:today(),end:''};let askDel=false;
   const draw=()=>{L.innerHTML=`${sheetTop('دين')}
@@ -2131,7 +2157,7 @@ function admAsk(then,why){let el=document.getElementById('admLayer');if(!el){el=
   if(!c.bio)setTimeout(()=>{const i=document.getElementById('admPin');if(i)i.focus()},60)}
 /* كل زر تعديل أو حذف أو تراجع أو اعتماد يمر من هنا أولًا */
 const ADM_SEL=['[data-edit]','[data-txdel]','[data-txedit]','[data-dpe]','[data-redit]','[data-dedit]','[data-tedit]','[data-cedit]','[data-gedit]','[data-pedit]','[data-sedit]','[data-rpedit]',
-  '[data-apv]','[data-apedit]','[data-unpay]','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
+  '[data-apv]','[data-apedit]','[data-unpay]','#dnEdit','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
 document.addEventListener('click',e=>{if(!admOn())return;if(e.target.closest('#admLayer'))return;
   if(admOpen()){if(e.target.closest('button,label'))Adm.last=Date.now();return}
   const b=e.target.closest(ADM_SEL);if(!b)return;e.preventDefault();e.stopImmediatePropagation();
@@ -2456,8 +2482,10 @@ function openLook(){const L=document.getElementById('layer');
 
 /* ---------- 24. الإصدار وما الجديد ---------- */
 const DEV={name:'ماجد الرميمي',title:'مهندس ومطور تقنية معلومات',country:'سلطنة عُمان',phone:'95134234',intl:'96895134234'};
-const APP_VERSION='2.11.1';
+const APP_VERSION='2.12.1';
 const CHANGELOG=[
+ {v:'2.12.1',d:'2026-10-14',items:['خانة «🤲 تذكير» في قسم الديون: اكتب فيها أدعية وآيات التيسير وقضاء الدين، وتعديلها من وضع المدير فقط','مقترحات جاهزة من القرآن والأدعية المأثورة تضيفها بضغطة','تظهر كاملة أعلى قسم الديون، وواحدة منها كل يوم في الرئيسية، وفي أعلى تقرير الديون المطبوع']},
+ {v:'2.12.0',d:'2026-10-14',items:['تصدير Excel / Numbers (.xlsx) حقيقي من داخل التطبيق: كل قسم في ورقة مرتبة من اليمين لليسار، مع أسهم الفلترة والترتيب ومجاميع بالمعادلات','أوراق الديون: الديون الحالية بأقسامها، كل الدفعات بالفائدة والمتبقي بعد كل دفعة، والديون المنتهية بمدتها وطريقة التخلص منها','أوراق أخرى: الملخص، الالتزامات الشهرية بكل شهر ودفعاته، العمليات، الخطط، الأمانات','«تقرير الديون» للطباعة أو PDF: كل قسم في جدول، شريط التقدّم، ما سدّدته شهرًا بشهر، سجل المنتهية، وعمود ☐ للمراجعة','نافذة «تصدير وطباعة التقارير» من التقارير، وأزرار مباشرة في قسم الديون والالتزامات الشهرية','على الآيفون: اختر «Numbers» من قائمة المشاركة لفتح الملف وتعديله، أو «حفظ في الملفات»']},
  {v:'2.11.1',d:'2026-10-14',items:['زر «إلغاء الدفع» في الالتزامات الشهرية وأقساط الديون: إذا ضغطت «دفعت» بالخطأ يرجع الالتزام «بانتظار الدفع» كما كان، لأي شهر تختاره','يعرض قبل الإلغاء الدفعات التي ستُحذف ومجموعها، ويُسجَّل في «التحديثات»، مع زر «تراجع»']},
  {v:'2.11.0',d:'2026-10-14',items:['«قسم الديون» مرتب في أقسام: البنوك والتمويل، ديون لأشخاص (باسم الشخص)، ديون شخصية وأخرى','فرز الديون حسب: الأقرب انتهاءً، الأكبر مبلغًا، الأطول مدة، الأعلى فائدة، مع تصفية حسب القسم','لكل دين: تاريخ البداية، موعد الانتهاء المقرر، ومدته الكاملة','طريقتا سداد: أقساط شهرية، أو دفعة واحدة بالمبلغ الإجمالي في موعد تحدده، وزر «كامل المتبقي» للسداد النهائي','«سجل الديون المنتهية»: كل دين ينتهي يبقى محفوظًا بدفعاته ومستنداته، ومتى بدأ وانتهى، والمدة التي استغرقها، وطريقة التخلص منه','تقرير مبسّط لقسم الديون أسفل الرئيسية: المتبقي، الأقساط الباقية، يوم التحرر، وكل قسم بضغطة','التقرير المطبوع وكشف الدين يعرضان القسم والمدة والديون المنتهية']},
  {v:'2.10.0',d:'2026-10-13',items:['«وضع المدير»: التعديل والحذف والتراجع وتعديل الالتزامات الشهرية والديون والخطط والسيارات والأمانات تحتاج رمز المدير أو بصمة الوجه','اعتماد المدفوعات: ما يُدخل ووضع المدير مقفل يُعلَّم «⏳ بانتظار الاعتماد» حتى تراجعه وتعتمده أو تعدّله، مع «اعتماد الكل»','تنبيه «بانتظار اعتمادك» في الرئيسية، وعلامة ⏳ على الدفعات المنتظرة في الالتزامات والديون والسجل','قفل تلقائي بعد 5 دقائق بدون استخدام أو عند الخروج من التطبيق، وزر 🛡️ في الأعلى للفتح والقفل','رمز المدير يُحفظ مشفّرًا في هاتفك فقط، ولا يدخل في المزامنة ولا النسخة الاحتياطية']},
@@ -2509,7 +2537,7 @@ function loadSample(){
 }
 
 
-/* ---------- 26. التقارير للطباعة وحفظ PDF ---------- */
+/* ---------- 26. التقارير: الطباعة وPDF وExcel / Numbers ---------- */
 /* الأقسام المتاحة في التقرير المطبوع، والقوالب الجاهزة */
 const PR_SECTIONS=[
  ['summary','الملخص والأرقام الرئيسية'],['review','ملاحظات للمراجعة'],['months','تفصيل كل شهر'],['cats','المصاريف حسب الفئة'],
@@ -2598,7 +2626,9 @@ function reportDoc(o){o=o||prOpts();const R=prRange(o),has=k=>o.secs.includes(k)
   return {title:R.label,cls,orient:o.orient,body:head+toc+(h||'<p>اختر قسمًا واحدًا على الأقل.</p>')+foot,count:parts.length,tx:A.length};
 }
 /* تصميم التقرير: واحد للمعاينة والطباعة والملف المحفوظ */
-const PRINT_CSS=`.rep{font-family:-apple-system,"SF Arabic","Segoe UI",Tahoma,sans-serif;color:#16202E;background:#fff;direction:rtl;font-size:12px;line-height:1.55}
+const PRINT_CSS=`.rep .dua{border:1px solid #D9C98F;background:#FBF7EA;border-radius:10px;padding:8px 14px;text-align:center;-webkit-print-color-adjust:exact;print-color-adjust:exact}.rep .dua p{margin:4px 0;white-space:pre-line;font-size:1.05em}
+.rep .pbar{display:inline-block;width:56px;height:7px;border-radius:4px;background:#E6EAF0;vertical-align:middle;overflow:hidden;-webkit-print-color-adjust:exact;print-color-adjust:exact}.rep .pbar i{display:block;height:100%;background:#1E7A4F}.rep .pbar.wide{width:100%}
+.rep{font-family:-apple-system,"SF Arabic","Segoe UI",Tahoma,sans-serif;color:#16202E;background:#fff;direction:rtl;font-size:12px;line-height:1.55}
 .rep.fs-lg{font-size:14px}
 .rep .rh{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;border-bottom:3px solid #163C74;padding-bottom:10px;margin-bottom:12px}
 .rep .rapp{color:#2461AE;font-weight:700;font-size:1.08em}.rep h1{margin:2px 0 0;font-size:1.8em;line-height:1.3}.rep .rper{color:#5D6878;font-size:.92em;margin-top:2px}.rep .rmeta{color:#5D6878;font-size:.92em;text-align:left;line-height:1.7}
@@ -2622,6 +2652,176 @@ function printReport(o){const r=reportDoc(o);prStyle(r.orient);let el=document.g
   try{window.print()}catch(e){toast('تعذّرت الطباعة هنا. استخدم «حفظ كملف»')}setTimeout(done,3000)}
 function saveReportFile(o){const r=reportDoc(o);const html=`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(r.title)}</title><style>${PRINT_CSS} body{margin:0;background:#fff}.rep{max-width:900px;margin:0 auto;padding:20px}@page{size:A4 ${r.orient==='landscape'?'landscape':'portrait'};margin:14mm 12mm}@media print{.rep{padding:0;max-width:none}}</style></head><body><div class="${r.cls}">${r.body}</div></body></html>`;
   const R=prRange(o||prOpts());saveFile('idarat-shuooni-report-'+R.from+'_'+R.to+'.html',html,'text/html');toast('حُفظ التقرير. افتحه في المتصفح واطبعه أو احفظه PDF')}
+/* ===== تصدير Excel / Numbers (.xlsx) داخل الهاتف بدون أي مكتبة أو اتصال ===== */
+const XL=(()=>{
+  const enc=new TextEncoder();
+  const crcT=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+  const crc=b=>{let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=crcT[(c^b[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0};
+  /* ملف ZIP بسيط (بدون ضغط) كما يتطلبه تنسيق xlsx */
+  function zip(files){const parts=[],cen=[];let off=0;
+    const u16=v=>[v&255,(v>>>8)&255],u32=v=>[v&255,(v>>>8)&255,(v>>>16)&255,(v>>>24)&255];
+    for(const f of files){const name=enc.encode(f.name),data=typeof f.data==='string'?enc.encode(f.data):f.data,c=crc(data);
+      const loc=new Uint8Array([...u32(0x04034b50),...u16(20),...u16(0x0800),...u16(0),...u16(0),...u16(0x21),...u32(c),...u32(data.length),...u32(data.length),...u16(name.length),...u16(0)]);
+      parts.push(loc,name,data);
+      cen.push(new Uint8Array([...u32(0x02014b50),...u16(20),...u16(20),...u16(0x0800),...u16(0),...u16(0),...u16(0x21),...u32(c),...u32(data.length),...u32(data.length),...u16(name.length),...u16(0),...u16(0),...u16(0),...u16(0),...u32(0),...u32(off)]),name);
+      off+=loc.length+name.length+data.length}
+    const cs=cen.reduce((s,p)=>s+p.length,0);
+    const end=new Uint8Array([...u32(0x06054b50),...u16(0),...u16(0),...u16(files.length),...u16(files.length),...u32(cs),...u32(off),...u16(0)]);
+    const all=parts.concat(cen,[end]);const out=new Uint8Array(all.reduce((s,p)=>s+p.length,0));let i=0;for(const p of all){out.set(p,i);i+=p.length}return out}
+  const x=s=>String(s).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g,'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const col=i=>{let s='';i++;while(i){const m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26)}return s};
+  const serial=iso=>{const [y,m,d]=iso.split('-').map(Number);return (Date.UTC(y,m-1,d)-Date.UTC(1899,11,30))/864e5};
+  /* الأنماط: 0 نص، 1 رأس الجدول، 2 مبلغ بكسور، 3 تاريخ، 4 نسبة، 5 عنوان، 6 مجموع بكسور، 7 وصف، 8 مبلغ صحيح، 9 مجموع صحيح، 10 نص المجموع، 11 عدد */
+  const STYLES=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="2"><numFmt numFmtId="164" formatCode="#,##0.000"/><numFmt numFmtId="165" formatCode="yyyy-mm-dd"/></numFmts>
+<fonts count="4"><font><sz val="11"/><name val="Arial"/></font><font><b/><sz val="11"/><name val="Arial"/></font><font><b/><sz val="15"/><color rgb="FF1F5AA6"/><name val="Arial"/></font><font><sz val="10"/><color rgb="FF5D6878"/><name val="Arial"/></font></fonts>
+<fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFDCE6F4"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF1F3F6"/><bgColor indexed="64"/></patternFill></fill></fills>
+<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left/><right/><top/><bottom style="thin"><color rgb="FFB8C2D0"/></bottom><diagonal/></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="12"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"><alignment vertical="center" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>
+<xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"><alignment horizontal="center"/></xf>
+<xf numFmtId="9" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"><alignment horizontal="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+<xf numFmtId="164" fontId="1" fillId="3" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1"/>
+<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+<xf numFmtId="3" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>
+<xf numFmtId="3" fontId="1" fillId="3" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1"/>
+<xf numFmtId="0" fontId="1" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
+<xf numFmtId="1" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"><alignment horizontal="center"/></xf></cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  /* خلية: الأنواع s نص، n مبلغ، i عدد، d تاريخ، p نسبة (0-1) */
+  const cell=(ref,v,t,tot)=>{if(v===null||v===undefined||v==='')return tot?`<c r="${ref}" s="10"/>`:'';
+    if(v&&typeof v==='object'&&'v' in v){t=v.t||t;v=v.v;if(v===null||v===undefined||v==='')return ''}
+    if(t==='d'&&typeof v==='string'&&/^\d{4}-\d\d-\d\d$/.test(v))return `<c r="${ref}" s="3"><v>${serial(v)}</v></c>`;
+    if((t==='n'||t==='i'||t==='p')&&typeof v==='number'&&isFinite(v)){const r=Math.round(v*1000)/1000;const s=t==='p'?4:t==='i'?11:Number.isInteger(r)?(tot?9:8):(tot?6:2);return `<c r="${ref}" s="${s}"><v>${t==='p'?v:r}</v></c>`}
+    return `<c r="${ref}" t="inlineStr" s="${tot?10:0}"><is><t xml:space="preserve">${x(v)}</t></is></c>`};
+  function sheetXml(sh){const head=sh.head,n=head.length,H=4;let rows='';const last=col(n-1);
+    rows+=`<row r="1" ht="24" customHeight="1">${cell('A1',sh.title,'s').replace('s="0"','s="5"')}</row>`;
+    if(sh.sub)rows+=`<row r="2">${cell('A2',sh.sub,'s').replace('s="0"','s="7"')}</row>`;
+    rows+=`<row r="${H}" ht="30" customHeight="1">${head.map((h,i)=>`<c r="${col(i)}${H}" t="inlineStr" s="1"><is><t>${x(h[0])}</t></is></c>`).join('')}</row>`;
+    sh.rows.forEach((r,k)=>{const R=H+1+k;rows+=`<row r="${R}">${r.map((v,i)=>cell(col(i)+R,v,head[i][1])).join('')}</row>`});
+    const lastData=H+sh.rows.length;
+    if(sh.totals&&sh.rows.length){const R=lastData+1;rows+=`<row r="${R}">${head.map((h,i)=>{const ref=col(i)+R;
+      if(i===0)return `<c r="${ref}" t="inlineStr" s="10"><is><t>المجموع</t></is></c>`;
+      if(sh.totals.includes(i)){const sum=Math.round(sh.rows.reduce((s,r)=>{const v=r[i]&&typeof r[i]==='object'?r[i].v:r[i];return s+(typeof v==='number'?v:0)},0)*1000)/1000;
+        return `<c r="${ref}" s="${Number.isInteger(sum)?9:6}"><f>SUM(${col(i)}${H+1}:${col(i)}${lastData})</f><v>${sum}</v></c>`}
+      return `<c r="${ref}" s="10"/>`}).join('')}</row>`}
+    const widths=head.map(h=>h[2]||(h[1]==='s'?18:h[1]==='d'?13:12));
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><sheetViews><sheetView rightToLeft="1" workbookViewId="0"${sh.first?' tabSelected="1"':''}><pane ySplit="${H}" topLeftCell="A${H+1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+<sheetFormatPr defaultRowHeight="18"/><cols>${widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('')}</cols>
+<sheetData>${rows}</sheetData>${sh.rows.length?`<autoFilter ref="A${H}:${last}${lastData}"/>`:''}
+<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="${n>8?'landscape':'portrait'}" fitToWidth="1" fitToHeight="0"/></worksheet>`}
+  function build(sheets){sheets=sheets.filter(Boolean);sheets[0].first=true;const used={};
+    sheets.forEach((s,i)=>{let nm=String(s.name).replace(/[\[\]:*?\/\\]/g,' ').slice(0,31)||'ورقة';while(used[nm])nm=(nm.slice(0,28)+' '+(i+1));used[nm]=1;s.name=nm});
+    const files=[
+     {name:'[Content_Types].xml',data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((s,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`},
+     {name:'_rels/.rels',data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>`},
+     {name:'docProps/core.xml',data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>إدارة شؤوني</dc:title><dc:creator>إدارة شؤوني</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString().slice(0,19)}Z</dcterms:created></cp:coreProperties>`},
+     {name:'xl/workbook.xml',data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView/></bookViews><sheets>${sheets.map((s,i)=>`<sheet name="${x(s.name)}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')}</sheets><definedNames>${sheets.map((s,i)=>s.rows.length?`<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">'${x(s.name).replace(/'/g,"''")}'!$A$4:$${col(s.head.length-1)}$${4+s.rows.length}</definedName>`:'').join('')}</definedNames><calcPr calcId="0" fullCalcOnLoad="1"/></workbook>`},
+     {name:'xl/_rels/workbook.xml.rels',data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((s,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`},
+     {name:'xl/styles.xml',data:STYLES}].concat(sheets.map((s,i)=>({name:`xl/worksheets/sheet${i+1}.xml`,data:sheetXml(s)})));
+    return zip(files)}
+  return{build}})();
+/* أوراق التصدير: كل قسم في ورقة مرتبة، مع فلترة وترتيب جاهز ومجاميع بالمعادلات */
+const EXP_SECS=[['summary','الملخص'],['debts','الديون (الحالية، الدفعات، المنتهية)'],['monthly','الالتزامات الشهرية'],['tx','العمليات (الدخل والمصاريف)'],['plans','الخطط والادخار'],['trusts','الأمانات']];
+function expRange(p){const y=S.month.slice(0,4);if(p==='year')return{from:y+'-01-01',to:y+'-12-31',label:'سنة '+y};
+  if(p==='all'){const L=list().map(t=>t.date).filter(Boolean).sort();return{from:L[0]||today(),to:L[L.length-1]>today()?L[L.length-1]:today(),label:'كل الفترات'}}
+  const [yy,mm]=S.month.split('-').map(Number);return{from:S.month+'-01',to:S.month+'-'+String(new Date(yy,mm,0).getDate()).padStart(2,'0'),label:monthName(S.month)}}
+function expSheets(secs,period){const R=expRange(period),sub=`إدارة شؤوني · أُعدّ في ${fmtD(today())} · العملة: الريال العُماني`;const out=[];const has=k=>secs.includes(k);
+  const pl=debtSim();const DS=debts(),act=DS.filter(d=>+d.balance>0.0005),done=DS.filter(d=>!(+d.balance>0.0005));const GK=Object.keys(DEBT_G);
+  if(has('summary')){const A=inRange(R.from,R.to);const F=debtFree();const st=recStatus(ym(new Date()));const G=(S.settings.goals||[]).map(g=>goalCalc(g));const TR=trusts().map(trustCalc);
+    out.push({name:'الملخص',title:'ملخص إدارة شؤوني',sub,head:[['البند','s',34],['القيمة','n',18],['ملاحظة','s',34]],rows:[
+      ['الدخل ('+R.label+')',sum(A,'inc'),''],['المصاريف ('+R.label+')',sum(A,'exp'),''],['الصافي ('+R.label+')',r3(sum(A,'inc')-sum(A,'exp')),''],
+      ['إجمالي الديون المتبقية',r3(act.reduce((s,d)=>s+(+d.balance),0)),countWord(act.length,'دين واحد','دينان','ديون','دينًا')],
+      ['الأقساط الشهرية',r3(act.reduce((s,d)=>s+debtInst(d),0)),''],
+      ['يوم التحرر من الديون',F&&F.date?{v:F.date,t:'d'}:'—',F&&F.left?'باقٍ '+countWord(F.left,'قسط واحد','قسطان','أقساط','قسطًا'):''],
+      ['ديون انتهت',{v:done.length,t:'i'},'مجموع ما سُدّد '+money(done.reduce((s,d)=>s+((d.closed||{}).total||0),0))],
+      ['الالتزامات هذا الشهر: المستحق',r3(st.total),''],['الالتزامات هذا الشهر: المدفوع',r3(st.paidAmt),'الباقي '+money(st.dueLeft)],
+      ['الخطط: المدّخر',r3(G.reduce((s,c)=>s+c.sv,0)),'من '+money(G.reduce((s,c)=>s+c.tgt,0))],
+      ['الأمانات المتبقية عندك',r3(TR.reduce((s,c)=>s+c.rem,0)),'ليست مالك']]})}
+  if(has('debts')){
+    out.push({name:'الديون',title:'الديون الحالية',sub:sub+' · استخدم أسهم الفلترة في الرأس للتصفية والترتيب',head:[['القسم','s',18],['الدين','s',22],['النوع','s',14],['الجهة / الشخص','s',16],['تاريخ البداية','d'],['المبلغ الأصلي','n'],['المسدَّد','n'],['المتبقي','n'],['نسبة السداد','p'],['القسط الشهري','n'],['الفائدة %','i'],['طريقة السداد','s',16],['أقساط متبقية','i'],['ينتهي المقرر','d'],['المدة','s',16],['مراجعة ✓','s',10]],
+      rows:debtSort(act,'end',pl).sort((a,b)=>GK.indexOf(debtGroup(a))-GK.indexOf(debtGroup(b))).map(d=>{const o=Math.max(+d.original||0,+d.balance||0),e=debtEnd(d,pl),st=debtStart(d);const once=d.mode==='once';
+        return [DEBT_G[debtGroup(d)][0],d.name,(DEBT_T[d.type]||DEBT_T.other)[0],d.lender||'',st,o,r3(o-(+d.balance)),+d.balance,o?(o-(+d.balance))/o:0,once?0:+d.payment||0,+d.rate||0,once?'دفعة واحدة':'أقساط شهرية',once?'':debtLeft(d),e||'',e?spanWord(st,e):'','☐']}),totals:[5,6,7,9]});
+    const P=[];DS.forEach(d=>{const B=payBalances(d);debtPays(d).forEach(p=>{const q=payParts(d,p);P.push([p.date,d.name,DEBT_G[debtGroup(d)][0],+p.amt,q.int,q.prin,B.get(p),p.tx&&S.tx[p.tx]?'نعم':'لا'])})});
+    P.sort((a,b)=>a[0].localeCompare(b[0]));
+    out.push({name:'دفعات الديون',title:'كل دفعات الديون',sub,head:[['التاريخ','d'],['الدين','s',22],['القسم','s',18],['المبلغ','n'],['منها فائدة','n'],['من أصل الدين','n'],['المتبقي بعدها','n'],['مسجّلة كمصروف','s',12]],rows:P,totals:[3,4,5]});
+    out.push({name:'الديون المنتهية',title:'سجل الديون المنتهية',sub,head:[['الدين','s',22],['القسم','s',18],['الجهة / الشخص','s',16],['من','d'],['إلى','d'],['استغرق','s',16],['طريقة التخلص منه','s',26],['عدد الدفعات','i'],['مجموع المدفوع','n'],['الفوائد','n']],
+      rows:done.map(d=>{const c=d.closed||debtCloseInfo(d);return [d.name,DEBT_G[debtGroup(d)][0],d.lender||'',c.start,c.end,spanWord(c.start,c.end),CLOSE_M[c.method],c.count,c.total,c.int]}),totals:[7,8,9]})}
+  if(has('monthly')){const rows=[];const cm=ym(new Date());for(let m=R.from.slice(0,7);m<=R.to.slice(0,7)&&m<=cm;m=shiftMonth(m,1))
+    monthItems(m).forEach(i=>{const dates=i.kind==='rec'?recPays(i.ref).filter(t=>t.date.slice(0,7)===m).map(t=>fmtD(t.date)+': '+money(t.amount)):debtPays(i.ref).filter(p=>p.date&&p.date.slice(0,7)===m).map(p=>fmtD(p.date)+': '+money(p.amt));
+      const rem=r3(Math.max(0,i.amount-(i.paidAmt||0)));rows.push([monthName(m),i.name,i.kind==='debt'?'قسط دين':catOf(i.ref.cat).n,{v:i.day,t:'i'},i.amount,i.paidAmt||0,rem,i.isPaid?'مدفوع':i.paidAmt?'مدفوع جزئيًا':'لم يُدفع',dates.join(' · ')])});
+    out.push({name:'الالتزامات الشهرية',title:'الالتزامات الشهرية · '+R.label,sub,head:[['الشهر','s',14],['الالتزام','s',22],['الفئة','s',16],['يوم الدفع','i'],['المستحق','n'],['المدفوع','n'],['المتبقي','n'],['الحالة','s',13],['الدفعات','s',30]],rows,totals:[4,5,6]})}
+  if(has('tx')){const A=inRange(R.from,R.to).sort((a,b)=>a.date.localeCompare(b.date)||(a.createdAt||'').localeCompare(b.createdAt||''));
+    out.push({name:'العمليات',title:'العمليات · '+R.label,sub,head:[['التاريخ','d'],['النوع','s',9],['الفئة','s',16],['البيان','s',26],['طريقة الدفع','s',12],['الشخص','s',12],['الدخل','n'],['المصروف','n'],['ملاحظة','s',14]],
+      rows:A.map(t=>[t.date,t.type==='inc'?'دخل':'مصروف',catOf(t.cat).n,t.note||'',(METHODS.find(m=>m[0]===t.method)||['',''])[1],t.person?personName(t.person):'',t.type==='inc'?+t.amount:'',t.type==='exp'?+t.amount:'',t.pend?'بانتظار الاعتماد':t.sample?'مثال':'']),totals:[6,7]})}
+  if(has('plans')){const G=(S.settings.goals||[]).map(g=>({g,c:goalCalc(g)})).sort((a,b)=>(a.g.due||'').localeCompare(b.g.due||''));
+    out.push({name:'الخطط',title:'الخطط والادخار',sub,head:[['الخطة','s',22],['المبلغ المستهدف','n'],['المدّخر','n'],['المتبقي','n'],['نسبة الإنجاز','p'],['الموعد','d'],['الأيام المتبقية','i'],['المطلوب شهريًا','n'],['الحالة','s',12]],
+      rows:G.map(({g,c})=>[g.name,c.tgt,c.sv,c.rem,c.tgt?Math.min(1,c.sv/c.tgt):0,g.due||'',c.done?'':Math.max(0,c.days),c.done?0:r3(c.monthly||0),c.done?'اكتملت':c.past?'حان موعدها':'جارية']),totals:[1,2,3,7]})}
+  if(has('trusts')){const TL=trusts().map(t=>({t,c:trustCalc(t)})).sort((a,b)=>a.t.date.localeCompare(b.t.date));
+    out.push({name:'الأمانات',title:'الأمانات (أموال الآخرين عندك)',sub,head:[['صاحب الأمانة','s',20],['الغرض','s',18],['تاريخ الاستلام','d'],['المبلغ','n'],['المُرجع','n'],['المتبقي عندك','n'],['آخر إرجاع','d'],['موعد الإرجاع','d'],['مكانها','s',14],['الحالة','s',14]],
+      rows:TL.map(({t,c})=>[t.name,t.purpose||'',t.date,c.amt,c.ret,c.rem,c.last,t.due||'',TRUST_WHERE[t.where||'main'],TRUST_ST[c.st][0]]),totals:[3,4,5]})}
+  return out}
+/* المشاركة على الآيفون: «فتح في Numbers» أو «حفظ في الملفات»، وإلا تنزيل */
+async function shareFile(name,data,type){const f=new File([data],name,{type});
+  try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:name});return 'shared'}}catch(e){if(e&&e.name==='AbortError')return 'cancel'}
+  const url=URL.createObjectURL(f);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},2000);return 'saved'}
+async function exportXlsx(secs,period){let sh=expSheets(secs,period);if(sh.length>1)sh=sh.filter(x=>x.rows.length);if(!sh.length){toast('اختر قسمًا واحدًا على الأقل');return}
+  const data=XL.build(sh);const R=expRange(period);const ks=secs.filter(k=>k!=='summary');const nm='idarat-shuooni-'+(ks.length===1?ks[0]:'report')+'-'+(period==='all'?'all':R.from.slice(0,period==='year'?4:7))+'.xlsx';
+  const r=await shareFile(nm,data,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  if(r!=='cancel')toast(r==='shared'?'اختر «Numbers» لفتحه وتعديله، أو «حفظ في الملفات»':'حُفظ الملف '+nm+'، افتحه في Numbers أو Excel')}
+/* نافذة التصدير: Excel / Numbers أو PDF */
+function openExport(only){const L=document.getElementById('layer');const o=Object.assign({secs:EXP_SECS.map(s=>s[0]),period:'month'},S.settings.expOpts||{});if(only)o.secs=[only];
+  const draw=()=>{L.innerHTML=`${sheetTop('تصدير')}<h2 style="margin-top:0">تصدير وطباعة التقارير</h2>
+   <div class="stack">
+    <div class="field"><label>الأقسام</label><div class="prsecs">${EXP_SECS.map(([k,n])=>`<label class="toggle"><input type="checkbox" data-xs="${k}" ${o.secs.includes(k)?'checked':''}><span>${n}</span></label>`).join('')}</div></div>
+    <div class="field"><label>فترة العمليات والالتزامات</label><div class="seg seg3">${[['month',esc(monthName(S.month))],['year','سنة '+S.month.slice(0,4)],['all','كل الفترات']].map(([v,n])=>`<button class="n" data-xp="${v}" aria-pressed="${o.period===v}">${n}</button>`).join('')}</div></div>
+    <div class="panel expinfo"><b>📊 Excel / Numbers (.xlsx)</b><span class="note">كل قسم في ورقة مستقلة، من اليمين لليسار، مع أسهم الفلترة والترتيب في رأس كل جدول، ومجاميع بالمعادلات تتحدّث عند التعديل. على الآيفون اختر «Numbers» من قائمة المشاركة.</span>
+     <button class="btn block" id="xGo">تصدير Excel / Numbers</button></div>
+    <div class="panel expinfo"><b>📄 PDF للطباعة والمراجعة</b><span class="note">تقرير مرتب بجداول واضحة وعمود ☐ للمراجعة. من نافذة الطباعة اختر «مشاركة» ثم «حفظ في الملفات» ليصبح PDF.</span>
+     <button class="btn ghost block" id="xPdf">طباعة / حفظ PDF</button></div>
+    <p class="note" id="xErr" hidden style="color:var(--exp);margin:0"></p>
+   </div><div class="actions"><button class="btn ghost block" data-close>إغلاق</button></div></div></div>`};
+  const save=()=>{if(!only){S.settings.expOpts={secs:o.secs.slice(),period:o.period};putSettings()}};
+  draw();L.oninput=null;
+  L.onchange=e=>{const t=e.target;if(t.dataset.xs){o.secs=EXP_SECS.map(s=>s[0]).filter(k=>k===t.dataset.xs?t.checked:o.secs.includes(k));save()}};
+  L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
+    if(x.dataset.xp){o.period=x.dataset.xp;save();draw();return}
+    const err=m=>{const el=document.getElementById('xErr');el.hidden=!m;el.textContent=m||''};
+    if(!o.secs.length){err('اختر قسمًا واحدًا على الأقل');return}
+    if(x.id==='xGo'){x.disabled=true;x.textContent='جارٍ تجهيز الملف…';try{await exportXlsx(['summary'].concat(o.secs.filter(k=>k!=='summary')).filter(k=>o.secs.includes(k)),o.period)}catch(er){err('تعذّر إنشاء الملف')}x.disabled=false;x.textContent='تصدير Excel / Numbers';return}
+    if(x.id==='xPdf'){if(o.secs.length===1&&o.secs[0]==='debts'){printDebtsAll();return}
+      const map={summary:['summary'],debts:['debts'],monthly:['monthly'],tx:['tx'],plans:['plans'],trusts:['trusts']};const po=prOpts();const R=expRange(o.period);
+      po.secs=[].concat(...o.secs.map(k=>map[k]||[]));po.period=o.period==='all'?'range':o.period;if(o.period==='all'){po.from=R.from;po.to=R.to}printReport(po)}}}
+/* تقرير الديون الكامل للطباعة أو PDF: لمراجعة الانتهاء من الديون أولًا بأول */
+function printDebtsAll(){const DS=debts();if(!DS.length){toast('لا توجد ديون');return}const now=new Date();const N=v=>`<span class="n">${money(v)}</span>`;
+  const pl=debtSim(),F=debtFree();const act=DS.filter(d=>+d.balance>0.0005),done=DS.filter(d=>!(+d.balance>0.0005));
+  const O=act.reduce((s,d)=>s+Math.max(+d.original||0,+d.balance||0),0),Rm=act.reduce((s,d)=>s+(+d.balance),0);
+  const T=(head,rows,foot)=>`<table><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody>${foot?`<tfoot><tr>${foot.map(f=>`<td>${f}</td>`).join('')}</tr></tfoot>`:''}</table>`;
+  const bar=p=>`<span class="pbar"><i style="width:${Math.round(p)}%"></i></span> ${Math.round(p)}%`;
+  let body=`<header class="rh"><div><div class="rapp">إدارة شؤوني</div><h1>تقرير الديون</h1><div class="rper">${countWord(act.length,'دين قائم','دينان قائمان','ديون قائمة','دينًا قائمًا')}${done.length?' · '+countWord(done.length,'دين منتهٍ','دينان منتهيان','ديون منتهية','دينًا منتهيًا'):''}</div></div><div class="rmeta">أُعدّ في ${fmtD(today())} الساعة ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}<br>العملة: الريال العُماني (ر.ع.)<br>راجعه: ____________</div></header>
+   ${debtNoteParts().length?`<section class="dua">${debtNoteParts().map(p=>`<p>${esc(p)}</p>`).join('')}</section>`:''}<section><h2>الملخص</h2><div class="kpis"><div><span>المتبقي من الديون</span><b class="no">${N(Rm)}</b></div><div><span>من أصل</span><b>${N(O)}</b></div><div><span>نسبة ما سدّدته</span><b class="ok">${O?Math.round((O-Rm)/O*100):100}%</b></div><div><span>الأقساط الشهرية</span><b>${N(act.reduce((s,d)=>s+debtInst(d),0))}</b></div>
+    ${F&&!F.stuck?`<div><span>يوم التحرر من الديون</span><b>${fmtD(F.date)}</b></div><div><span>الأقساط الباقية</span><b>${F.left||'—'}</b></div><div><span>الأيام الباقية</span><b>${F.days}</b></div>`:''}${done.length?`<div><span>ديون انتهت</span><b class="ok">${done.length}</b></div>`:''}</div></section>`;
+  Object.entries(DEBT_G).forEach(([k,g])=>{const L=debtSort(act.filter(d=>debtGroup(d)===k),'end',pl);if(!L.length)return;
+    body+=`<section><h2>${g[0]}</h2>`+T(['#','الدين','الجهة / الشخص','بدأ','الأصلي','المتبقي','التقدّم','القسط','باقٍ','ينتهي المقرر','المدة','✓'],L.map((d,i)=>{const o=Math.max(+d.original||0,+d.balance||0),e=debtEnd(d,pl),st=debtStart(d),n=debtLeft(d);
+      return `<tr><td class="idx">${i+1}</td><td>${esc(d.name)}${+d.rate?` <small>(${d.rate}%)</small>`:''}</td><td>${esc(d.lender||'—')}</td><td class="nw">${fmtD(st)}</td><td>${N(o)}</td><td>${N(d.balance)}</td><td class="nw">${bar(o?(o-(+d.balance))/o*100:0)}</td><td>${d.mode==='once'?'دفعة واحدة':N(d.payment)}</td><td>${d.mode==='once'?'—':n||'—'}</td><td class="nw">${e?fmtD(e):'—'}</td><td>${e?spanWord(st,e):'—'}</td><td class="box">☐</td></tr>`}),
+      ['','المجموع','','',N(L.reduce((s,d)=>s+Math.max(+d.original||0,+d.balance||0),0)),N(L.reduce((s,d)=>s+(+d.balance),0)),'',N(L.reduce((s,d)=>s+debtInst(d),0)),'','','',''])+`</section>`});
+  const ms=[];for(let k=11;k>=0;k--)ms.push(shiftMonth(ym(now),-k));const byM=ms.map(m=>({m,v:DS.reduce((s,d)=>s+debtPays(d).filter(p=>p.date&&p.date.slice(0,7)===m).reduce((a,p)=>a+(+p.amt||0),0),0)})).filter(x=>x.v>0);
+  if(byM.length){const mx=Math.max(...byM.map(x=>x.v));body+=`<section><h2>ما سدّدته شهرًا بشهر</h2>`+T(['الشهر','المسدَّد',''],byM.map(x=>`<tr><td class="nw">${esc(monthName(x.m))}</td><td>${N(x.v)}</td><td style="width:55%"><span class="pbar wide"><i style="width:${Math.round(x.v/mx*100)}%"></i></span></td></tr>`),['المجموع',N(byM.reduce((s,x)=>s+x.v,0)),''])+`</section>`}
+  if(done.length)body+=`<section><h2>سجل الديون المنتهية</h2>`+T(['#','الدين','القسم','من','إلى','استغرق','طريقة التخلص منه','الدفعات','مجموع المدفوع'],done.map((d,i)=>{const c=d.closed||debtCloseInfo(d);return `<tr><td class="idx">${i+1}</td><td>${esc(d.name)}</td><td>${DEBT_G[debtGroup(d)][0]}</td><td class="nw">${fmtD(c.start)}</td><td class="nw">${fmtD(c.end)}</td><td>${spanWord(c.start,c.end)}</td><td>${CLOSE_M[c.method]}</td><td>${c.count}</td><td>${N(c.total)}</td></tr>`}),['','المجموع','','','','','','',N(done.reduce((s,d)=>s+((d.closed||{}).total||0),0))])+`</section>`;
+  body+=`<footer class="rf">تقرير من تطبيق «إدارة شؤوني»${S.settings.printDev===false?'':`<br>تصميم وتطوير: ${DEV.name}، ${DEV.title} · ${DEV.country}`}</footer>`;
+  prStyle('landscape');let el=document.getElementById('printArea');if(!el){el=document.createElement('div');el.id='printArea';document.body.appendChild(el)}
+  el.className='rep';el.innerHTML=body;const old=document.title;document.title='تقرير الديون - إدارة شؤوني';window.addEventListener('afterprint',()=>{document.title=old},{once:true});
+  try{window.print()}catch(e){toast('تعذّرت الطباعة هنا')}setTimeout(()=>{document.title=old},3000)}
 /* نافذة خيارات الطباعة مع المعاينة */
 function openPrintSheet(preset){const L=document.getElementById('layer');const o=prOpts();
   if(S.rmode==='year'&&o.period!=='range')o.period='year';else if(o.period==='year'&&S.rmode!=='year')o.period='month';
@@ -2776,6 +2976,10 @@ document.addEventListener('click',async e=>{
   if(b.dataset.dsort){S.debtSort=b.dataset.dsort;render();return}
   if(b.dataset.dgo){S.debtGrp=b.dataset.dgo;S.tab='debts';render();const el=b.dataset.dgo==='done'&&document.getElementById('debtArch');if(el)el.scrollIntoView({block:'start'});else window.scrollTo(0,0);return}
   if(b.dataset.unpay){const [k,id,m]=b.dataset.unpay.split('|');openUnpay(k,id,m);return}
+  if(b.dataset.dexp){if(b.dataset.dexp==='pdf')printDebtsAll();else exportXlsx(['summary','debts'],'all');return}
+  if(b.dataset.xopen){openExport(b.dataset.xopen);return}
+  if(b.id==='expOpen'){openExport();return}
+  if(b.id==='dnEdit'){openDebtNote();return}
   if(b.dataset.dpe){const [did,pid]=b.dataset.dpe.split('|');openDebtPayEdit(did,pid);return}
   if(b.dataset.dprint){printDebt(b.dataset.dprint);return}
   if(b.dataset.cdview){const id=b.dataset.cdview;withVault(()=>viewDoc(id));return}
