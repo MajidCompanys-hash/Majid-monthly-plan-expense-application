@@ -357,6 +357,28 @@ body:has(.sheet) .toast{bottom:auto;top:calc(12px + env(safe-area-inset-top,0px)
 .gbtns{display:flex;gap:8px;flex-wrap:wrap}
 .dleft{font-size:12.5px;color:var(--muted);background:var(--surface-2);border-radius:10px;padding:6px 10px;align-self:flex-start}
 .dfree .hp-cells b{font-size:14px}
+/* قسم الديون: الأقسام والفرز والسجل المنتهي */
+.dgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin-top:10px}
+.dgcell{border:1px solid var(--line);border-inline-start:4px solid var(--gc);background:var(--surface);border-radius:14px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;text-align:right;font:inherit;color:inherit;box-shadow:var(--shadow);cursor:pointer}
+.dgcell[aria-pressed="true"]{outline:2px solid var(--gc);outline-offset:1px}
+.dgcell span,.dgcell small{font-size:11.5px;color:var(--muted)}
+.dgcell b{font-size:15px}
+.dfilter{margin:8px 0 6px}
+.dsort{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0 0 6px}
+.dsort .chip{font-size:12.5px}
+.dghead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:16px 0 8px;padding-inline-start:10px;border-inline-start:4px solid var(--gc)}
+.dcard{border-inline-start:4px solid var(--gc)}
+.dinfo{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.dinfo div{background:var(--surface-2);border-radius:10px;padding:6px 8px;display:flex;flex-direction:column;min-width:0}
+.dinfo span{font-size:11px;color:var(--muted)}
+.dinfo b{font-size:12.5px}
+.ddone{display:flex;flex-direction:column;gap:6px}
+.ddone div{display:flex;flex-direction:column}
+.ddone span{font-size:11.5px;color:var(--muted)}
+.ddone b{font-size:13.5px;font-weight:600}
+.dgroupnote{margin:-4px 2px 0}
+.hp-r{display:flex;flex-direction:column;align-items:flex-end;white-space:nowrap}
+.hp-r small{font-size:11px;color:var(--muted)}
 .plangrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .pt{border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:12px;display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:right;box-shadow:var(--shadow)}
 .pt b{font-size:14px}

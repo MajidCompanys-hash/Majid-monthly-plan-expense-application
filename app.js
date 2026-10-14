@@ -170,7 +170,7 @@ function dashHtml(){
   T.push({i:'car',c:'#3E7CB1',attr:'data-tab="cars"',t:'السيارات',st:al.length?'alert':C.length?'good':'',s:!C.length?'أضف سيارتك لمتابعة التأمين والملكية والصيانة':al.length?esc(al[0].text)+(al.length>1?' (+'+(al.length-1)+')':''):(C.length===1?'سيارة واحدة':C.length+' سيارات')+' · كل شيء ساري'});
   {const A=docAlertList();const n=Vault.docs.length;T.push({i:'docs',c:'#24508C',attr:'data-tab="docs"',t:'مستنداتي',st:A.some(a=>a.level==='late')?'alert':'',s:A.length?esc(A[0].title)+' '+esc(A[0].when.split('،')[0]):n?n+' مستند في الخزنة المشفّرة':'البطاقة والجواز والـCV في خزنة مشفّرة'})}
   {const Ds=debts(),cm=ym(new Date());const rem=Ds.reduce((s,d)=>s+(+d.balance||0),0);const lateD=Ds.filter(d=>+d.balance>0&&!(d.pays||[]).some(x=>x.date&&x.date.slice(0,7)===cm)&&new Date().getDate()>(+d.day||1));const pl=Ds.length?simDebts(Ds,debtPlan().extra,debtPlan().strategy,true):null;
-   T.push({i:'debt',c:'#8A4F7D',attr:'data-tab="debts"',t:'ديوني',st:lateD.length?'alert':Ds.length&&rem<=0?'good':'',s:!Ds.length?'أضف ديونك لتعرف متى تتخلص منها':rem<=0?'لا ديون متبقية':lateD.length?'قسط '+esc(lateD[0].name)+' متأخر':'متبقٍ <span class="num">'+amtH(rem)+'</span>'+(pl&&pl.months?' · باقٍ '+countWord(pl.months,'قسط واحد','قسطان','أقساط','قسطًا'):'')})}
+   T.push({i:'debt',c:'#8A4F7D',attr:'data-tab="debts"',t:'قسم الديون',st:lateD.length?'alert':Ds.length&&rem<=0?'good':'',s:!Ds.length?'أضف ديونك لتعرف متى تتخلص منها':rem<=0?'لا ديون متبقية':lateD.length?'قسط '+esc(lateD[0].name)+' متأخر':'متبقٍ <span class="num">'+amtH(rem)+'</span>'+(pl&&pl.months?' · باقٍ '+countWord(pl.months,'قسط واحد','قسطان','أقساط','قسطًا'):'')})}
   {const held=trustsHeld(),n=trusts().filter(t=>trustCalc(t).rem>0).length,al=trustAlertList();T.push({i:'trust',c:'#6B5C3A',attr:'data-tab="trusts"',t:'الأمانات',st:al.some(a=>a.level==='late')?'alert':'',s:held?'عندك <span class="num">'+amtH(held)+'</span> لـ'+countWord(n,'شخص واحد','شخصين','أشخاص','شخصًا')+(al.length?' · '+al.length+' موعد قريب':''):'وثّق أموال الآخرين التي عندك'})}
   const st=recStatus(m);const late=st.R.filter(i=>!i.isPaid&&(m<ym(new Date())||(m===ym(new Date())&&new Date().getDate()>i.day)));
   T.push({i:'bills',c:'#6B5CA5',attr:'data-tab="monthly"',t:'المصاريف الشهرية',st:late.length?'alert':st.R.length&&!st.left?'good':'',s:!st.R.length?'الفواتير والإيجار وأقساط الديون في مكان واحد':!st.left?'دفعت كلها هذا الشهر':'باقي '+st.left+' من '+st.R.length+(late.length?' · '+late.length+' متأخر':'')});
@@ -210,7 +210,7 @@ function advPriorities(c){const P=[];const add=(w,ic,t,s,act,kind)=>P.push({w,ic
   c.G.filter(x=>x.c.past&&!x.c.done&&x.c.tgt).slice(0,2).forEach(x=>add(75,'plan','حان موعد «'+esc(x.g.name)+'» ولم تكتمل','ادّخرت <b class="num">'+amtH(x.c.sv)+'</b> من <b class="num">'+amtH(x.c.tgt)+'</b>.',['افتح الخطة','data-goplan="'+esc(x.g.id)+'"']));
   if(c.gs.total>0.0005&&c.day>=10)add(c.day>=20?68:52,'plan','باقي حصة خططك لهذا الشهر','ادّخر <b class="num">'+amtH(c.gs.total)+'</b>'+(c.gs.near?'، وأقرب خطة «'+esc(c.gs.near.g.name)+'»':'')+'.',['أودعت مبلغًا','data-advdep="1"'],'share');
   {const acc=savAcc();if(acc.balance!==null&&acc.balance!==''&&(+acc.balance)<savTotal()-0.0005)add(60,'warn','رصيد حساب الادخار أقل من مجموع خططك','الفرق <b class="num">'+amtH(savTotal()-(+acc.balance))+'</b>. سجّل ما صرفته من الخطط.',['حساب الادخار','data-tab="budget"'])}
-  if(c.Ds.length&&c.baseInc){const inst=c.Ds.reduce((s,d)=>s+(+d.payment||0),0);const r=inst/c.baseInc;
+  if(c.Ds.length&&c.baseInc){const inst=c.Ds.reduce((s,d)=>s+debtInst(d),0);const r=inst/c.baseInc;
     if(r>0.4)add(72,'debt','أقساطك '+Math.round(r*100)+'% من دخلك','الأفضل أن تبقى أقل من 40%. تجنّب أي دين جديد حتى تنخفض النسبة.',['ديوني','data-tab="debts"'])}
   if(c.Ds.length){const D=debtPlan();const ex=Math.max(10,Math.round(Math.max(0,sur||0)*0.1/5)*5);const b=simDebts(c.Ds,D.extra,D.strategy,true),p=simDebts(c.Ds,(+D.extra||0)+ex,D.strategy,true);
     if(!b.stuck&&!p.stuck&&b.months-p.months>=1)add(58,'debt','عجّل التخلص من ديونك','لو زدت <b class="num">'+amtH(ex)+'</b> شهريًا تنتهي في '+monthLabel(p.months)+' بدل '+monthLabel(b.months)+(b.interest-p.interest>0.5?' وتوفّر فوائد <b class="num">'+amtH(b.interest-p.interest)+'</b>':'')+'.',['خطة الديون','data-tab="debts"'])}
@@ -241,7 +241,7 @@ function advScore(c,P,CL){const parts=[];
   {const inc=c.inc||c.avgInc,exp=c.inc?c.exp:c.avgExp;const r=inc?(inc-exp)/inc:null;parts.push(['نسبة التوفير',r===null?12:Math.max(0,Math.min(1,r/0.2))*25,25])}
   {const em=c.G.find(x=>x.g.kind==='emergency');parts.push(['صندوق الطوارئ',em&&c.refExp?Math.min(1,em.c.sv/(c.refExp*3))*20:0,20])}
   {const late=c.st.R.filter(i=>!i.isPaid&&c.day>i.day).length;parts.push(['الالتزام بالدفع',Math.max(0,15-5*late),15])}
-  {let v=15;if(c.Ds.length){const r=c.baseInc?c.Ds.reduce((s,d)=>s+(+d.payment||0),0)/c.baseInc:1;v=r<=0.2?13:r<=0.4?9:r<=0.5?5:2}parts.push(['الديون',v,15])}
+  {let v=15;if(c.Ds.length){const r=c.baseInc?c.Ds.reduce((s,d)=>s+debtInst(d),0)/c.baseInc:1;v=r<=0.2?13:r<=0.4?9:r<=0.5?5:2}parts.push(['الديون',v,15])}
   {const sur=avgSurplus();let v=5;if(c.G.length){v=10;if(sur!==null&&c.gs.plan>sur+0.0005)v-=5;if(c.G.some(x=>x.c.past&&!x.c.done&&x.c.tgt))v-=3}parts.push(['الخطط',Math.max(0,v),10])}
   parts.push(['الميزانية',!c.B?2:c.exp<=c.B?5:0,5]);
   parts.push(['الترتيب والتنظيم',CL.length?CL.filter(x=>x.done).length/CL.length*10:0,10]);
@@ -503,8 +503,8 @@ function vHome(){
   return `<section class="hero"><div class="lbl">المتبقي في ${esc(MONTHS[+m.slice(5)-1])}</div>
    <div class="big"><span class="num">${left<0?'−':''}${money(Math.abs(left))}</span> <small>${CUR}</small></div>
    <div class="row"><div class="cell"><span><span class="ar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 7 7 17M7 9v8h8"/></svg></span>الدخل</span><b class="num">${amtH(inc)}</b></div><div class="cell"><span><span class="ar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></span>المصاريف</span><b class="num">${amtH(exp)}</b></div></div></section>${todayHtml()}
-   ${pendHtml()||billAlertsHtml()||trustAlertsHtml()||carAlertsHtml()||docAlertsHtml()?'<div style="margin-top:14px">'+pendHtml()+billAlertsHtml()+trustAlertsHtml()+carAlertsHtml()+docAlertsHtml()+'</div>':''}${widgetNudgeHtml()}${empty}${advHomeHtml()}${quickHtml()}${plansHomeHtml()}${debtHomeHtml()}${repHomeHtml()}<h2>أقسامي</h2>${dashHtml()}
-   ${recent.length?`<h2>آخر العمليات</h2><div class="panel" style="padding:6px 10px">${recent.map(txRow).join('')}</div><div style="margin-top:8px"><button class="chip" data-tab="log">عرض كل العمليات</button></div>`:''}`;
+   ${pendHtml()||billAlertsHtml()||trustAlertsHtml()||carAlertsHtml()||docAlertsHtml()?'<div style="margin-top:14px">'+pendHtml()+billAlertsHtml()+trustAlertsHtml()+carAlertsHtml()+docAlertsHtml()+'</div>':''}${widgetNudgeHtml()}${empty}${advHomeHtml()}${quickHtml()}${plansHomeHtml()}${repHomeHtml()}<h2>أقسامي</h2>${dashHtml()}
+   ${recent.length?`<h2>آخر العمليات</h2><div class="panel" style="padding:6px 10px">${recent.map(txRow).join('')}</div><div style="margin-top:8px"><button class="chip" data-tab="log">عرض كل العمليات</button></div>`:''}${debtHomeHtml()}`;
 }
 
 function vLog(){
@@ -706,7 +706,7 @@ function debtPaidIn(d,m){return (d.pays||[]).filter(p=>p.date&&p.date.slice(0,7)
 function monthItems(m){const out=[];
   recs().forEach(r=>{if(!recActive(r,m))return;const L=billLedger(r,m);if(L){out.push({kind:'rec',id:r.id,name:r.name,amount:L.total,bill:L.bill,prev:L.prev,day:+r.day||1,person:r.person||'',variable:!!(REC_KINDS[r.kind]&&REC_KINDS[r.kind].variable),isPaid:L.remaining<=0.0005,paidAmt:L.paid,tracked:true,ref:r});return}
     const p=recPaid(r,m);out.push({kind:'rec',id:r.id,name:r.name,amount:billAmt(r,m),day:+r.day||1,person:r.person||'',variable:!!(REC_KINDS[r.kind]&&REC_KINDS[r.kind].variable),isPaid:!!p,paidAmt:p?+p.amount:0,ref:r})});
-  debts().forEach(d=>{const pa=debtPaidIn(d,m);if(!(+d.balance>0)&&!pa)return;out.push({kind:'debt',id:d.id,name:'قسط '+d.name,amount:+d.payment||0,day:+d.day||1,person:'',variable:false,isPaid:pa>0,paidAmt:pa,ref:d})});
+  debts().forEach(d=>{const pa=debtPaidIn(d,m);if(!(+d.balance>0)&&!pa)return;const once=d.mode==='once';if(once&&!pa&&(!d.end||d.end.slice(0,7)!==m))return;out.push({kind:'debt',id:d.id,name:(once?'سداد ':'قسط ')+d.name,amount:once?r3((+d.balance)+pa):+d.payment||0,day:+d.day||1,person:'',variable:false,isPaid:pa>0,paidAmt:pa,ref:d})});
   return out}
 function recStatus(m){const R=monthItems(m);const paid=R.filter(i=>i.isPaid);const total=R.reduce((x,i)=>x+i.amount,0);const paidAmt=R.reduce((x,i)=>x+(i.paidAmt||0),0);const partial=R.filter(i=>!i.isPaid&&i.paidAmt>0);return{R,paid,partial,total,paidAmt,dueLeft:r3(R.filter(i=>!i.isPaid).reduce((x,i)=>x+i.amount-(i.paidAmt||0),0)),left:R.length-paid.length}}
 /* حساب الفاتورة: فاتورة كل شهر + المتأخرات السابقة − ما دفعته = المتبقي (للفواتير التي فيها «since») */
@@ -724,7 +724,7 @@ function billLedger(r,m){const since=r.since;if(!since||m<since)return null;
   return{prev:r3(prev),bill,total,paid:r3(paid),remaining:r3(total-paid)}}
 /* الفواتير القديمة: تفعيل الدفع الجزئي والمتبقي ابتداءً من الشهر الحالي (الأشهر السابقة كما هي) */
 function migrateRecs(){const R=S.settings.recurring||[];let ch=0;R.forEach(r=>{if(!r.since){r.since=ym(new Date());r.arrears=+r.arrears||0;ch=1}});
-  debts().forEach(d=>(d.pays||[]).forEach(p=>{if(!p.id){p.id=uidGen();ch=1}}));if(ch)putSettings()}
+  debts().forEach(d=>{(d.pays||[]).forEach(p=>{if(!p.id){p.id=uidGen();ch=1}});if(!d.start){d.start=debtStart(d);ch=1}if(!(+d.balance>0.0005)&&!d.closed){debtSync(d);ch=1}});if(ch)putSettings()}
 function remindDay(r){return Math.min(31,Math.max(1,+r.remind||Math.max(1,(+r.day||1)-2)))}
 /* تنبيهات الفواتير: من يوم التذكير الذي تحدده حتى تُدفع */
 function billAlertList(){const m=ym(new Date()),day=new Date().getDate();const out=[];
@@ -994,7 +994,7 @@ function openPayDel(txId){const t=S.tx[txId];if(!t)return;const L=document.getEl
   L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
     if(x.id==='pdYes'){const copy=Object.assign({},t);const rr=recs().find(y=>y.id===t.rec);if(rr){recLog(rr,'حذف دفعة '+rial(t.amount)+' بتاريخ '+fmtD(t.date));await putSettings()}await delTx(t.id);L.innerHTML='';toast('حُذفت الدفعة',async()=>{if(rr){rr.log=(rr.log||[]).slice(0,-1);await putSettings()}delete S.del[copy.id];await putTx(copy);toast('أُعيدت الدفعة')},9000)}}}
 function payAll(){const m=S.month,cur=m===ym(new Date());const L=document.getElementById('layer');
-  const items=monthItems(m).filter(i=>!i.isPaid).map(i=>{if(i.kind==='rec'){const st=recState(i.ref,m);return{i,amt:st.due}}const d=i.ref;return{i,amt:r3(Math.min(+d.payment||0,(+d.balance)*(1+(+d.rate||0)/1200)))}}).filter(x=>x.amt>0);
+  const items=monthItems(m).filter(i=>!i.isPaid).map(i=>{if(i.kind==='rec'){const st=recState(i.ref,m);return{i,amt:st.due}}const d=i.ref;return{i,amt:r3(Math.min(d.mode==='once'?+d.balance:+d.payment||0,(+d.balance)*(1+(+d.rate||0)/1200)))}}).filter(x=>x.amt>0);
   if(!items.length){toast('لا يوجد ما يُدفع');return}const tot=items.reduce((s,x)=>s+x.amt,0);
   L.innerHTML=`${sheetTop('تسجيل كل المتبقي')}<h2 style="margin-top:0">تسجيل كل المتبقي لـ${esc(monthName(m))}</h2>
    <div class="panel">${items.map(x=>`<div class="sumrow"><span>${esc(x.i.name)}</span><b class="num">${amtH(x.amt)}</b></div>`).join('')}<div class="sumrow total"><span>المجموع</span><b class="num">${amtH(tot)}</b></div></div>
@@ -1457,18 +1457,20 @@ function openSvc(cid,sid){
 }
 
 /* ---------- 17. ديوني وخطة التخلص منها ---------- */
-const DEBT_T={loan:['قرض بنكي','loan','#8A4F7D'],card:['بطاقة ائتمان','card','#B8423A'],car:['تمويل سيارة','car','#3E7CB1'],house:['تمويل سكني','home','#2F7F7A'],personal:['دين شخصي','family','#B0662F'],other:['دين آخر','iother','#7A8494']};
+const DEBT_T={loan:['قرض بنكي','loan','#8A4F7D'],card:['بطاقة ائتمان','card','#B8423A'],car:['تمويل سيارة','car','#3E7CB1'],house:['تمويل سكني','home','#2F7F7A'],people:['دين لشخص','family','#2E8B72'],personal:['دين شخصي','loan','#B0662F'],other:['دين آخر','iother','#7A8494']};
 function debts(){return S.settings.debts||[]}
 function debtPlan(){return Object.assign({strategy:'avalanche',extra:0},S.settings.debtPlan||{})}
 function monthLabel(n){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()+Math.max(0,n-1)+debtOff());return MONTHS[d.getMonth()]+' '+d.getFullYear()}
 function simDebts(list,extra,strategy,rollover){
-  const A=list.filter(d=>(+d.balance||0)>0.0005).map(d=>({id:d.id,b:+d.balance,r:(+d.rate||0)/1200,p:+d.payment||0,done:0}));
+  const now=new Date();const ahead=iso=>{const t=new Date(iso+'T12:00');return (t.getFullYear()-now.getFullYear())*12+t.getMonth()-now.getMonth()};
+  const A=list.filter(d=>(+d.balance||0)>0.0005).map(d=>{const once=d.mode==='once';return{id:d.id,b:+d.balance,r:(+d.rate||0)/1200,p:once?0:+d.payment||0,once,at:once&&d.end?Math.max(1,ahead(d.end)+1):1,done:0}});
   const budget=A.reduce((s,d)=>s+d.p,0)+(+extra||0);let m=0,interest=0,paid=0;
   while(A.some(d=>d.b>0.0005)&&m<600){m++;
     A.forEach(d=>{if(d.b>0){const i=d.b*d.r;d.b+=i;interest+=i}});
     let left=rollover?budget:Infinity;
-    A.forEach(d=>{if(d.b>0){const x=Math.min(d.b,d.p,left);d.b-=x;paid+=x;if(rollover)left-=x}});
-    if(rollover){const order=A.filter(d=>d.b>0.0005).sort(strategy==='snowball'?(a,b)=>a.b-b.b:(a,b)=>(b.r-a.r)||(a.b-b.b));
+    A.forEach(d=>{if(d.b>0&&!d.once){const x=Math.min(d.b,d.p,left);d.b-=x;paid+=x;if(rollover)left-=x}});
+    A.forEach(d=>{if(d.once&&d.b>0&&m>=d.at){paid+=d.b;d.b=0}});
+    if(rollover){const order=A.filter(d=>d.b>0.0005&&!d.once).sort(strategy==='snowball'?(a,b)=>a.b-b.b:(a,b)=>(b.r-a.r)||(a.b-b.b));
       for(const d of order){if(left<=0.0005)break;const x=Math.min(d.b,left);d.b-=x;paid+=x;left-=x}}
     A.forEach(d=>{if(d.b<=0.0005&&!d.done){d.b=0;d.done=m}})}
   const stuck=A.some(d=>!d.done);
@@ -1476,7 +1478,7 @@ function simDebts(list,extra,strategy,rollover){
 function debtBadge(d){const t=DEBT_T[d.type]||DEBT_T.other;return `<span class="cbadge" style="background:${t[2]}1f;color:${t[2]}">${svgI(CI[t[1]]||CI.iother)}</span>`}
 function debtResHtml(){const Ds=debts(),P=debtPlan();if(!Ds.some(d=>+d.balance>0))return '<div class="okbox">لا توجد ديون متبقية. مبروك!</div>';
   const plan=simDebts(Ds,P.extra,P.strategy,true),base=simDebts(Ds,0,P.strategy,false);
-  if(plan.stuck){const bad=Ds.filter(d=>+d.balance>0&&(+d.payment||0)<=(+d.balance)*(+d.rate||0)/1200+0.0005).map(d=>d.name);
+  if(plan.stuck){const bad=Ds.filter(d=>+d.balance>0&&d.mode!=='once'&&(+d.payment||0)<=(+d.balance)*(+d.rate||0)/1200+0.0005).map(d=>d.name);
     return `<div class="warnbox">لا يمكن إنهاء الديون بهذه المبالغ: ${bad.length?'القسط لا يغطي الفائدة الشهرية في '+bad.map(esc).join('، ')+'. ':''}زد القسط أو المبلغ الإضافي.</div>`}
   let h=`<div class="planpreview"><div><span class="note">تتخلص من ديونك في</span><b>${monthLabel(plan.months)}</b></div><div><span class="note">المدة</span><b>${monthsWord(plan.months)}</b></div><div><span class="note">إجمالي ما ستدفعه</span><b class="num">${amtH(plan.paid)}</b></div></div>`;
   if(plan.interest>0.0005)h+=`<div class="note">منها فوائد متوقعة <b class="num">${money(plan.interest)}</b> ${CUR}</div>`;
@@ -1486,28 +1488,75 @@ function debtResHtml(){const Ds=debts(),P=debtPlan();if(!Ds.some(d=>+d.balance>0
   const order=Ds.filter(d=>+d.balance>0).sort((a,b)=>(plan.finish[a.id]||999)-(plan.finish[b.id]||999));
   h+=`<div class="panel" style="padding-block:6px"><div class="note" style="padding-block:4px">ترتيب السداد حسب خطتك</div>${order.map((d,i)=>`<div class="sumrow"><span>${i+1}. ${esc(d.name)}</span><b>${plan.finish[d.id]?monthLabel(plan.finish[d.id]):'—'}</b></div>`).join('')}</div>`;
   return h}
+/* أقسام الديون: البنوك والتمويل، ديون لأشخاص، ديون شخصية وأخرى */
+const DEBT_G={bank:['البنوك والتمويل','#3E7CB1','loan'],people:['ديون لأشخاص','#2E8B72','family'],personal:['ديون شخصية وأخرى','#B0662F','iother']};
+function debtGroup(d){return d.type==='people'?'people':['loan','card','car','house'].includes(d.type)?'bank':'personal'}
+const DEBT_SORT={end:'الأقرب انتهاءً',amount:'الأكبر مبلغًا',period:'الأطول مدة',rate:'الأعلى فائدة'};
+/* القسط الشهري: الدين الذي يُسدَّد دفعة واحدة ليس له قسط شهري */
+function debtInst(d){return d.mode==='once'?0:+d.payment||0}
+function debtStart(d){return d.start||(debtPays(d)[0]||{}).date||((d.log||[])[0]||{}).at||today()}
+function daysBetween(a,b){return Math.round((new Date(b+'T12:00')-new Date(a+'T12:00'))/864e5)}
+function monthsBetween(a,b){const A=new Date(a+'T12:00'),B=new Date(b+'T12:00');return Math.max(0,(B.getFullYear()-A.getFullYear())*12+B.getMonth()-A.getMonth()-(B.getDate()<A.getDate()?1:0))}
+function spanWord(a,b){if(!a||!b)return '—';const m=monthsBetween(a,b);if(m>=12){const y=Math.floor(m/12),r=m%12;return countWord(y,'سنة','سنتان','سنوات','سنة')+(r?' و'+monthsWord(r):'')}
+  if(m>=1)return monthsWord(m);const d=Math.max(0,daysBetween(a,b));return d?daysWord(d):'نفس اليوم'}
+/* موعد الانتهاء المقرر: المتفق عليه إن وُجد، وإلا حسب خطتك */
+function debtEnd(d,pl){if(d.closed)return d.closed.end;if(d.end)return d.end;pl=pl||debtSim();const n=pl.finish[d.id];
+  if(!n)return d.end||null;const t=new Date();const dt=new Date(t.getFullYear(),t.getMonth()+n-1+debtOff(),1);dt.setDate(Math.min(+d.day||1,new Date(dt.getFullYear(),dt.getMonth()+1,0).getDate()));return isoD(dt)}
+function debtSim(){const P=debtPlan();return simDebts(debts(),P.extra,P.strategy,true)}
+/* عند انتهاء الدين يُحفظ ملخصه: المدة، طريقة التخلص منه، وما دفعته */
+const CLOSE_M={lump:'دفعة واحدة بالمبلغ الإجمالي',inst:'أقساط على فترات',early:'أقساط ثم سداد مبكر للباقي'};
+function debtCloseInfo(d){const P=debtPays(d);const last=P[P.length-1];const end=last?last.date:today();
+  const total=r3(P.reduce((s,p)=>s+(+p.amt||0),0)),int=r3(P.reduce((s,p)=>s+payParts(d,p).int,0));
+  const method=P.length<=1?'lump':(d.mode!=='once'&&last&&+last.amt>=1.5*(+d.payment||0)?'early':'inst');
+  return{start:debtStart(d),end,total,int,count:P.length,method}}
+function debtSync(d){if(!(+d.balance>0.0005)){if(!d.closed){d.closed=debtCloseInfo(d);debtLog(d,'انتهى الدين: '+CLOSE_M[d.closed.method]+' خلال '+spanWord(d.closed.start,d.closed.end))}}
+  else if(d.closed){delete d.closed;debtLog(d,'أُعيد فتح الدين بعد تعديل الدفعات')}}
+function debtSort(A,k,pl){const e=d=>debtEnd(d,pl)||'9999';const per=d=>daysBetween(debtStart(d),debtEnd(d,pl)||today());
+  return A.slice().sort(k==='amount'?(a,b)=>(+b.balance)-(+a.balance):k==='period'?(a,b)=>per(b)-per(a):k==='rate'?(a,b)=>(+b.rate||0)-(+a.rate||0)||(+b.balance)-(+a.balance):(a,b)=>e(a).localeCompare(e(b)))}
+function debtCard(d,pl){const t=DEBT_T[d.type]||DEBT_T.other;const o=Math.max(+d.original||0,+d.balance||0);const p=o?Math.min(100,(o-(+d.balance))/o*100):0;const cm=ym(new Date());
+  const once=d.mode==='once';const paidThis=debtPaidIn(d,cm)>0;const end=debtEnd(d,pl),start=debtStart(d);const dueNow=once?(end&&end.slice(0,7)<=cm):true;
+  const late=!paidThis&&dueNow&&(once?daysTo(end)<0:new Date().getDate()>(+d.day||1));
+  const pill=paidThis&&!once?'<span class="pill paid">قسط الشهر مدفوع</span>':late?`<span class="pill late">${once?'تأخر السداد':'قسط الشهر متأخر'}</span>`:once?`<span class="pill soon">يُسدَّد ${end?fmtD(end):''}</span>`:`<span class="pill soon">القسط يوم ${+d.day||1}</span>`;
+  const n=debtLeft(d);const dl=end?daysTo(end):null;
+  return `<div class="goal dcard" style="--gc:${DEBT_G[debtGroup(d)][1]}"><div class="ghead"><div style="display:flex;gap:10px;align-items:flex-start;min-width:0">${debtBadge(d)}<div style="min-width:0"><b>${esc(d.name)}</b><small>${[t[0]!==d.name?t[0]:'',d.lender].filter(Boolean).map(esc).join(' · ')||esc(t[0])}</small></div></div>
+    <div class="gm"><span>المتبقي</span><b class="num">${amtH(d.balance)}</b></div></div>
+    <div class="meter"><i style="width:${p}%;background:var(--inc)"></i></div>
+    <div class="budgetline" style="margin:0"><span>سدّدت ${Math.round(p)}% من <b class="num">${amtH(o)}</b></span>${pill}</div>
+    <div class="dinfo"><div><span>بدأ</span><b>${fmtD(start)}</b></div><div><span>ينتهي المقرر</span><b>${end?fmtD(end):'—'}</b></div><div><span>المدة</span><b>${end?spanWord(start,end):'—'}</b></div></div>
+    <div class="budgetline" style="margin:0"><span>${once?'يُسدَّد <b>دفعة واحدة</b> بالمبلغ الإجمالي':'القسط <b class="num">'+amtH(d.payment)+'</b>'}${+d.rate?' · فائدة '+(+d.rate)+'%':' · بدون فائدة'}</span></div>
+    ${n||dl!==null?`<div class="dleft">⏳ ${once?'':n?'باقٍ '+countWord(n,'قسط واحد','قسطان','أقساط','قسطًا')+' · ':''}${dl===null?'':dl<0?'تأخر '+daysWord(-dl):dl===0?'موعده اليوم':'بعد '+daysWord(dl)}</div>`:''}
+    <div class="gbtns"><button class="chip pay" data-dpay="${esc(d.id)}">${once?'سدّدت':'سدّدت القسط'}</button><button class="chip" data-dedit="${esc(d.id)}">تعديل</button><button class="chip" data-dprint="${esc(d.id)}">كشف</button></div>
+    ${debtHistHtml(d)}</div>`}
+function debtDoneCard(d){const t=DEBT_T[d.type]||DEBT_T.other;const c=d.closed||debtCloseInfo(d);const o=Math.max(+d.original||0,c.total);
+  return `<div class="goal done dcard" style="--gc:${DEBT_G[debtGroup(d)][1]}"><div class="ghead"><div style="display:flex;gap:10px;align-items:flex-start;min-width:0">${debtBadge(d)}<div style="min-width:0"><b>${esc(d.name)}</b><small>${[t[0]!==d.name?t[0]:'',d.lender].filter(Boolean).map(esc).join(' · ')||esc(t[0])}</small></div></div>
+    <span class="pill paid">انتهى ✓</span></div>
+    <div class="dinfo"><div><span>المبلغ الأصلي</span><b class="num">${amtH(o)}</b></div><div><span>مجموع ما دفعته</span><b class="num">${amtH(c.total)}</b></div><div><span>${c.int>0.0005?'منها فوائد':'الدفعات'}</span><b class="num">${c.int>0.0005?amtH(c.int):c.count}</b></div></div>
+    <div class="ddone"><div><span>المدة</span><b>${fmtD(c.start)} ← ${fmtD(c.end)} · استغرق ${spanWord(c.start,c.end)}</b></div>
+     <div><span>طريقة التخلص منه</span><b>${CLOSE_M[c.method]}${c.count>1?' ('+countWord(c.count,'دفعة واحدة','دفعتان','دفعات','دفعة')+')':''}</b></div></div>
+    <div class="gbtns"><button class="chip" data-dprint="${esc(d.id)}">كشف للطباعة</button><button class="chip" data-dedit="${esc(d.id)}">تعديل</button></div>
+    ${debtHistHtml(d)}</div>`}
 function vDebts(){const Ds=debts(),P=debtPlan();
-  const head=`<div class="backrow"><h2 style="margin:4px 0">ديوني</h2><button class="chip" data-tab="home">الرئيسية ‹</button></div>`;
-  if(!Ds.length)return head+`<div class="panel empty"><b>اعرف ديونك ومتى تتخلص منها</b>أضف القروض وبطاقات الائتمان والديون الشخصية، وسأحسب لك إجمالي الديون والقسط الشهري وتاريخ التخلص منها، وكم توفّر إذا زدت الدفع قليلًا.</div><button class="btn block" data-dadd="1" style="margin-top:12px">+ أضف دينًا</button>`;
-  const rem=Ds.reduce((s,d)=>s+(+d.balance||0),0),orig=Ds.reduce((s,d)=>s+Math.max(+d.original||0,+d.balance||0),0),inst=Ds.filter(d=>+d.balance>0).reduce((s,d)=>s+(+d.payment||0),0);
-  const pct=orig?Math.round((orig-rem)/orig*100):0;const plan=simDebts(Ds,P.extra,P.strategy,true);const cm=ym(new Date());
+  const head=`<div class="backrow"><h2 style="margin:4px 0">قسم الديون</h2><button class="chip" data-tab="home">الرئيسية ‹</button></div>`;
+  if(!Ds.length)return head+`<div class="panel empty"><b>اعرف ديونك ومتى تتخلص منها</b>أضف القروض وبطاقات الائتمان، والديون لأشخاص، وأي دين شخصي. أرتّبها لك في أقسام، وأحسب موعد انتهاء كل دين ومدته، وأحتفظ بسجل كامل لكل دين حتى بعد انتهائه.</div><button class="btn block" data-dadd="1" style="margin-top:12px">+ أضف دينًا</button>`;
+  const act=Ds.filter(d=>+d.balance>0.0005),done=Ds.filter(d=>!(+d.balance>0.0005));const pl=debtSim();const F=debtFree();
+  const g=S.debtGrp||'all',k=S.debtSort||'end';
+  const rem=act.reduce((s,d)=>s+(+d.balance),0),inst=act.reduce((s,d)=>s+debtInst(d),0);
   const free=(()=>{const a=avgSurplus();return a===null?null:a-goalsSummary().plan})();
-  const cards=Ds.slice().sort((a,b)=>(+b.balance)-(+a.balance)).map(d=>{const t=DEBT_T[d.type]||DEBT_T.other;const o=Math.max(+d.original||0,+d.balance||0);const p=o?Math.min(100,(o-(+d.balance))/o*100):0;
-    const done=!(+d.balance>0);const paidThis=(d.pays||[]).some(x=>x.date&&x.date.slice(0,7)===cm);const late=!done&&!paidThis&&new Date().getDate()>(+d.day||1);
-    const pill=done?'<span class="pill paid">مسدّد بالكامل</span>':paidThis?'<span class="pill paid">قسط الشهر مدفوع</span>':late?'<span class="pill late">قسط الشهر متأخر</span>':`<span class="pill soon">القسط يوم ${+d.day||1}</span>`;
-    return `<div class="goal${done?' done':''}"><div class="ghead"><div style="display:flex;gap:10px;align-items:flex-start;min-width:0">${debtBadge(d)}<div style="min-width:0"><b>${esc(d.name)}</b><small>${esc(t[0])}${d.lender?' · '+esc(d.lender):''}</small></div></div>
-      <div class="gm"><span>المتبقي</span><b class="num">${amtH(d.balance)}</b></div></div>
-      <div class="meter"><i style="width:${p}%;background:var(--inc)"></i></div>
-      <div class="budgetline" style="margin:0"><span>سدّدت ${Math.round(p)}% من <b class="num">${amtH(o)}</b></span><span>${done?'':plan.finish[d.id]?'ينتهي في '+monthLabel(plan.finish[d.id]):''}</span></div>
-      <div class="budgetline" style="margin:0"><span>القسط <b class="num">${amtH(d.payment)}</b>${+d.rate?' · فائدة '+(+d.rate)+'%':' · بدون فائدة'}</span>${pill}</div>
-      ${done?'':(()=>{const n=debtLeft(d);return n?`<div class="dleft">⏳ باقٍ ${countWord(n,'قسط واحد','قسطان','أقساط','قسطًا')} بقسطك الحالي</div>`:''})()}
-      <div class="gbtns">${done?'':`<button class="chip pay" data-dpay="${esc(d.id)}">سدّدت القسط</button>`}<button class="chip" data-dedit="${esc(d.id)}">تعديل</button><button class="chip" data-dprint="${esc(d.id)}">كشف</button></div>
-      ${debtHistHtml(d)}</div>`}).join('');
-  return head+`<section class="hero"><div class="lbl">إجمالي ديوني المتبقية</div>
+  const grpCells=Object.entries(DEBT_G).map(([key,v])=>{const L=act.filter(d=>debtGroup(d)===key);return L.length?`<button class="dgcell" data-dgrp="${key}" aria-pressed="${g===key}" style="--gc:${v[1]}"><span>${v[0]}</span><b class="num">${amtH(L.reduce((s,d)=>s+(+d.balance),0))}</b><small>${countWord(L.length,'دين واحد','دينان','ديون','دينًا')}</small></button>`:''}).join('');
+  const filt=`<div class="chips dfilter"><button class="chip" data-dgrp="all" aria-pressed="${g==='all'}">الكل (${act.length})</button>${Object.entries(DEBT_G).map(([key,v])=>{const c=act.filter(d=>debtGroup(d)===key).length;return c?`<button class="chip" data-dgrp="${key}" aria-pressed="${g===key}">${v[0]} (${c})</button>`:''}).join('')}${done.length?`<button class="chip" data-dgrp="done" aria-pressed="${g==='done'}">انتهت (${done.length})</button>`:''}</div>
+   ${g==='done'?'':`<div class="dsort"><span class="note">ترتيب:</span>${Object.entries(DEBT_SORT).map(([key,n])=>`<button class="chip" data-dsort="${key}" aria-pressed="${k===key}">${n}</button>`).join('')}</div>`}`;
+  const groups=Object.keys(DEBT_G).filter(key=>g==='all'||g===key);
+  const list=g==='done'?'':groups.map(key=>{const L=debtSort(act.filter(d=>debtGroup(d)===key),k,pl);if(!L.length)return '';
+    return `<div class="dghead" style="--gc:${DEBT_G[key][1]}"><b>${DEBT_G[key][0]}</b><span class="note">متبقٍ <span class="num">${amtH(L.reduce((s,d)=>s+(+d.balance),0))}</span></span></div><div class="stack">${L.map(d=>debtCard(d,pl)).join('')}</div>`}).join('')||(act.length?'':'<div class="okbox">لا ديون متبقية. مبروك! سجل ديونك المنتهية محفوظ في الأسفل.</div>');
+  const arch=done.length&&(g==='all'||g==='done')?`<div class="backrow" id="debtArch" style="margin-top:18px"><h2 style="margin:0">سجل الديون المنتهية</h2><span class="note">${countWord(done.length,'دين واحد','دينان','ديون','دينًا')}</span></div>
+    <p class="note" style="margin:0 0 8px">محفوظة بكل دفعاتها ومستنداتها وطريقة التخلص منها.</p><div class="stack">${done.slice().sort((a,b)=>((b.closed||{}).end||'').localeCompare((a.closed||{}).end||'')).map(debtDoneCard).join('')}</div>`:'';
+  return head+(act.length?`<section class="hero"><div class="lbl">إجمالي ديوني المتبقية</div>
     <div class="big"><span class="num">${money(rem)}</span> <small>${CUR}</small></div>
-    <div class="row"><div class="cell"><span>الأقساط الشهرية</span><b class="num">${amtH(inst)}</b></div><div class="cell"><span>سدّدت حتى الآن</span><b class="num">${pct}%</b></div></div>
-    ${(()=>{const F=debtFree();return F&&!F.stuck?`<div class="lbl" style="margin-top:12px">يوم التحرر من الديون <b>${fmtD(F.date)}</b> · باقٍ ${countWord(F.left,'قسط واحد','قسطان','أقساط','قسطًا')} (⏳ ${daysWord(F.days)})</div>`:''})()}</section>
-  <h2>خطة التخلص من الديون</h2>
+    <div class="row"><div class="cell"><span>الأقساط الشهرية</span><b class="num">${amtH(inst)}</b></div><div class="cell"><span>سدّدت حتى الآن</span><b class="num">${F?F.pct:0}%</b></div></div>
+    ${F&&!F.stuck?`<div class="lbl" style="margin-top:12px">يوم التحرر من الديون <b>${fmtD(F.date)}</b> · باقٍ ${countWord(F.left,'قسط واحد','قسطان','أقساط','قسطًا')} (⏳ ${daysWord(F.days)})</div>`:''}</section>
+    <div class="dgrid">${grpCells}</div>`:`<div class="okbox">لا ديون متبقية. مبروك!</div>`)
+  +`<div class="backrow" style="margin-top:16px"><h2 style="margin:0">ديوني</h2><button class="chip pay" data-dadd="1">+ دين جديد</button></div>${filt}${list}${arch}
+  ${act.length?`<h2>خطة التخلص من الديون</h2>
   <div class="panel stack">
    <div class="seg" role="group" aria-label="ترتيب السداد"><button class="n" data-dstrat="avalanche" aria-pressed="${P.strategy!=='snowball'}">الأعلى فائدة أولًا</button><button class="n" data-dstrat="snowball" aria-pressed="${P.strategy==='snowball'}">الأصغر مبلغًا أولًا</button></div>
    <p class="note" style="margin:0">${P.strategy==='snowball'?'تسدّد الدين الأصغر أولًا فتشعر بالإنجاز بسرعة، ثم تنقل قسطه إلى الدين التالي.':'تسدّد الدين الأعلى فائدة أولًا، فتدفع أقل فوائد ممكنة. وعند انتهائه يُنقل قسطه إلى الدين التالي.'}</p>
@@ -1515,53 +1564,73 @@ function vDebts(){const Ds=debts(),P=debtPlan();
    <div class="chips">${[0,25,50,100].map(v=>`<button class="chip" data-dextra="${v}">${v?'+'+v:'بدون إضافة'}</button>`).join('')}${free&&free>1?`<button class="chip pay" data-dextra="${Math.floor(free*0.5)}">المقترح من فائضك: ${Math.floor(free*0.5)}</button>`:''}</div>
    <div id="debtRes" class="stack">${debtResHtml()}</div>
   </div>
-  <div class="backrow" style="margin-top:18px"><h2 style="margin:0">الديون</h2><button class="chip pay" data-dadd="1">+ دين جديد</button></div>
-  <div class="stack">${cards}</div>
-  <p class="note" style="margin-top:10px">أقساط ديونك تظهر تلقائيًا في قسم «الشهرية»، وتدفعها من هناك أو من هنا.</p>`}
+  <p class="note" style="margin-top:10px">أقساط ديونك تظهر تلقائيًا في قسم «الشهرية»، وتدفعها من هناك أو من هنا.</p>`:''}`}
+/* تقرير الديون المبسّط أسفل الرئيسية */
+function debtHomeHtml(){const Ds=debts();if(!Ds.length)return '';const act=Ds.filter(d=>+d.balance>0.0005),done=Ds.filter(d=>!(+d.balance>0.0005));const F=debtFree();const pl=act.length?debtSim():null;
+  const rows=Object.entries(DEBT_G).map(([key,v])=>{const L=act.filter(d=>debtGroup(d)===key);if(!L.length)return '';const ends=L.map(d=>debtEnd(d,pl)).filter(Boolean).sort();
+    return `<button class="hprow" data-dgo="${key}"><span class="cbadge" style="background:${v[1]}1f;color:${v[1]}">${svgI(CI[v[2]]||CI.iother)}</span><span class="hp-main"><b>${v[0]}</b><small>${countWord(L.length,'دين واحد','دينان','ديون','دينًا')}${ends.length?' · أقربها ينتهي '+fmtD(ends[0]):''}</small></span><span class="hp-r"><b class="hp-amt num">${money(L.reduce((s,d)=>s+(+d.balance),0))}</b><small>${CUR}</small></span></button>`}).join('');
+  const doneRow=done.length?`<button class="hprow" data-dgo="done"><span class="cbadge" style="background:var(--inc-soft,#1e7a4f1f);color:var(--inc)">${svgI(CI.shield)}</span><span class="hp-main"><b>ديون انتهت</b><small>${countWord(done.length,'دين واحد','دينان','ديون','دينًا')} ${done.length===1?'محفوظ':'محفوظة'} بسجلها وطريقة سدادها</small></span><span class="hp-r"><b class="hp-amt num">${money(done.reduce((s,d)=>s+((d.closed||{}).total||0),0))}</b><small>سدّدت</small></span></button>`:'';
+  return `<div class="backrow"><h2 style="margin:0">قسم الديون</h2><button class="chip pay" data-tab="debts">فتح القسم ‹</button></div>
+  <div class="panel hplans dfree">${!act.length?'<div class="okbox" style="margin:0 0 6px">لا ديون متبقية. مبروك! 🎉</div>':F&&F.stuck?`<div class="warnbox" style="margin:0">القسط لا يكفي لإنهاء أحد الديون. افتح القسم وراجع الأقساط.</div>`:F?`<div class="hp-sum"><div class="hp-ring" style="--p:${F.pct}"><span class="num">${F.pct}%</span></div><div class="hp-cells">
+    <div><span>المتبقي</span><b class="num">${amtH(F.rem)}</b></div><div><span>باقٍ عليك</span><b>${F.left?countWord(F.left,'قسط واحد','قسطان','أقساط','قسطًا'):'—'}</b></div>
+    <div><span>يوم التحرر</span><b>${fmtD(F.date)}</b></div><div><span>العد التنازلي</span><b>⏳ ${daysWord(F.days)}</b></div></div></div>
+    <div class="note hp-meta">${F.next?(F.next.late?'<b class="amt-exp">قسط '+esc(F.next.name)+' متأخر</b> (كان يوم '+F.next.day+')':'القادم: '+esc(F.next.name)+' يوم '+F.next.day)+' · <span class="num">'+amtH(F.next.amt)+'</span>':'دفعت أقساط هذا الشهر كلها ✓'}</div>`:''}
+   <div class="hp-list">${rows}${doneRow}</div></div>`}
 function openDebt(id){const L=document.getElementById('layer');const A=S.settings.debts||(S.settings.debts=[]);const ex=id?A.find(x=>x.id===id):null;
-  const d=ex?Object.assign({},ex,{original:ex.original?money(ex.original):'',balance:money(ex.balance),payment:money(ex.payment),rate:ex.rate||''}):{id:uidGen(),type:'loan',name:'',lender:'',original:'',balance:'',payment:'',rate:'',day:1,pays:[]};let askDel=false;
+  const d=ex?Object.assign({},ex,{original:ex.original?money(ex.original):'',balance:money(ex.balance),payment:+ex.payment?money(ex.payment):'',rate:ex.rate||'',mode:ex.mode||'inst',start:debtStart(ex),end:ex.end||''}):{id:uidGen(),type:'loan',name:'',lender:'',original:'',balance:'',payment:'',rate:'',day:1,pays:[],mode:'inst',start:today(),end:''};let askDel=false;
   const draw=()=>{L.innerHTML=`${sheetTop('دين')}
    <h2 style="margin-top:0">${ex?'تعديل الدين':'دين جديد'}</h2><div class="stack">
    <div class="catgrid">${Object.entries(DEBT_T).map(([k,t])=>`<button class="cg" data-dtype="${k}" aria-pressed="${d.type===k}"><i style="background:${t[2]}1f;color:${t[2]}">${svgI(CI[t[1]])}</i>${t[0]}</button>`).join('')}</div>
    <div class="row2"><div class="field"><label for="dName">اسم الدين</label><input class="inp" id="dName" value="${esc(d.name)}" placeholder="مثال: قرض شخصي" maxlength="30"></div>
-   <div class="field"><label for="dLender">الجهة (اختياري)</label><input class="inp" id="dLender" value="${esc(d.lender)}" placeholder="البنك أو الشخص" maxlength="30"></div></div>
+   <div class="field"><label for="dLender">${d.type==='people'?'اسم الشخص':'الجهة (اختياري)'}</label><input class="inp" id="dLender" value="${esc(d.lender)}" placeholder="${d.type==='people'?'لمن هذا الدين؟':'البنك أو الشخص'}" maxlength="30"></div></div>
+   <div class="note dgroupnote">القسم: <b>${DEBT_G[debtGroup(d)][0]}</b></div>
+   <div class="seg" role="group" aria-label="طريقة السداد"><button class="n" data-dmode="inst" aria-pressed="${d.mode!=='once'}">أقساط شهرية</button><button class="n" data-dmode="once" aria-pressed="${d.mode==='once'}">دفعة واحدة بالمبلغ الإجمالي</button></div>
    <div class="row2"><div class="field"><label for="dOrig">المبلغ الأصلي</label><input class="inp num" id="dOrig" inputmode="decimal" value="${esc(d.original)}" placeholder="0.000" style="text-align:left"></div>
    <div class="field"><label for="dBal">المتبقي الآن</label><input class="inp num" id="dBal" inputmode="decimal" value="${esc(d.balance)}" placeholder="0.000" style="text-align:left"></div></div>
-   <div class="row2"><div class="field"><label for="dPay">القسط الشهري</label><input class="inp num" id="dPay" inputmode="decimal" value="${esc(d.payment)}" placeholder="0.000" style="text-align:left"></div>
+   <div class="row2"><div class="field"${d.mode==='once'?' hidden':''}><label for="dPay">القسط الشهري</label><input class="inp num" id="dPay" inputmode="decimal" value="${esc(d.payment)}" placeholder="0.000" style="text-align:left"></div>
    <div class="field"><label for="dRate">الفائدة السنوية % (اختياري)</label><input class="inp num" id="dRate" inputmode="decimal" value="${esc(d.rate)}" placeholder="0" style="text-align:left"></div></div>
-   <div class="field"><label for="dDay">يوم دفع القسط في الشهر</label><input class="inp num" id="dDay" type="number" min="1" max="31" value="${esc(d.day)}" style="text-align:left"></div>
+   <div class="field"${d.mode==='once'?' hidden':''}><label for="dDay">يوم دفع القسط في الشهر</label><input class="inp num" id="dDay" type="number" min="1" max="31" value="${esc(d.day)}" style="text-align:left"></div>
+   <div class="row2"><div class="field"><label for="dStart">تاريخ بداية الدين</label><input class="inp" type="date" id="dStart" value="${esc(d.start)}"></div>
+   <div class="field"><label for="dEnd">${d.mode==='once'?'موعد السداد':'موعد الانتهاء حسب العقد (اختياري)'}</label><input class="inp" type="date" id="dEnd" value="${esc(d.end)}"></div></div>
    <p class="note" style="margin:0">المتبقي تجده في كشف حساب البنك أو تطبيقه. والفائدة اتركها فارغة إن كان الدين بدون فائدة.</p>
    <p class="note" id="dErr" hidden style="color:var(--exp);margin:0"></p>
    <div class="actions"><button class="btn block" id="dSave">حفظ</button>
    ${ex?(askDel?'<div class="confirm"><span>حذف هذا الدين؟ تبقى دفعاته في السجل.</span><div class="row2"><button class="btn danger" id="dDel">نعم، احذف</button><button class="btn ghost" id="dDelNo">تراجع</button></div></div>':'<button class="btn ghost block" id="dDelAsk" style="color:var(--exp)">حذف الدين</button>'):'<button class="btn ghost block" data-close>إلغاء</button>'}</div>
    </div></div></div>`};
   const v=i=>document.getElementById(i).value;
-  const grab=()=>{d.name=v('dName');d.lender=v('dLender');d.original=v('dOrig');d.balance=v('dBal');d.payment=v('dPay');d.rate=v('dRate');d.day=v('dDay')};
+  const grab=()=>{d.name=v('dName');d.lender=v('dLender');d.original=v('dOrig');d.balance=v('dBal');d.payment=v('dPay');d.rate=v('dRate');d.day=v('dDay');d.start=v('dStart');d.end=v('dEnd')};
   L.oninput=L.onchange=null;
   L.onclick=e=>{const x=e.target.closest('button,[data-close]');if(!x)return;
     if(x.hasAttribute('data-close')){L.innerHTML='';return}
-    if(x.dataset.dtype){grab();d.type=x.dataset.dtype;if(!d.name.trim()||Object.values(DEBT_T).some(t=>t[0]===d.name))d.name=DEBT_T[d.type][0];draw();return}
+    if(x.dataset.dmode){grab();d.mode=x.dataset.dmode;draw();return}
+    if(x.dataset.dtype){grab();d.type=x.dataset.dtype;if(d.type==='people'&&!ex&&d.mode!=='once'&&!d.payment)d.mode='once';if(!d.name.trim()||Object.values(DEBT_T).some(t=>t[0]===d.name))d.name=DEBT_T[d.type][0];draw();return}
     if(x.id==='dDelAsk'){grab();askDel=true;draw();return}
     if(x.id==='dDelNo'){grab();askDel=false;draw();return}
     if(x.id==='dDel'){S.settings.debts=A.filter(y=>y.id!==d.id);L.innerHTML='';putSettings();render();toast('حُذف الدين');return}
     if(x.id==='dSave'){grab();const er=document.getElementById('dErr');const bal=parseAmt(d.balance),pay=parseAmt(d.payment),rate=parseFloat(String(d.rate).replace(/[٠-٩]/g,c=>'٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[^\d.]/g,''))||0;
+      const once=d.mode==='once',wasDone=ex&&ex.closed;
       if(!d.name.trim()){er.hidden=false;er.textContent='اكتب اسم الدين';return}
-      if(!bal){er.hidden=false;er.textContent='اكتب المبلغ المتبقي';return}
-      if(!pay){er.hidden=false;er.textContent='اكتب القسط الشهري';return}
-      if(pay<=bal*rate/1200){er.hidden=false;er.textContent='القسط أقل من الفائدة الشهرية ('+money(bal*rate/1200)+')، فلن ينتهي الدين. راجع المبالغ';return}
-      const rec={id:d.id,type:d.type,name:d.name.trim(),lender:d.lender.trim(),original:Math.max(parseAmt(d.original),bal),balance:bal,payment:pay,rate,day:Math.min(31,Math.max(1,parseInt(d.day)||1)),pays:(ex&&ex.pays)||[],log:(ex&&ex.log)||[]};
-      if(!ex)debtLog(rec,'إضافة الدين: المتبقي '+money(bal)+'، القسط '+money(pay)+(rate?'، الفائدة '+rate+'%':''));
+      if(d.type==='people'&&!d.lender.trim()){er.hidden=false;er.textContent='اكتب اسم الشخص صاحب الدين';return}
+      if(!bal&&!wasDone){er.hidden=false;er.textContent='اكتب المبلغ المتبقي';return}
+      if(once&&!d.end){er.hidden=false;er.textContent='حدّد موعد السداد';return}
+      if(d.end&&d.start&&d.end<d.start){er.hidden=false;er.textContent='موعد الانتهاء قبل تاريخ البداية';return}
+      if(!once&&!pay&&bal){er.hidden=false;er.textContent='اكتب القسط الشهري، أو اختر «دفعة واحدة»';return}
+      if(!once&&bal&&pay<=bal*rate/1200){er.hidden=false;er.textContent='القسط أقل من الفائدة الشهرية ('+money(bal*rate/1200)+')، فلن ينتهي الدين. راجع المبالغ';return}
+      const rec={id:d.id,type:d.type,name:d.name.trim(),lender:d.lender.trim(),original:Math.max(parseAmt(d.original),bal),balance:bal,payment:once?0:pay,rate,day:once?+d.end.slice(8,10):Math.min(31,Math.max(1,parseInt(d.day)||1)),mode:once?'once':'inst',start:d.start||today(),end:d.end||'',pays:(ex&&ex.pays)||[],log:(ex&&ex.log)||[]};
+      if(wasDone)rec.closed=Object.assign({},ex.closed,{start:rec.start});
+      if(!ex)debtLog(rec,'إضافة الدين: المتبقي '+money(bal)+(once?'، يُسدَّد دفعة واحدة في '+fmtD(rec.end):'، القسط '+money(pay))+(rate?'، الفائدة '+rate+'%':''));
       else{const ch=[];if(Math.abs(ex.balance-bal)>0.0005)ch.push('المتبقي '+money(ex.balance)+' ← '+money(bal));if(Math.abs(ex.payment-pay)>0.0005)ch.push('القسط '+money(ex.payment)+' ← '+money(pay));
-        if((+ex.rate||0)!==rate)ch.push('الفائدة '+(+ex.rate||0)+'% ← '+rate+'%');if((+ex.day||1)!==rec.day)ch.push('يوم القسط '+(+ex.day||1)+' ← '+rec.day);if(ex.name!==rec.name)ch.push('الاسم ← '+rec.name);
+        if((+ex.rate||0)!==rate)ch.push('الفائدة '+(+ex.rate||0)+'% ← '+rate+'%');if((+ex.day||1)!==rec.day)ch.push('يوم القسط '+(+ex.day||1)+' ← '+rec.day);if(ex.name!==rec.name)ch.push('الاسم ← '+rec.name);if((ex.mode||'inst')!==rec.mode)ch.push(rec.mode==='once'?'صار السداد دفعة واحدة':'صار السداد أقساطًا');if((ex.end||'')!==rec.end&&rec.end)ch.push('موعد الانتهاء ← '+fmtD(rec.end));
         if(ch.length)debtLog(rec,'تعديل: '+ch.join('، '))}
-      const i=A.findIndex(y=>y.id===rec.id);if(i>=0)A[i]=rec;else A.push(rec);
+      debtSync(rec);const i=A.findIndex(y=>y.id===rec.id);if(i>=0)A[i]=rec;else A.push(rec);
       L.innerHTML='';if(S.tab!=='monthly')S.tab='debts';putSettings();render();toast('حُفظ '+rec.name)}};
   draw()}
 function openDebtPay(id){const L=document.getElementById('layer');const d=debts().find(x=>x.id===id);if(!d)return;
-  const intr=(+d.balance)*(+d.rate||0)/1200;
+  const intr=(+d.balance)*(+d.rate||0)/1200;const once=d.mode==='once',full=r3((+d.balance)+intr);
   L.innerHTML=`${sheetTop('سداد')}
    <h2 style="margin-top:0">سداد ${esc(d.name)}</h2>
-   <div class="amtbox"><input id="dpAmt" inputmode="decimal" value="${amtIn(Math.min(+d.payment,+d.balance+intr))}" aria-label="المبلغ المدفوع"><span>${CUR}</span></div>
+   <div class="amtbox"><input id="dpAmt" inputmode="decimal" value="${amtIn(once?full:Math.min(+d.payment,full))}" aria-label="المبلغ المدفوع"><span>${CUR}</span></div>
+   <div class="chips" style="justify-content:center">${once?'':`<button class="chip" data-dpamt="${Math.min(+d.payment,full)}">القسط</button>`}<button class="chip pay" data-dpamt="${full}">كامل المتبقي (سداد نهائي)</button></div>
    <div class="stack"><div class="field"><label for="dpDate">تاريخ الدفع</label><input class="inp" type="date" id="dpDate" value="${today()}"></div>
    <label class="note" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="dpTx" checked style="width:18px;height:18px"> سجّلها كمصروف في فئة الأقساط</label>
    <div class="payprev" id="dpPrev"></div>
@@ -1572,6 +1641,7 @@ function openDebtPay(id){const L=document.getElementById('layer');const d=debts(
   dprev();L.onchange=null;L.oninput=e=>{if(e.target.id==='dpAmt')dprev()};
   L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;
     if(x.hasAttribute('data-close')){L.innerHTML='';return}
+    if(x.dataset.dpamt){document.getElementById('dpAmt').value=amtIn(+x.dataset.dpamt);dprev();return}
     if(x.id==='dpSave'){const amt=parseAmt(document.getElementById('dpAmt').value);if(!amt){L.innerHTML='';return}x.disabled=true;const snap=JSON.stringify(debts());const date=document.getElementById('dpDate').value||today();
       const p=await applyDebtPayment(d,amt,date,document.getElementById('dpTx').checked);
       L.innerHTML='';await putSettings();render();toast(d.balance<=0?'مبروك! انتهى دين '+d.name:'سُجّل السداد. المتبقي '+rial(d.balance),async()=>{S.settings.debts=JSON.parse(snap);if(p.tx)await delTx(p.tx);await putSettings();render();toast('أُلغي السداد')},9000)}};
@@ -1588,15 +1658,15 @@ function payBalances(d){const P=debtPays(d);const out=new Map();let after=+d.bal
   return out}
 async function applyDebtPayment(d,amt,date,asTx){const int=r3(Math.min(amt,(+d.balance)*(+d.rate||0)/1200));const prin=r3(Math.min(+d.balance,Math.max(0,amt-int)));d.balance=Math.max(0,r3((+d.balance)-prin));
   let txId='';if(asTx){const t={id:uidGen(),type:'exp',amount:amt,cat:'loan',date,method:'transfer',note:'قسط '+d.name,createdAt:new Date().toISOString(),debt:d.id};txId=t.id;await putTx(t)}
-  const p={id:uidGen(),date,amt,int,prin,bal:d.balance,tx:txId};d.pays=(d.pays||[]).concat([p]).slice(-240);debtLog(d,'دفعة '+money(amt)+' بتاريخ '+fmtD(date)+'، المتبقي '+money(d.balance));return p}
+  const p={id:uidGen(),date,amt,int,prin,bal:d.balance,tx:txId};d.pays=(d.pays||[]).concat([p]).slice(-240);debtLog(d,'دفعة '+money(amt)+' بتاريخ '+fmtD(date)+'، المتبقي '+money(d.balance));debtSync(d);return p}
 /* تعديل دفعة قديمة أو حذفها: يُصحَّح المتبقي من الدين والمتبقي بعد الدفعات اللاحقة والمصروف المرتبط */
 function shiftLaterBal(d,p,delta){const P=debtPays(d);const k=P.indexOf(p);P.slice(k).forEach(q=>{if(q.bal!==undefined)q.bal=Math.max(0,r3(+q.bal+delta))})}
 async function editDebtPay(d,p,amt,date){const {int,prin}=payParts(d,p);const before=r3((+d.balance)+prin);const np=r3(Math.min(before,Math.max(0,amt-int)));const delta=r3(prin-np);
   const old={amt:p.amt,date:p.date};shiftLaterBal(d,p,delta);d.balance=Math.max(0,r3((+d.balance)+delta));Object.assign(p,{amt,date,int,prin:np});
   const t=p.tx&&S.tx[p.tx];if(t)await putTx(Object.assign({},t,{amount:amt,date}));
-  debtLog(d,'تعديل دفعة '+fmtD(old.date)+': '+money(old.amt)+(old.amt!==amt?' ← '+money(amt):'')+(old.date!==date?' (التاريخ '+fmtD(date)+')':'')+'، المتبقي '+money(d.balance))}
+  debtLog(d,'تعديل دفعة '+fmtD(old.date)+': '+money(old.amt)+(old.amt!==amt?' ← '+money(amt):'')+(old.date!==date?' (التاريخ '+fmtD(date)+')':'')+'، المتبقي '+money(d.balance));if(d.closed)delete d.closed;debtSync(d)}
 async function delDebtPay(d,p){const {prin}=payParts(d,p);shiftLaterBal(d,p,prin);d.balance=r3((+d.balance)+prin);d.pays=(d.pays||[]).filter(x=>x!==p);
-  if(p.tx&&S.tx[p.tx])await delTx(p.tx);debtLog(d,'حذف دفعة '+money(p.amt)+' بتاريخ '+fmtD(p.date)+'، المتبقي '+money(d.balance))}
+  if(p.tx&&S.tx[p.tx])await delTx(p.tx);debtLog(d,'حذف دفعة '+money(p.amt)+' بتاريخ '+fmtD(p.date)+'، المتبقي '+money(d.balance));if(d.closed&&+d.balance<=0.0005)delete d.closed;debtSync(d)}
 function openDebtPayEdit(id,pid){const L=document.getElementById('layer');const d=debts().find(x=>x.id===id);const p=d&&(d.pays||[]).find(x=>x.id===pid);if(!p)return;
   const {int,prin}=payParts(d,p);let askDel=false;
   const prev=a=>{if(!a)return 'اكتب المبلغ.';const np=Math.min(r3((+d.balance)+prin),Math.max(0,a-int));const nb=Math.max(0,r3((+d.balance)+prin-np));
@@ -1627,22 +1697,15 @@ function debtLeft(d){if(!(+d.balance>0.0005))return 0;return simDebts([d],0,'ava
 function debtOff(){const Ds=debts().filter(d=>+d.balance>0.0005),cm=ym(new Date());return Ds.length&&Ds.every(d=>debtPaidIn(d,cm)>0)?1:0}
 function debtFree(){const Ds=debts().filter(d=>+d.balance>0.0005);if(!Ds.length)return null;const P=debtPlan();const pl=simDebts(Ds,P.extra,P.strategy,true);
   const rem=Ds.reduce((s,d)=>s+(+d.balance),0),orig=Ds.reduce((s,d)=>s+Math.max(+d.original||0,+d.balance||0),0);
-  const out={rem:r3(rem),orig:r3(orig),pct:orig?Math.round((orig-rem)/orig*100):0,inst:r3(Ds.reduce((s,d)=>s+(+d.payment||0),0)),stuck:pl.stuck,left:pl.months,count:Ds.length};
+  const out={rem:r3(rem),orig:r3(orig),pct:orig?Math.round((orig-rem)/orig*100):0,inst:r3(Ds.reduce((s,d)=>s+debtInst(d),0)),stuck:pl.stuck,left:Math.max(0,...Ds.filter(d=>d.mode!=='once').map(d=>pl.finish[d.id]||0)),count:Ds.length};
   if(pl.stuck)return out;const last=Ds.filter(d=>pl.finish[d.id]===pl.months);const n=new Date();const dt=new Date(n.getFullYear(),n.getMonth()+pl.months-1+debtOff(),1);
   const day=Math.min(new Date(dt.getFullYear(),dt.getMonth()+1,0).getDate(),Math.max(...last.map(d=>+d.day||1)));dt.setDate(day);
   out.date=isoD(dt);out.label=monthLabel(pl.months);out.days=Math.max(0,daysTo(out.date));
-  const cm=ym(n);const nx=Ds.filter(d=>!debtPaidIn(d,cm)).sort((a,b)=>(+a.day||1)-(+b.day||1))[0];if(nx)out.next={name:nx.name,day:+nx.day||1,amt:+nx.payment||0,late:n.getDate()>(+nx.day||1)};
+  const cm=ym(n);const nx=Ds.filter(d=>!debtPaidIn(d,cm)&&(d.mode!=='once'||(d.end&&d.end.slice(0,7)===cm))).sort((a,b)=>(+a.day||1)-(+b.day||1))[0];if(nx)out.next={name:nx.name,day:+nx.day||1,amt:nx.mode==='once'?+nx.balance:+nx.payment||0,late:n.getDate()>(+nx.day||1)};
   return out}
-function debtHomeHtml(){const F=debtFree();if(!F)return '';
-  return `<div class="backrow"><h2 style="margin:0">التحرر من الديون</h2><button class="chip pay" data-tab="debts">ديوني</button></div>
-  <div class="panel hplans dfree">${F.stuck?`<div class="warnbox" style="margin:0">القسط لا يكفي لإنهاء أحد الديون. افتح «ديوني» وراجع الأقساط.</div>`:`<div class="hp-sum"><div class="hp-ring" style="--p:${F.pct}"><span class="num">${F.pct}%</span></div><div class="hp-cells">
-    <div><span>باقٍ عليك</span><b>${countWord(F.left,'قسط واحد','قسطان','أقساط','قسطًا')}</b></div><div><span>يوم التحرر من الديون</span><b>${fmtD(F.date)}</b></div>
-    <div><span>المتبقي</span><b class="num">${amtH(F.rem)}</b></div><div><span>العد التنازلي</span><b>⏳ ${daysWord(F.days)}</b></div></div></div>
-    <div class="meter" style="margin-top:10px"><i style="width:${F.pct}%;background:var(--inc)"></i></div>
-    <div class="note hp-meta">${F.next?(F.next.late?'<b class="amt-exp">قسط '+esc(F.next.name)+' متأخر</b> (كان يوم '+F.next.day+')':'القسط القادم: '+esc(F.next.name)+' يوم '+F.next.day)+' · <span class="num">'+amtH(F.next.amt)+'</span>':'دفعت أقساط هذا الشهر كلها ✓'}</div>`}</div>`}
 /* سجل الدين داخل خانته: الدفعات (تعديل/حذف)، المستندات المشفّرة، التحديثات، والكشف */
 function debtHistHtml(d){const P=debtPays(d).reverse();const lg=(d.log||[]).slice().reverse();const D=Vault.docs.filter(x=>x.debt===d.id);const lock=!Vault.key&&Vault.cfg;
-  return `<details class="rechist"><summary>سجل الدين <span class="note">(${countWord(P.length,'دفعة واحدة','دفعتان','دفعات','دفعة')}${D.length?' · '+D.length+' 📎':''}${lg.length?' · '+lg.length+' تحديث':''})</span></summary>
+  return `<details class="rechist"><summary>سجل الدين <span class="note">(${P.length?countWord(P.length,'دفعة واحدة','دفعتان','دفعات','دفعة'):'لا دفعات'}${D.length?' · '+D.length+' 📎':''}${lg.length?' · '+lg.length+' تحديث':''})</span></summary>
    ${P.length?`<div class="paylist">${P.slice(0,24).map(p=>`<span class="paychip"><button class="pce" data-dpe="${esc(d.id)}|${esc(p.id||'')}" aria-label="تعديل الدفعة"><span class="num">${amtH(p.amt)}</span> · ${fmtD(p.date)}${S.tx[p.tx]&&S.tx[p.tx].pend?' ⏳':''} ✎</button></span>`).join('')}</div>
     <div class="note" style="margin:4px 2px">اضغط على أي دفعة لتعديلها أو حذفها، ويُصحَّح المتبقي تلقائيًا.</div>`:'<div class="note">لا دفعات مسجّلة بعد.</div>'}
    <div class="rh-log"><b>مستندات الدين ${lock?'🔒':''}</b>${D.length?`<div class="chips" style="margin:6px 0 0">${D.map(x=>`<button class="chip" data-cdview="${esc(x.id)}">📎 ${esc(x.title)}${(x.files||[]).length>1?' ('+x.files.length+')':''}</button>`).join('')}</div>`:'<div class="note">أرفق عقد القرض وإيصالات السداد، تُحفظ مشفّرة في خزنتك ولا تُزامَن.</div>'}
@@ -1654,8 +1717,8 @@ function debtDocPre(id,type){const d=debts().find(x=>x.id===id);if(!d||!DOC_T[ty
 function printDebt(id){const d=debts().find(x=>x.id===id);if(!d)return;const now=new Date();const N=v=>`<span class="n">${money(v)}</span>`;const t=DEBT_T[d.type]||DEBT_T.other;
   const P=debtPays(d),B=payBalances(d);const o=Math.max(+d.original||0,+d.balance||0);const sp=P.reduce((s,p)=>s+(+p.amt||0),0),si=P.reduce((s,p)=>s+payParts(d,p).int,0);
   const Dp=debtPlan();const pl=+d.balance>0.0005?simDebts(debts(),Dp.extra,Dp.strategy,true):null;const left=debtLeft(d);const docs=Vault.docs.filter(x=>x.debt===d.id);
-  let body=`<header class="rh"><div><div class="rapp">إدارة شؤوني</div><h1>كشف دين: ${esc(d.name)}</h1><div class="rper">${esc(t[0])}${d.lender?' · '+esc(d.lender):''} · القسط يوم ${+d.day||1}${+d.rate?' · فائدة سنوية '+(+d.rate)+'%':' · بدون فائدة'}</div></div><div class="rmeta">أُعدّ في ${fmtD(today())} الساعة ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}<br>العملة: الريال العُماني (ر.ع.)</div></header>
-   <section><h2>الملخص</h2><div class="kpis"><div><span>المبلغ الأصلي</span><b>${N(o)}</b></div><div><span>مجموع ما سدّدته</span><b>${N(sp)}</b></div><div><span>المتبقي الآن</span><b class="${+d.balance>0.0005?'no':'ok'}">${N(d.balance)}</b></div><div><span>القسط الشهري</span><b>${N(d.payment)}</b></div>
+  let body=`<header class="rh"><div><div class="rapp">إدارة شؤوني</div><h1>كشف دين: ${esc(d.name)}</h1><div class="rper">${esc(DEBT_G[debtGroup(d)][0])} · ${esc(t[0])}${d.lender?' · '+esc(d.lender):''} · ${d.mode==='once'?'يُسدَّد دفعة واحدة':'القسط يوم '+(+d.day||1)}${+d.rate?' · فائدة سنوية '+(+d.rate)+'%':' · بدون فائدة'}</div></div><div class="rmeta">أُعدّ في ${fmtD(today())} الساعة ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}<br>العملة: الريال العُماني (ر.ع.)</div></header>
+   <section><h2>الملخص</h2><div class="kpis"><div><span>المبلغ الأصلي</span><b>${N(o)}</b></div><div><span>مجموع ما سدّدته</span><b>${N(sp)}</b></div><div><span>المتبقي الآن</span><b class="${+d.balance>0.0005?'no':'ok'}">${N(d.balance)}</b></div><div><span>${d.mode==='once'?'طريقة السداد':'القسط الشهري'}</span><b>${d.mode==='once'?'دفعة واحدة':N(d.payment)}</b></div><div><span>بدأ في</span><b>${fmtD(debtStart(d))}</b></div><div><span>${d.closed?'انتهى في':'ينتهي المقرر'}</span><b>${(()=>{const e=debtEnd(d,pl||debtSim());return e?fmtD(e):'—'})()}</b></div>${d.closed?`<div><span>استغرق</span><b>${spanWord(d.closed.start,d.closed.end)}</b></div><div><span>طريقة التخلص منه</span><b>${CLOSE_M[d.closed.method]}</b></div>`:''}
     <div><span>نسبة السداد</span><b>${o?Math.round((o-(+d.balance))/o*100):100}%</b></div><div><span>الأقساط المتبقية</span><b>${+d.balance>0.0005?(left===null?'لا ينتهي بهذا القسط':left):'مسدّد'}</b></div><div><span>ينتهي حسب خطتك</span><b>${pl&&pl.finish[d.id]?monthLabel(pl.finish[d.id]):+d.balance>0.0005?'—':'انتهى ✓'}</b></div>${si>0.0005?`<div><span>فوائد دفعتها</span><b>${N(si)}</b></div>`:''}</div></section>
    <section class="txs"><h2>الدفعات</h2>${P.length?`<table><thead><tr><th>#</th><th>التاريخ</th><th>المبلغ</th>${+d.rate?'<th>فائدة</th><th>من الأصل</th>':''}<th>المتبقي بعدها</th><th>مصروف مسجّل</th></tr></thead><tbody>${P.map((p,i)=>{const q=payParts(d,p);return `<tr><td>${i+1}</td><td class="nw">${fmtD(p.date)}</td><td>${N(p.amt)}</td>${+d.rate?`<td>${N(q.int)}</td><td>${N(q.prin)}</td>`:''}<td>${N(B.get(p))}</td><td>${p.tx&&S.tx[p.tx]?'نعم':'—'}</td></tr>`}).join('')}</tbody><tfoot><tr><td></td><td>المجموع</td><td>${N(sp)}</td>${+d.rate?`<td>${N(si)}</td><td>${N(sp-si)}</td>`:''}<td></td><td></td></tr></tfoot></table>`:'<p>لا دفعات مسجّلة.</p>'}</section>
    ${docs.length?`<section><h2>المستندات المرفقة (محفوظة مشفّرة في التطبيق)</h2><table><tbody>${docs.map(x=>`<tr><td>${esc(x.title)}</td><td>${(x.files||[]).length} ${(x.files||[]).length===1?'ملف':'ملفات'}</td><td class="nw">${x.created?fmtD(x.created.slice(0,10)):''}</td></tr>`).join('')}</tbody></table></section>`:''}
@@ -2373,8 +2436,9 @@ function openLook(){const L=document.getElementById('layer');
 
 /* ---------- 24. الإصدار وما الجديد ---------- */
 const DEV={name:'ماجد الرميمي',title:'مهندس ومطور تقنية معلومات',country:'سلطنة عُمان',phone:'95134234',intl:'96895134234'};
-const APP_VERSION='2.10.0';
+const APP_VERSION='2.11.0';
 const CHANGELOG=[
+ {v:'2.11.0',d:'2026-10-14',items:['«قسم الديون» مرتب في أقسام: البنوك والتمويل، ديون لأشخاص (باسم الشخص)، ديون شخصية وأخرى','فرز الديون حسب: الأقرب انتهاءً، الأكبر مبلغًا، الأطول مدة، الأعلى فائدة، مع تصفية حسب القسم','لكل دين: تاريخ البداية، موعد الانتهاء المقرر، ومدته الكاملة','طريقتا سداد: أقساط شهرية، أو دفعة واحدة بالمبلغ الإجمالي في موعد تحدده، وزر «كامل المتبقي» للسداد النهائي','«سجل الديون المنتهية»: كل دين ينتهي يبقى محفوظًا بدفعاته ومستنداته، ومتى بدأ وانتهى، والمدة التي استغرقها، وطريقة التخلص منه','تقرير مبسّط لقسم الديون أسفل الرئيسية: المتبقي، الأقساط الباقية، يوم التحرر، وكل قسم بضغطة','التقرير المطبوع وكشف الدين يعرضان القسم والمدة والديون المنتهية']},
  {v:'2.10.0',d:'2026-10-13',items:['«وضع المدير»: التعديل والحذف والتراجع وتعديل الالتزامات الشهرية والديون والخطط والسيارات والأمانات تحتاج رمز المدير أو بصمة الوجه','اعتماد المدفوعات: ما يُدخل ووضع المدير مقفل يُعلَّم «⏳ بانتظار الاعتماد» حتى تراجعه وتعتمده أو تعدّله، مع «اعتماد الكل»','تنبيه «بانتظار اعتمادك» في الرئيسية، وعلامة ⏳ على الدفعات المنتظرة في الالتزامات والديون والسجل','قفل تلقائي بعد 5 دقائق بدون استخدام أو عند الخروج من التطبيق، وزر 🛡️ في الأعلى للفتح والقفل','رمز المدير يُحفظ مشفّرًا في هاتفك فقط، ولا يدخل في المزامنة ولا النسخة الاحتياطية']},
  {v:'2.9.0',d:'2026-10-13',items:['«التحرر من الديون» في الرئيسية: كم قسطًا باقيًا، ويوم التحرر من الديون بالتاريخ، وعدّ تنازلي بالأيام، ونسبة ما سدّدته، والقسط القادم','كل دين صار له «سجل الدين» داخل خانته: الدفعات، المستندات، والتحديثات','تعديل أي دفعة قديمة أو حذفها بالضغط عليها، ويُصحَّح المتبقي من الدين والمصروف المرتبط تلقائيًا مع زر «تراجع»','إرفاق عقد القرض وإيصالات السداد بالدين، تُحفظ مشفّرة في خزنة «مستنداتي» ولا تُزامَن','«كشف للطباعة» لكل دين: الملخص، كل دفعة بتاريخها ومبلغها والفائدة والمتبقي بعدها، المستندات المرفقة، وسجل التحديثات','«باقٍ X قسطًا» في خانة كل دين وفي التقرير المطبوع، وفي ويدجت الآيفون والماك','كل دفعة دين تُحفظ بفائدتها وأصلها والمتبقي بعدها لكشف أدق']},
  {v:'2.8.0',d:'2026-10-13',items:['كل التزام شهري صار خانة واحدة بأيقونته (كهرباء، ماء، إنترنت، هاتف، إيجار...)، وفيها كل ما يخصه','«سجل الالتزام» داخل الخانة: كل شهر بفاتورته والمتأخرات وما دفعته والمتبقي، مع دفعاته وتعديلها أو حذفها من نفس المكان','«التحديثات» تُحفظ داخل الخانة تلقائيًا: إضافة الالتزام، تغيير المبلغ، المتأخرات، فاتورة شهر، يوم الدفع، تعديل أو حذف دفعة','«كشف للطباعة» لكل التزام من نفس بياناته: الأشهر والدفعات والمتبقي وسجل التحديثات','التقرير الشهري المطبوع يعرض لكل التزام: المستحق والمدفوع والمتبقي وتواريخ الدفعات والحالة (مدفوع أو جزئي)','سجل السداد داخل خانة كل قسط دين','زر ثابت «+ إضافة التزام» أعلى صفحة الشهرية وأسفلها، يفتح كل الأنواع دائمًا ويمكن تكرار النوع نفسه (مثل كهرباء لبيتين)']},
@@ -2475,8 +2539,10 @@ function reportDoc(o){o=o||prOpts();const R=prRange(o),has=k=>o.secs.includes(k)
     if(pe.length>1)h+=sec('people','المصاريف حسب الأشخاص',T(['الشخص','المبلغ','النسبة'],pe.sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k?esc(personName(k)):'لي وللبيت'}</td><td>${N(v)}</td><td>${P(v,exp)}</td></tr>`)))}
   if(has('monthly')&&oneMonth){const st=recStatus(m0);if(st.R.length){const pd=i=>i.kind==='rec'?recPays(i.ref).filter(t=>t.date.slice(0,7)===m0):(i.ref.pays||[]).filter(p=>p.date&&p.date.slice(0,7)===m0).map(p=>({amount:p.amt,date:p.date}));
     h+=sec('monthly','المصاريف والأقساط الشهرية',T(['البند','يوم الدفع','المستحق','المدفوع','المتبقي','الدفعات','الحالة','✓'],st.R.slice().sort((a,b)=>a.day-b.day).map(i=>{const rem=r3(Math.max(0,i.amount-(i.paidAmt||0)));return `<tr><td>${esc(i.name)}${i.prev>0.0005?`<br><small>منها متأخرات ${money(i.prev)}</small>`:''}</td><td>${i.day}</td><td>${N(i.amount)}</td><td>${N(i.paidAmt||0)}</td><td class="${rem>0.0005?'no':'ok'}">${N(rem)}</td><td>${pd(i).map(t=>money(t.amount)+' ('+fmtD(t.date)+')').join('<br>')||'—'}</td><td class="${i.isPaid?'ok':i.paidAmt?'':'no'}">${i.isPaid?'مدفوع':i.paidAmt?'جزئي':'لم يُدفع'}</td><td class="box">${i.isPaid?'☑':'☐'}</td></tr>`}),['المجموع','',N(st.total),N(st.paidAmt),N(st.dueLeft),'',`مدفوع ${st.paid.length} من ${st.R.length}`,'']))}}
-  if(has('debts')){const Ds=debts().filter(d=>+d.balance>0);if(Ds.length){const Dp=debtPlan();const pl=simDebts(Ds,Dp.extra,Dp.strategy,true);
-    h+=sec('debts','الديون',T(['الدين','المتبقي','القسط','الفائدة','أقساط متبقية','ينتهي في'],Ds.map(d=>`<tr><td>${esc(d.name)}</td><td>${N(d.balance)}</td><td>${N(d.payment)}</td><td>${+d.rate?d.rate+'%':'—'}</td><td>${pl.finish[d.id]||'—'}</td><td>${pl.finish[d.id]?monthLabel(pl.finish[d.id]):'—'}</td></tr>`),['المجموع',N(Ds.reduce((x,d)=>x+(+d.balance),0)),N(Ds.reduce((x,d)=>x+(+d.payment),0)),'',pl.months||'',pl.months?monthLabel(pl.months):'']))}}
+  if(has('debts')){const Ds=debts().filter(d=>+d.balance>0.0005),Dn=debts().filter(d=>d.closed);if(Ds.length||Dn.length){const pl=debtSim();const GK=Object.keys(DEBT_G);let x='';
+    if(Ds.length)x+=T(['القسم','الدين','بدأ','المتبقي','القسط','الفائدة','ينتهي المقرر','المدة'],debtSort(Ds,'end',pl).sort((a,b)=>GK.indexOf(debtGroup(a))-GK.indexOf(debtGroup(b))).map(d=>{const e=debtEnd(d,pl),st=debtStart(d);return `<tr><td>${DEBT_G[debtGroup(d)][0]}</td><td>${esc(d.name)}${d.lender?' ('+esc(d.lender)+')':''}</td><td class="nw">${fmtD(st)}</td><td>${N(d.balance)}</td><td>${d.mode==='once'?'دفعة واحدة':N(d.payment)}</td><td>${+d.rate?d.rate+'%':'—'}</td><td class="nw">${e?fmtD(e):'—'}</td><td>${e?spanWord(st,e):'—'}</td></tr>`}),['المجموع','','',N(Ds.reduce((s2,d)=>s2+(+d.balance),0)),N(Ds.reduce((s2,d)=>s2+debtInst(d),0)),'','','']);
+    if(Dn.length)x+='<h3>ديون انتهت</h3>'+T(['الدين','من','إلى','استغرق','طريقة التخلص','مجموع ما دُفع'],Dn.map(d=>{const c=d.closed;return `<tr><td>${esc(d.name)}</td><td class="nw">${fmtD(c.start)}</td><td class="nw">${fmtD(c.end)}</td><td>${spanWord(c.start,c.end)}</td><td>${CLOSE_M[c.method]}</td><td>${N(c.total)}</td></tr>`}));
+    h+=sec('debts','الديون',x)}}
   if(has('plans')){const G=(S.settings.goals||[]);if(G.length){const acc=savAcc(),tot=savTotal();const hb=acc.balance!==null&&acc.balance!=='';
     h+=sec('plans','الخطط والأهداف',T(['الخطة','المطلوب','المدّخر','المتبقي','الإنجاز','الموعد','ادّخر شهريًا'],G.slice().sort((a,b)=>a.due.localeCompare(b.due)).map(g=>{const c=goalCalc(g);return `<tr><td>${esc(g.name)}</td><td>${N(c.tgt)}</td><td>${N(c.sv)}</td><td>${N(c.rem)}</td><td>${c.tgt?Math.round(c.pct)+'%':'—'}</td><td class="nw">${fmtD(g.due)}</td><td>${c.done?'مكتمل':c.past?'حان موعدها':N(c.monthly)}</td></tr>`}),['المجموع',N(G.reduce((s,g)=>s+(+g.target||0),0)),N(tot),N(G.reduce((s,g)=>s+goalCalc(g).rem,0)),'','',N(goalsSummary().plan)])+
      (tot||hb?`<p class="hint">${esc(acc.name)}: المفروض <b>${N(tot)}</b>${hb?` · رصيد البنك <b>${N(acc.balance)}</b> (${Math.abs(acc.balance-tot)<0.001?'مطابق':acc.balance>tot?'زيادة '+money(acc.balance-tot):'نقص '+money(tot-acc.balance)}) آخر تحديث ${fmtD(acc.at)}`:''}</p>`:''))}}
@@ -2685,6 +2751,9 @@ document.addEventListener('click',async e=>{
     const r=await verifyUser();if(r==='ok'){admSave(Object.assign({},c,{bio:true}));render();toast('فُعّلت بصمة الوجه للمدير')}else toast(r==='unavailable'?'بصمة الوجه غير متاحة هنا':'لم تُفعَّل بصمة الوجه');return}
   if(b.id==='admOff'){const P=pendList();for(const t of P){const c=Object.assign({},t);delete c.pend;await putTx(c)}admSave(null);Adm.open=false;render();toast('أُوقف وضع المدير'+(P.length?' واعتُمدت العمليات المنتظرة':''));return}
   if(b.dataset.apopen){openApprovals();return}
+  if(b.dataset.dgrp){S.debtGrp=b.dataset.dgrp;render();return}
+  if(b.dataset.dsort){S.debtSort=b.dataset.dsort;render();return}
+  if(b.dataset.dgo){S.debtGrp=b.dataset.dgo;S.tab='debts';render();const el=b.dataset.dgo==='done'&&document.getElementById('debtArch');if(el)el.scrollIntoView({block:'start'});else window.scrollTo(0,0);return}
   if(b.dataset.dpe){const [did,pid]=b.dataset.dpe.split('|');openDebtPayEdit(did,pid);return}
   if(b.dataset.dprint){printDebt(b.dataset.dprint);return}
   if(b.dataset.cdview){const id=b.dataset.cdview;withVault(()=>viewDoc(id));return}
