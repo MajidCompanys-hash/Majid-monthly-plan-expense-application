@@ -804,3 +804,15 @@ button.sync.warn{color:var(--exp);font-weight:600}
 .mdintro .row2 .btn{font-size:14px}
 .mderr{margin:6px 0 0;padding-inline-start:18px;font-size:12.5px;line-height:1.7}
 nav.tabs button{font-size:11px;white-space:nowrap}
+/* الاستيراد والتصدير: صف لكل قسم، والإيداعات والمصروفات في بطاقتين مستقلتين بلونين */
+.mdio-list{display:flex;flex-direction:column;gap:0}
+.mdio-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 2px;border-top:1px solid var(--line)}
+.mdio-row:first-child{border-top:none}
+.mdio-row>div:first-child{display:flex;flex-direction:column;min-width:0}
+.mdio-row small{color:var(--muted);font-size:12px}
+.mdio-btns{display:flex;gap:6px;flex:none}
+.mdio-btns .chip{padding:6px 10px;font-size:13px}
+.mdio-row.inc,.mdio-row.exp{border:0;border-radius:12px;padding:10px 12px;margin-bottom:8px;border-inline-start:4px solid var(--inc);background:color-mix(in srgb,var(--inc) 8%,var(--surface))}
+.mdio-row.exp{border-inline-start-color:var(--exp);background:color-mix(in srgb,var(--exp) 7%,var(--surface))}
+.mdio-row.exp+.mdio-row{border-top:none}
+.mdio .seg{flex-wrap:wrap}

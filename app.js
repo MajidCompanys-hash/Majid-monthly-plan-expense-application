@@ -2593,7 +2593,7 @@ function admAsk(then,why){let el=document.getElementById('admLayer');if(!el){el=
   if(!c.bio)setTimeout(()=>{const i=document.getElementById('admPin');if(i)i.focus()},60)}
 /* كل زر تعديل أو حذف أو تراجع أو اعتماد يمر من هنا أولًا */
 const ADM_SEL=['[data-edit]','[data-txdel]','[data-txedit]','[data-dpe]','[data-redit]','[data-dedit]','[data-tedit]','[data-cedit]','[data-gedit]','[data-pedit]','[data-sedit]','[data-rpedit]',
-  '[data-apv]','[data-apedit]','[data-unpay]','[data-recpick]','[data-secadd]','[data-early]','[data-payedit]','#payAdd','label[for="mdFile"]','#plOn','[data-plscope]','[data-plbefore]','[data-rename]','#lblEdit','[data-acedit]','#acAdd','[data-trdel]','[data-subadd]','#dnEdit','#wdEdit','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','label[for="restoreFile2"]','[data-snaprest]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
+  '[data-apv]','[data-apedit]','[data-unpay]','[data-recpick]','[data-secadd]','[data-early]','[data-payedit]','#payAdd','[data-mdi]','#plOn','[data-plscope]','[data-plbefore]','[data-rename]','#lblEdit','[data-acedit]','#acAdd','[data-trdel]','[data-subadd]','#dnEdit','#wdEdit','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','label[for="restoreFile2"]','[data-snaprest]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
 document.addEventListener('click',e=>{if(!admOn())return;if(e.target.closest('#admLayer'))return;
   if(admOpen()){if(e.target.closest('button,label'))Adm.last=Date.now();return}
   const b=e.target.closest(ADM_SEL);if(!b)return;e.preventDefault();e.stopImmediatePropagation();
@@ -2946,8 +2946,9 @@ function openLook(){const L=document.getElementById('layer');
 
 /* ---------- 24. الإصدار وما الجديد ---------- */
 const DEV={name:'ماجد الرميمي',title:'مهندس ومطور تقنية معلومات',country:'سلطنة عُمان',phone:'95134234',intl:'96895134234'};
-const APP_VERSION='2.21.0';
+const APP_VERSION='2.22.0';
 const CHANGELOG=[
+ {v:'2.22.0',d:'2026-10-14',items:['الاستيراد والتصدير مرتب بالأقسام في صفحة إدارة البيانات: لكل قسم صف بزرّي «📤 تصدير» و«📥 استيراد»، مع «تصدير الكل» و«استيراد ملف كامل»','💰 الإيداعات والدخل في ورقة مستقلة، و💸 المصروفات والخصومات في ورقة مستقلة: التاريخ والمبلغ والفئة والبيان وطريقة الدفع والحساب (ولمن في المصروفات)، بقوائم منسدلة','اختيار الفترة: هذا الشهر، هذه السنة، الكل، أو «قالب فارغ» للإدخال من الصفر','الاستيراد يكشف المكرر فلا يُضاف مرتين، ويرفض التاريخ والفئة غير الصحيحين برقم الصف، ويقبل التاريخ 14/10/2026 أو 2026-10-14','استيراد قسم يقرأ ورقة ذلك القسم فقط']},
  {v:'2.21.0',d:'2026-10-14',items:['صفحة «🗄️ إدارة البيانات» مكان «الخطة» في الشريط السفلي: الأشخاص، الجهات (بنوك ومحلات وجهات)، الحسابات، الالتزامات، الديون، ومعها الخطط والميزانية','أيقونات «أقسامي» و«تسجيل سريع» انتقلت من الرئيسية إلى إدارة البيانات؛ الرئيسية صارت للمتابعة والتقارير اليومية والشهرية والسنوية والخطط','الاختيار من البيانات بدل الكتابة: جهة الدين تُختار من القائمة، والجهات المسجلة تظهر في زر + للاختيار، ومع خيار «+ اسم جديد» يُحفظ في البيانات','تصدير البيانات الأساسية إلى Excel / Numbers بقوائم منسدلة جاهزة في كل عمود، ثم استيرادها بعد التعديل مع معاينة (جديد/معدّل/أخطاء) ولقطة قبل الاستيراد وتراجع، ثم مزامنة تلقائية']},
  {v:'2.20.1',d:'2026-10-14',items:['المزامنة من زر واحد فقط: أيقونة السحابة ☁️ في الأعلى. حُذفت الأزرار المكررة («مزامنة الآن» والطريقة البديلة وزر التقارير)، وبقي في الضبط الربط أول مرة وإلغاء الربط','السحابة ☁️ خضراء عندما يكون التطبيق متصلًا بـ Google Drive، وحمراء عندما يكون غير متصل، وتدور أثناء المزامنة','بطاقة المزامنة في الضبط أُعيدت صياغتها: حالة الاتصال وآخر مزامنة وزر واحد فقط','«🔒 قفل الدفع قبل الموعد» صار قابلًا للتعديل من ⚙️ الضبط (من وضع المدير): تشغيل/إيقاف، كل الأشهر أو الأشهر القادمة فقط، ويُفتح يوم الموعد أو قبله بـ3 أيام أو أسبوع أو 15 يومًا']},
  {v:'2.20.0',d:'2026-10-14',items:['القائمة الشهرية: مواعيد الدفع بنظام يوم/شهر/سنة (مثل 5/11/2026)، وتاريخ كل دفعة','«📅 تفاصيل الدفع للسنة» داخل كل بند: الأشهر الـ12 بالمبلغ والموعد وتاريخ الدفع، أخضر = مدفوع، أحمر = غير مدفوع، واضغط أي شهر لفتحه','المبلغ المدفوع بالأخضر وغير المدفوع بالأحمر','رسالة «شكرًا على الدفع» مع مبلغ وموعد الشهر التالي، ويظهر «التالي» تحت البند المدفوع','الدفع يُفتح من تاريخ الاستحقاق فقط؛ قبله يظهر «🔒 يُفتح في…»، والدفع المبكر من وضع المدير','«تسجيل كل المتبقي» لا يشمل ما لم يحن موعده','الصفحة ثابتة على قدّ الشاشة: لا تكبير بالإصبعين ولا بالنقر المزدوج، ولا تكبير تلقائي عند الكتابة','إصلاح زر المزامنة: نافذة دخول Google تُجهَّز مسبقًا وتُفتح مباشرة من ضغطتك، لأن Safari في الآيفون كان يمنعها فلا يحدث شيء','زر «الربط بطريقة بديلة»: ينتقل لصفحة Google ثم يرجع للتطبيق، إذا لم تظهر النافذة في تطبيق الشاشة الرئيسية','حالة المزامنة ظاهرة على الشاشات الصغيرة: الأيقونة تدور أثناء المزامنة، وتصير خضراء عند النجاح وحمراء عند الخطأ','رسائل أوضح عند فشل المزامنة (نافذة لم تُفتح، أُغلقت، رفض Google، لا إنترنت)','إعدادات المزامنة انتقلت إلى ⚙️ الضبط، وزر السحابة في الأعلى يفتحها إن لم تكن مربوطة']},
@@ -3759,9 +3760,8 @@ function vMaster(){const P=people(),Y=payees(),A=accList(),R=recs(),D=debts();
   const row=(t,s,attr,ico)=>`<div class="mdrow"><div><b>${t}</b>${s?`<small>${s}</small>`:''}</div>${attr?`<button class="chip" ${attr}><span class="lk">🔒 </span>تعديل</button>`:''}</div>`;
   const sec=(title,items,addAttr,addTxt,empty)=>`<h2>${title}</h2><div class="panel mdlist">${items.length?items.join(''):`<p class="note" style="margin:6px 0">${empty}</p>`}</div><button class="chip secadd" ${addAttr}><span class="lk">🔒 </span>${addTxt}</button>`;
   return `<div class="backrow" style="margin-top:4px"><h2 style="margin:0">${esc(lbl('sec.master'))}</h2><button class="chip" data-tab="home">الرئيسية ‹</button></div>
-  <div class="panel stack mdintro"><span class="note" style="margin:0">أدخل هنا الأشخاص والجهات والحسابات والالتزامات والديون مرة واحدة، فتظهر جاهزة للاختيار في كل مكان بالتطبيق، بدون كتابة الأسماء من جديد ولا أخطاء إملائية.</span>
-   <div class="row2"><button class="btn ghost" id="mdExport">📤 تصدير Excel / Numbers</button><label class="btn ghost" for="mdFile" id="mdImportLbl" style="text-align:center;cursor:pointer"><span class="lk">🔒 </span>📥 استيراد من الملف</label></div><input type="file" id="mdFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
-   <span class="note" style="margin:0">صدّر الملف، عدّله في Numbers أو Excel (القوائم المنسدلة جاهزة في كل عمود)، ثم استورده: تظهر لك معاينة قبل أي تغيير، وبعد الحفظ تتم المزامنة تلقائيًا.</span></div>
+  <p class="note" style="margin:0 2px 10px">أدخل هنا الأشخاص والجهات والحسابات والالتزامات والديون مرة واحدة، فتظهر جاهزة للاختيار في كل مكان بالتطبيق، بدون كتابة الأسماء من جديد ولا أخطاء إملائية.</p>
+  <h2>📊 الاستيراد والتصدير (Excel / Numbers)</h2>${mdIoHtml()}
   <h2>أقسامي</h2>${dashHtml(true)}${quickHtml()}
   ${sec('👨‍👩‍👧 الأشخاص',P.map(p=>row(esc(p.name),[p.rel?esc(p.rel):'',+p.allowance?'المخصص '+money(p.allowance):''].filter(Boolean).join(' · '),`data-pedit="${esc(p.id)}"`)),'data-padd="1"','+ شخص','لا يوجد أشخاص بعد.')}
   ${sec('🏢 الجهات (بنوك، محلات، جهات)',Y.map(p=>row(esc(p.name),esc(PAYEE_T[p.type]||PAYEE_T.other)+(p.note?' · '+esc(p.note):''),`data-payedit="${esc(p.id)}"`)),'id="payAdd"','+ جهة','أضف البنوك والمحلات والجهات التي تتعامل معها لتختارها بدل كتابتها.')}
@@ -3793,28 +3793,48 @@ document.addEventListener('change',e=>{const s=e.target;if(!s.matches||!s.matche
   if(![...s.options].some(o=>o.value===n)){const o=document.createElement('option');o.value=n;o.textContent=n;s.insertBefore(o,s.lastElementChild)}s.value=n},true);
 
 /* ===== Excel / Numbers: تصدير البيانات الأساسية بقوائم منسدلة، واستيرادها بعد التعديل ===== */
+/* أقسام الاستيراد والتصدير: لكل قسم ورقة مستقلة وزرّان */
+const MD_SECS=[['inc','💰','الإيداعات والدخل','الإيداعات'],['exp','💸','المصروفات والخصومات','المصروفات'],['people','👨‍👩‍👧','الأشخاص','الأشخاص'],['payees','🏢','الجهات','الجهات'],['accounts','💳','الحسابات','الحسابات'],['recurring','🔁','الالتزامات الشهرية','الالتزامات الشهرية'],['debts','🏦','الديون','الديون']];
+const MD_PER=[['month','هذا الشهر'],['year','هذه السنة'],['all','الكل'],['blank','قالب فارغ']];
+function mdPer(){return (S.settings.mdPer)||'month'}
+function mdCount(k){const R=expRange(mdPer()==='blank'?'month':mdPer());if(k==='inc'||k==='exp')return mdPer()==='blank'?0:inRange(R.from,R.to).filter(t=>t.type===k).length;
+  return {people:people(),payees:payees(),accounts:accList(),recurring:recs(),debts:debts()}[k].length}
+function mdIoHtml(){const per=mdPer();
+  return `<div class="panel stack mdio">
+   <div class="field" style="margin:0"><label>فترة الإيداعات والمصروفات في الملف</label><div class="seg">${MD_PER.map(([k,n])=>`<button class="n" data-mdper="${k}" aria-pressed="${per===k}">${n}</button>`).join('')}</div></div>
+   <div class="mdio-list">${MD_SECS.map(([k,ic,n])=>`<div class="mdio-row${k==='inc'?' inc':k==='exp'?' exp':''}"><div><b>${ic} ${n}</b><small>${mdCount(k)} ${k==='inc'||k==='exp'?(per==='blank'?'· قالب للإدخال':'· '+esc(expRange(per).label)):'سجل'}</small></div><div class="mdio-btns"><button class="chip" data-mdx="${k}" aria-label="تصدير ${n}">📤 تصدير</button><button class="chip" data-mdi="${k}" aria-label="استيراد ${n}"><span class="lk">🔒 </span>📥 استيراد</button></div></div>`).join('')}</div>
+   <div class="row2"><button class="btn ghost" data-mdx="all">📤 تصدير الكل في ملف واحد</button><button class="btn ghost" data-mdi="all"><span class="lk">🔒 </span>📥 استيراد ملف كامل</button></div>
+   <input type="file" id="mdFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+   <span class="note" style="margin:0">صدّر القسم، عدّله في Numbers أو Excel (القوائم المنسدلة جاهزة في كل عمود)، ثم استورده من نفس القسم: تظهر معاينة قبل أي تغيير، وبعد الحفظ تتم المزامنة تلقائيًا. لا تغيّر عمود «المعرّف»، والصف الجديد يُترك معرّفه فارغًا.</span></div>`}
 const MD_LISTS=()=>({
   cats:EXP_CATS.map(c=>c.n),kinds:Object.values(REC_KINDS).map(k=>k.n),dtypes:Object.values(DEBT_T).map(t=>t[0]),ptypes:Object.values(PAYEE_T),
-  akinds:[ACC_KIND.other,ACC_KIND.card],people:people().map(p=>p.name),lenders:knownNames()});
-function mdSheets(){const Lz=MD_LISTS(),sub='أُعدّ في '+fmtD(today())+' · لا تغيّر عمود «المعرّف». صف جديد = اترك المعرّف فارغًا. اختر من القوائم المنسدلة.';
-  const listsSheet={name:'القوائم',title:'القوائم الجاهزة للاختيار',sub:'هذه القوائم تغذّي الأسهم المنسدلة في الأوراق الأخرى. أضف الأشخاص والجهات من أوراقها.',
-    head:[['الفئات','s',22],['أنواع الالتزامات','s',24],['أنواع الديون','s',18],['أنواع الجهات','s',22],['أنواع الحسابات','s',16],['الأشخاص','s',18],['الجهات والأشخاص','s',22]],rows:[]};
-  const cols=[Lz.cats,Lz.kinds,Lz.dtypes,Lz.ptypes,Lz.akinds,Lz.people,Lz.lenders];const n=Math.max(...cols.map(c=>c.length));
+  akinds:[ACC_KIND.other,ACC_KIND.card],people:people().map(p=>p.name),lenders:knownNames(),icats:INC_CATS.map(c=>c.n),meths:METHODS.map(m=>m[1]),accs:accList().map(a=>a.name)});
+function mdSheets(only){const Lz=MD_LISTS(),sub='أُعدّ في '+fmtD(today())+' · لا تغيّر عمود «المعرّف». صف جديد = اترك المعرّف فارغًا. اختر من القوائم المنسدلة.';
+  const LC='ABCDEFGHIJ';const listsSheet={name:'القوائم',title:'القوائم الجاهزة للاختيار',sub:'هذه القوائم تغذّي الأسهم المنسدلة في الأوراق الأخرى. أضف الأشخاص والجهات والحسابات من أوراقها أو من التطبيق.',
+    head:[['فئات المصروف','s',22],['أنواع الالتزامات','s',24],['أنواع الديون','s',18],['أنواع الجهات','s',22],['أنواع الحسابات','s',16],['الأشخاص','s',18],['الجهات والأشخاص','s',22],['فئات الدخل','s',18],['طرق الدفع','s',12],['الحسابات','s',18]],rows:[]};
+  const cols=[Lz.cats,Lz.kinds,Lz.dtypes,Lz.ptypes,Lz.akinds,Lz.people,Lz.lenders,Lz.icats,Lz.meths,Lz.accs];const n=Math.max(...cols.map(c=>c.length));
   for(let i=0;i<n;i++)listsSheet.rows.push(cols.map(c=>c[i]||''));
-  const ref=(c,len)=>`'القوائم'!$${'ABCDEFG'[c]}$5:$${'ABCDEFG'[c]}$${Math.max(5,4+len+30)}`;
-  const C=ym(new Date());
-  return [
-   {name:'الأشخاص',title:'الأشخاص',sub,head:[['المعرّف','s',16],['الاسم','s',22],['الصلة','s',16],['المخصص الشهري','n']],rows:people().map(p=>[p.id,p.name,p.rel||'',+p.allowance||''])},
-   {name:'الجهات',title:'الجهات: بنوك، محلات، جهات',sub,head:[['المعرّف','s',16],['الاسم','s',24],['النوع','s',22],['ملاحظة','s',26]],rows:payees().map(p=>[p.id,p.name,PAYEE_T[p.type]||PAYEE_T.other,p.note||'']),dv:[[2,ref(3,Lz.ptypes.length)]]},
-   {name:'الحسابات',title:'الحسابات',sub,head:[['المعرّف','s',16],['الاسم','s',24],['النوع','s',18]],rows:accList().map(a=>[a.id,a.name,ACC_KIND[a.kind]||ACC_KIND.other]),dv:[[2,ref(4,2)]]},
-   {name:'الالتزامات الشهرية',title:'الالتزامات الشهرية',sub,head:[['المعرّف','s',16],['الاسم','s',24],['النوع','s',24],['الفئة','s',18],['المبلغ الشهري','n'],['يوم الدفع','i'],['يبدأ (سنة-شهر)','s',14],['ينتهي (سنة-شهر)','s',14],['لمن','s',16]],
+  const ref=(c,len)=>`'القوائم'!$${LC[c]}$5:$${LC[c]}$${Math.max(5,4+len+30)}`;
+  const C=ym(new Date()),per=mdPer(),R=expRange(per==='blank'?'month':per);const TX=per==='blank'?[]:inRange(R.from,R.to).sort((a,b)=>a.date.localeCompare(b.date)||(a.createdAt||'').localeCompare(b.createdAt||''));
+  const mName=k=>(METHODS.find(m=>m[0]===k)||['',''])[1];
+  const all={
+   inc:{name:'الإيداعات',title:'الإيداعات والدخل'+(per==='blank'?'':' · '+R.label),sub,head:[['المعرّف','s',16],['التاريخ','d'],['المبلغ','n'],['الفئة','s',18],['البيان','s',28],['طريقة الدفع','s',12],['الحساب','s',18]],
+     rows:TX.filter(t=>t.type==='inc').map(t=>[t.id,t.date,+t.amount,catOf(t.cat).n,t.note||'',mName(t.method),accName(accOf(t))]),dv:[[3,ref(7,Lz.icats.length)],[5,ref(8,3)],[6,ref(9,Lz.accs.length)]]},
+   exp:{name:'المصروفات',title:'المصروفات والخصومات'+(per==='blank'?'':' · '+R.label),sub,head:[['المعرّف','s',16],['التاريخ','d'],['المبلغ','n'],['الفئة','s',18],['البيان','s',28],['طريقة الدفع','s',12],['الحساب','s',18],['لمن','s',16]],
+     rows:TX.filter(t=>t.type==='exp').map(t=>[t.id,t.date,+t.amount,catOf(t.cat).n,t.note||'',mName(t.method),accName(accOf(t)),t.person?personName(t.person):'']),dv:[[3,ref(0,Lz.cats.length)],[5,ref(8,3)],[6,ref(9,Lz.accs.length)],[7,ref(5,Lz.people.length)]]},
+   people:{name:'الأشخاص',title:'الأشخاص',sub,head:[['المعرّف','s',16],['الاسم','s',22],['الصلة','s',16],['المخصص الشهري','n']],rows:people().map(p=>[p.id,p.name,p.rel||'',+p.allowance||''])},
+   payees:{name:'الجهات',title:'الجهات: بنوك، محلات، جهات',sub,head:[['المعرّف','s',16],['الاسم','s',24],['النوع','s',22],['ملاحظة','s',26]],rows:payees().map(p=>[p.id,p.name,PAYEE_T[p.type]||PAYEE_T.other,p.note||'']),dv:[[2,ref(3,Lz.ptypes.length)]]},
+   accounts:{name:'الحسابات',title:'الحسابات',sub,head:[['المعرّف','s',16],['الاسم','s',24],['النوع','s',18]],rows:accList().map(a=>[a.id,a.name,ACC_KIND[a.kind]||ACC_KIND.other]),dv:[[2,ref(4,2)]]},
+   recurring:{name:'الالتزامات الشهرية',title:'الالتزامات الشهرية',sub,head:[['المعرّف','s',16],['الاسم','s',24],['النوع','s',24],['الفئة','s',18],['المبلغ الشهري','n'],['يوم الدفع','i'],['يبدأ (سنة-شهر)','s',14],['ينتهي (سنة-شهر)','s',14],['لمن','s',16]],
     rows:recs().map(r=>[r.id,r.name,(REC_KINDS[r.kind]||REC_KINDS.custom).n,catOf(r.cat).n,amtAt(r,C),{v:+r.day||1,t:'i'},r.start||'',r.until||'',r.person?personName(r.person):'']),dv:[[2,ref(1,Lz.kinds.length)],[3,ref(0,Lz.cats.length)],[8,ref(5,Lz.people.length)]]},
-   {name:'الديون',title:'الديون',sub:sub+' · المتبقي للعرض فقط في الديون الموجودة (يتغيّر بالدفعات من التطبيق)',head:[['المعرّف','s',16],['الاسم','s',22],['النوع','s',16],['الجهة / الشخص','s',20],['المتبقي','n'],['القسط الشهري','n'],['الفائدة %','n'],['يوم الدفع','i']],
-    rows:debts().map(d=>[d.id,d.name,(DEBT_T[d.type]||DEBT_T.other)[0],d.lender||'',+d.balance||0,+d.payment||0,+d.rate||0,{v:+d.day||1,t:'i'}]),dv:[[2,ref(2,Lz.dtypes.length)],[3,ref(6,Lz.lenders.length)]]},
-   listsSheet]}
-async function mdExport(){const data=XL.build(mdSheets());const nm='idarat-shuooni-master-data-'+today()+'.xlsx';
+   debts:{name:'الديون',title:'الديون',sub:sub+' · المتبقي للعرض فقط في الديون الموجودة (يتغيّر بالدفعات من التطبيق)',head:[['المعرّف','s',16],['الاسم','s',22],['النوع','s',16],['الجهة / الشخص','s',20],['المتبقي','n'],['القسط الشهري','n'],['الفائدة %','n'],['يوم الدفع','i']],
+    rows:debts().map(d=>[d.id,d.name,(DEBT_T[d.type]||DEBT_T.other)[0],d.lender||'',+d.balance||0,+d.payment||0,+d.rate||0,{v:+d.day||1,t:'i'}]),dv:[[2,ref(2,Lz.dtypes.length)],[3,ref(6,Lz.lenders.length)]]}};
+  const keys=!only||only==='all'?MD_SECS.map(x=>x[0]):[only];
+  return keys.map(k=>all[k]).concat([listsSheet])}
+async function mdExport(only){const data=XL.build(mdSheets(only));const sec=MD_SECS.find(x=>x[0]===only);
+  const nm='idarat-shuooni-'+(sec?{inc:'deposits',exp:'expenses',people:'people',payees:'payees',accounts:'accounts',recurring:'monthly',debts:'debts'}[only]:'data')+(only==='inc'||only==='exp'||!sec?'-'+(mdPer()==='blank'?'template':mdPer()==='all'?'all':expRange(mdPer()).from.slice(0,mdPer()==='year'?4:7)):'')+'.xlsx';
   const r=await shareFile(nm,data,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  if(r!=='cancel')toast(r==='shared'?'اختر «Numbers» لفتحه وتعديله، ثم استورده من «البيانات الأساسية»':'حُفظ الملف '+nm+'، عدّله في Numbers أو Excel ثم استورده',null,6000)}
+  if(r!=='cancel')toast(r==='shared'?'اختر «Numbers» لفتحه وتعديله، ثم استورده من نفس القسم':'حُفظ الملف '+nm+'، عدّله في Numbers أو Excel ثم استورده',null,6000)}
 /* قراءة ملف xlsx داخل الجهاز (بدون أي اتصال) */
 async function readXlsx(buf){const u8=new Uint8Array(buf),dv=new DataView(buf);let eo=-1;for(let i=u8.length-22;i>=Math.max(0,u8.length-66000);i--){if(dv.getUint32(i,true)===0x06054b50){eo=i;break}}
   if(eo<0)throw new Error('notzip');const cnt=dv.getUint16(eo+10,true);let p=dv.getUint32(eo+16,true);const files={};const td=new TextDecoder();
@@ -3837,9 +3857,10 @@ const xlDate=v=>typeof v==='number'&&v>20000&&v<80000?isoD(new Date(Math.round((
 const xlMonth=v=>{if(v===''||v==null)return '';const s=xlDate(v);let m=s.match(/^(\d{4})-(\d{1,2})/);if(m)return m[1]+'-'+m[2].padStart(2,'0');m=s.match(/^(\d{1,2})[\/\-.](\d{4})$/);if(m)return m[2]+'-'+m[1].padStart(2,'0');m=s.match(/^\d{1,2}[\/\-.](\d{1,2})[\/\-.](\d{4})$/);if(m)return m[2]+'-'+m[1].padStart(2,'0');return null};
 const xlNum=v=>typeof v==='number'?v:(String(v||'').trim()===''?'':parseAmt(String(v)));
 /* تحويل الأوراق إلى تغييرات مقترحة مع التحقق من كل صف */
-function mdPlan(book){const P={people:[],payees:[],accounts:[],recurring:[],debts:[],errors:[],found:[]};
+function mdPlan(book,only){const P={inc:[],exp:[],people:[],payees:[],accounts:[],recurring:[],debts:[],errors:[],found:[]};const want=k=>!only||only==='all'||only===k;
   const rev=(obj,v)=>{v=String(v||'').trim();return Object.keys(obj).find(k=>obj[k]===v)};
-  const table=name=>{const rows=book[name];if(!rows)return null;P.found.push(name);const hi=rows.findIndex(r=>r&&r.some(c=>String(c).trim()==='المعرّف'));if(hi<0)return null;const H=rows[hi].map(h=>String(h||'').trim());
+  const SK={'الإيداعات':'inc','المصروفات':'exp','الأشخاص':'people','الجهات':'payees','الحسابات':'accounts','الالتزامات الشهرية':'recurring','الديون':'debts'};
+  const table=name=>{if(!want(SK[name]))return null;const rows=book[name];if(!rows)return null;P.found.push(name);const hi=rows.findIndex(r=>r&&r.some(c=>String(c).trim()==='المعرّف'));if(hi<0)return null;const H=rows[hi].map(h=>String(h||'').trim());
     return rows.slice(hi+1).filter(r=>r&&r.some(c=>String(c==null?'':c).trim()!=='')).map((r,i)=>{const o={_row:hi+2+i};H.forEach((h,ci)=>{if(h)o[h]=r[ci]==null?'':r[ci]});return o}).filter(o=>String(o['المعرّف']||'').trim()!=='المجموع')};
   const err=(sh,o,m)=>P.errors.push(sh+' · صف '+o._row+': '+m);
   const s=v=>String(v==null?'':v).trim();
@@ -3858,12 +3879,26 @@ function mdPlan(book){const P={people:[],payees:[],accounts:[],recurring:[],debt
     const type=Object.keys(DEBT_T).find(k=>DEBT_T[k][0]===s(o['النوع']))||(s(o['النوع'])?null:'other');if(!type)return err(sh,o,'النوع «'+s(o['النوع'])+'» ليس من القائمة');
     const pay=xlNum(o['القسط الشهري']),rate=xlNum(o['الفائدة %']),bal=xlNum(o['المتبقي']);if([pay,rate,bal].some(v=>v!==''&&(v===null||isNaN(v)||v<0)))return err(sh,o,'رقم غير صحيح');
     P.debts.push({id:s(o['المعرّف']),name,type,lender:lblClean(o['الجهة / الشخص']),payment:pay===''?0:r3(pay),rate:rate===''?0:+rate,day:Math.min(31,Math.max(1,parseInt(o['يوم الدفع'])||1)),balance:bal===''?0:r3(bal)})});
+  const xlDay=v=>{if(v===''||v==null)return '';const t=xlDate(v);let m=t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(m)return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');m=t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);if(m)return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');return null};
+  const meth=v=>{v=s(v);if(!v)return 'cash';const m=METHODS.find(x=>x[1]===v||x[0]===v);return m?m[0]:null};
+  const acc=v=>{v=s(v);if(!v)return '';const a=accList().find(x=>x.name===v)||P.accounts.find(x=>x.name===v);return a?(a.id||null):null};
+  [['inc','الإيداعات',INC_CATS],['exp','المصروفات',EXP_CATS]].forEach(([ty,sh,CATS])=>{(table(sh)||[]).forEach(o=>{
+    const d=xlDay(o['التاريخ']);if(!d)return err(sh,o,'التاريخ غير صحيح (اكتبه مثل 14/10/2026)');
+    const amt=xlNum(o['المبلغ']);if(!(amt>0))return err(sh,o,'المبلغ غير صحيح');
+    const cn=s(o['الفئة']);const cat=cn?(CATS.find(c=>c.n===cn||SHORT[c.id]===cn)||{}).id:(ty==='inc'?'iother':'other');if(!cat||!CATS.some(c=>c.id===cat))return err(sh,o,cn?'الفئة «'+cn+'» ليست من قائمة '+(ty==='inc'?'فئات الدخل':'فئات المصروف'):'اختر الفئة');
+    const m=meth(o['طريقة الدفع']);if(!m)return err(sh,o,'طريقة الدفع ليست من القائمة');
+    const a=acc(o['الحساب']);if(a===null)return err(sh,o,'الحساب «'+s(o['الحساب'])+'» غير موجود');
+    let person='';if(ty==='exp'){const pv=pplName(o['لمن']);if(pv===null)return err(sh,o,'الشخص «'+s(o['لمن'])+'» غير موجود');person=pv}
+    P[ty].push({id:s(o['المعرّف']),type:ty,date:d,amount:r3(amt),cat,note:lblClean(o['البيان']).slice(0,80),method:m,acc:a,person,_row:o._row,_sh:sh})})});
   return P}
 /* مقارنة بما في التطبيق: جديد / معدّل / كما هو */
-function mdDiff(P){const cmp=(list,cur,keys)=>{let add=0,chg=0,same=0,miss=0;list.forEach(o=>{const ex=o.id&&cur.find(c=>c.id===o.id);if(!ex){if(o.id&&!['main','cash'].includes(o.id))miss++;add++;return}keys.some(k=>String(ex[k]??'')!==String(o[k]??''))?chg++:same++});return{add,chg,same,miss}};
-  return{people:cmp(P.people,people(),['name','rel','allowance']),payees:cmp(P.payees,payees(),['name','type','note']),accounts:cmp(P.accounts,accList(),['name','kind']),
+function mdDiff(P){const txd=ty=>{let add=0,chg=0,same=0,dup=0,miss=0;const keyOf=t=>[t.type,t.date,r3(+t.amount),(t.note||'').trim()].join('|');const have=new Set(list().map(keyOf));
+    P[ty].forEach(o=>{const ex=o.id&&S.tx[o.id];if(!ex){if(have.has(keyOf(o))){o._dup=1;dup++;return}if(o.id)miss++;add++;return}const exAcc=ex.acc||'';const ch=['date','amount','cat','note','method','person'].some(k=>String(k==='amount'?r3(+ex[k]):ex[k]||'')!==String(k==='amount'?o.amount:o[k]||''))||(o.acc&&o.acc!==accOf(ex));
+      if(ch&&ex.debt&&Math.abs(r3(+ex.amount)-o.amount)>0.0005){o._skip='مرتبطة بدين: عدّل مبلغها من الدين نفسه';P.errors.push(o._sh+' · صف '+o._row+': '+o._skip);return}ch?chg++:same++});return{add,chg,same,dup,miss}};
+  const cmp=(list,cur,keys)=>{let add=0,chg=0,same=0,miss=0;list.forEach(o=>{const ex=o.id&&cur.find(c=>c.id===o.id);if(!ex){if(o.id&&!['main','cash'].includes(o.id))miss++;add++;return}keys.some(k=>String(ex[k]??'')!==String(o[k]??''))?chg++:same++});return{add,chg,same,miss}};
+  return{inc:txd('inc'),exp:txd('exp'),people:cmp(P.people,people(),['name','rel','allowance']),payees:cmp(P.payees,payees(),['name','type','note']),accounts:cmp(P.accounts,accList(),['name','kind']),
     recurring:cmp(P.recurring,recs().map(r=>Object.assign({},r,{amount:amtAt(r,ym(new Date()))})),['name','kind','cat','amount','day','start','until','person']),debts:cmp(P.debts,debts(),['name','type','lender','payment','rate','day'])}}
-function mdApply(P){const st=S.settings,C=ym(new Date());
+function mdApply(P){const st=S.settings,C=ym(new Date());const NT=[];
   const pid={};(st.people=st.people||[]);P.people.forEach(o=>{let ex=o.id&&st.people.find(x=>x.id===o.id);if(ex)Object.assign(ex,{name:o.name,rel:o.rel,allowance:o.allowance});else{ex={id:uidGen(),name:o.name,rel:o.rel,allowance:o.allowance};st.people.push(ex)}pid['@'+o.name]=ex.id});
   st.payees=st.payees||[];P.payees.forEach(o=>{const ex=o.id&&st.payees.find(x=>x.id===o.id);if(ex)Object.assign(ex,{name:o.name,type:o.type,note:o.note});else st.payees.push({id:uidGen(),name:o.name,type:o.type,note:o.note})});
   st.accounts=st.accounts||[];P.accounts.forEach(o=>{let ex=o.id&&st.accounts.find(x=>x.id===o.id);if(ex)Object.assign(ex,{name:o.name,kind:o.id==='main'||o.id==='cash'?ex.kind:o.kind});else if(o.id==='main'||o.id==='cash')st.accounts.push({id:o.id,kind:o.id,name:o.name});else st.accounts.push({id:uidGen(),kind:o.kind,name:o.name})});
@@ -3873,13 +3908,17 @@ function mdApply(P){const st=S.settings,C=ym(new Date());
     else{const r={id:uidGen(),kind:o.kind,name:o.name,amount:o.amount,amtHist:{},start:o.start||C,until:o.until,cat:o.cat,day:o.day,person,half:false,later:{},remind:Math.max(1,o.day-2),arrears:0,since:C,bills:{}};recLog(r,'أُضيف من ملف Excel بمبلغ '+rial(o.amount));st.recurring.push(r)}});
   st.debts=st.debts||[];P.debts.forEach(o=>{const ex=o.id&&st.debts.find(x=>x.id===o.id);if(ex)Object.assign(ex,{name:o.name,type:o.type,lender:o.lender,payment:o.payment,rate:o.rate,day:o.day});
     else st.debts.push({id:uidGen(),type:o.type,name:o.name,lender:o.lender,original:o.balance,balance:o.balance,payment:o.payment,rate:o.rate,day:o.day,pays:[],mode:'inst',start:today(),end:'',log:[{at:today(),t:'أُضيف من ملف Excel'}]})});
+  ['inc','exp'].forEach(ty=>P[ty].forEach(o=>{if(o._dup||o._skip)return;const person=o.person&&o.person[0]==='@'?pid[o.person]||'':o.person;const ex=o.id&&S.tx[o.id];
+    if(ex){const c=Object.assign({},ex,{date:o.date,amount:o.amount,cat:o.cat,note:o.note,method:o.method});if(ty==='exp')c.person=person||undefined;if(o.acc)c.acc=o.acc;if(!c.person)delete c.person;NT.push(c)}
+    else{const t={id:uidGen(),type:ty,amount:o.amount,cat:o.cat,date:o.date,method:o.method,note:o.note,createdAt:new Date().toISOString(),src:'xlsx'};if(ty==='exp'&&person)t.person=person;if(o.acc&&o.acc!=='main'&&o.acc!=='cash')t.acc=o.acc;NT.push(t)}}));
+  if(NT.length){NT.forEach(txPrep)}
   putSettings();render()}
-async function mdImportFile(file){let book;try{book=await readXlsx(await file.arrayBuffer())}catch(e){toast(e.message==='method'?'هذا الجهاز لا يدعم قراءة الملف. حدّث النظام أو احفظه من Numbers بصيغة Excel':'الملف ليس ملف Excel صحيحًا (.xlsx)',null,6000);return}
-  const P=mdPlan(book);if(!P.found.length){toast('لم أجد أوراق البيانات الأساسية في الملف. صدّر الملف من التطبيق أولًا ثم عدّله',null,6000);return}
-  const D=mdDiff(P);const L=document.getElementById('layer');const names={people:'الأشخاص',payees:'الجهات',accounts:'الحسابات',recurring:'الالتزامات الشهرية',debts:'الديون'};
+async function mdImportFile(file,only){let book;try{book=await readXlsx(await file.arrayBuffer())}catch(e){toast(e.message==='method'?'هذا الجهاز لا يدعم قراءة الملف. حدّث النظام أو احفظه من Numbers بصيغة Excel':'الملف ليس ملف Excel صحيحًا (.xlsx)',null,6000);return}
+  const P=mdPlan(book,only);const sec=MD_SECS.find(x=>x[0]===only);if(!P.found.length){toast(sec?'لم أجد ورقة «'+sec[3]+'» في الملف. صدّر هذا القسم من التطبيق أولًا ثم عدّله':'لم أجد أوراق البيانات في الملف. صدّر الملف من التطبيق أولًا ثم عدّله',null,6000);return}
+  const D0=mdDiff(P);const D={};Object.keys(D0).forEach(k=>{if(!only||only==='all'||only===k)D[k]=D0[k]});const L=document.getElementById('layer');const names={inc:'الإيداعات',exp:'المصروفات',people:'الأشخاص',payees:'الجهات',accounts:'الحسابات',recurring:'الالتزامات الشهرية',debts:'الديون'};
   const tot=Object.values(D).reduce((s,d)=>s+d.add+d.chg,0);
-  L.innerHTML=`${sheetTop('استيراد')}<h2 style="margin-top:0">📥 معاينة الاستيراد</h2>
-   <table class="cmptbl"><thead><tr><th>القسم</th><th>جديد</th><th>معدّل</th><th>كما هو</th></tr></thead><tbody>${Object.entries(D).map(([k,d])=>`<tr><td>${names[k]}</td><td class="num${d.add?' diff':''}">${d.add}</td><td class="num${d.chg?' diff':''}">${d.chg}</td><td class="num">${d.same}</td></tr>`).join('')}</tbody></table>
+  L.innerHTML=`${sheetTop('استيراد')}<h2 style="margin-top:0">📥 معاينة الاستيراد${sec?' · '+sec[2]:''}</h2>
+   <table class="cmptbl"><thead><tr><th>القسم</th><th>جديد</th><th>معدّل</th><th>كما هو</th></tr></thead><tbody>${Object.entries(D).map(([k,d])=>`<tr><td>${names[k]}${d.dup?`<small class="note" style="display:block">${d.dup} مكرر لن يُضاف</small>`:''}</td><td class="num${d.add?' diff':''}">${d.add}</td><td class="num${d.chg?' diff':''}">${d.chg}</td><td class="num">${d.same}</td></tr>`).join('')}</tbody></table>
    ${P.errors.length?`<div class="warnbox" style="margin-top:10px"><b>${countWord(P.errors.length,'صف واحد فيه خطأ','صفان فيهما خطأ','صفوف فيها أخطاء','صفًا فيها أخطاء')} وسيُتجاهل:</b><ul class="mderr">${P.errors.slice(0,12).map(e=>`<li>${esc(e)}</li>`).join('')}</ul>${P.errors.length>12?'<span class="note">و'+(P.errors.length-12)+' غيرها</span>':''}</div>`:''}
    <p class="note">لا يُحذف شيء من التطبيق بالاستيراد؛ الحذف من التطبيق نفسه. تُحفظ لقطة قبل الاستيراد ويمكنك التراجع، ثم تتم المزامنة تلقائيًا.</p>
    <div class="actions">${tot?`<button class="btn block" id="mdGo">تطبيق ${countWord(tot,'تغيير واحد','تغييرين','تغييرات','تغييرًا')}</button>`:'<div class="okbox" style="margin:0">لا توجد تغييرات في الملف.</div>'}<button class="btn ghost block" data-close>إلغاء</button></div></div></div>`;
@@ -3935,7 +3974,9 @@ document.addEventListener('click',async e=>{
   if(b.id==='lockPinChange'){lockPinChange();return}
   if(b.dataset.lockafter!==undefined){const c=lockCfg();if(c){lockSave(Object.assign({},c,{after:+b.dataset.lockafter}));render();toast('يُقفل التطبيق '+LOCK_AFTER.find(x=>x[0]===+b.dataset.lockafter)[1]+' من الخروج منه')}return}
   if(b.id==='lookBtn2'){openLook();return}
-  if(b.id==='mdExport'){mdExport();return}
+  if(b.dataset.mdx){mdExport(b.dataset.mdx);return}
+  if(b.dataset.mdi){S.mdOnly=b.dataset.mdi;const f=document.getElementById('mdFile');if(f)f.click();return}
+  if(b.dataset.mdper){S.settings.mdPer=b.dataset.mdper;putSettings();render();return}
   if(b.id==='payAdd'){openPayee();return}
   if(b.dataset.payedit){openPayee(b.dataset.payedit);return}
   if(b.id==='acAdd'&&!b.closest('#layer')){openAccEdit(null);return}
@@ -4059,7 +4100,7 @@ document.addEventListener('dblclick',e=>{if(!e.target.closest('input,textarea'))
 /* ---------- 30. التشغيل ---------- */
 checkVersion();cacheLoad();migrateRecs();secSeed();if(lockCfg())showLock();privBtnInit();render();dbBoot();handleLaunchUrl();Sync.start();setTimeout(notifyCarAlerts,1500);vaultLoad();
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.classList&&e.target.classList.contains('pin')){const b=document.getElementById(e.target.id==='vPin'?'vaultUnlock':'vaultSetup');b&&b.click()}});
-document.addEventListener('change',e=>{if(e.target.id==='mdFile'&&e.target.files&&e.target.files[0]){const f=e.target.files[0];e.target.value='';mdImportFile(f)}});
+document.addEventListener('change',e=>{if(e.target.id==='mdFile'&&e.target.files&&e.target.files[0]){const f=e.target.files[0];e.target.value='';mdImportFile(f,S.mdOnly||'all')}});
 document.addEventListener('change',async e=>{if(e.target.id==='vaultImportFile'&&e.target.files[0]){const f=e.target.files[0];e.target.value='';const txt=await f.text();const L=document.getElementById('layer');
   L.innerHTML=`<div class="scrim" data-close></div><div class="sheet" data-vault role="dialog" aria-modal="true" aria-label="استيراد خزنة"><div class="in"><div class="grab"></div><h2 style="margin-top:0">استيراد خزنة</h2><div class="stack"><div class="field"><label for="vImpPin">رمز الخزنة التي صُدّر منها الملف</label><input class="inp num pin" id="vImpPin" type="password" inputmode="numeric" maxlength="8"></div><div class="actions"><button class="btn block" id="vImpGo">استيراد</button><button class="btn ghost block" data-close>إلغاء</button></div></div></div></div>`;
   L.oninput=L.onchange=null;L.onclick=async ev=>{const x=ev.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}if(x.id==='vImpGo'){x.disabled=true;const ok=await vaultImport(txt);if(ok)L.innerHTML='';else x.disabled=false}}}});
