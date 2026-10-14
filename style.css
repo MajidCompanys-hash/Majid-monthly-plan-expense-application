@@ -393,6 +393,27 @@ body:has(.sheet) .toast{bottom:auto;top:calc(12px + env(safe-area-inset-top,0px)
 .dnchip{border:1px solid var(--line);background:var(--surface);color:inherit;font:inherit;border-radius:12px;padding:8px 10px;text-align:right;display:flex;flex-direction:column;gap:2px;cursor:pointer}
 .dnchip small{color:var(--muted);font-size:11.5px}
 .dnchip.on{border-color:var(--inc)}
+/* قاعدة البيانات */
+.dbstat{border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;margin-bottom:6px}
+.dbstat.ok{background:#E3F2EA;background:color-mix(in srgb,var(--inc) 14%,var(--surface));color:var(--fg)}
+.dbstat.warn{background:#FBEFD9;background:color-mix(in srgb,#C9881E 18%,var(--surface))}
+.dbstat small{color:var(--muted)}
+.dblayers,.dbsecs,.dbchecks,.dbsnaps{display:flex;flex-direction:column;padding-block:4px}
+.dblayers>div{display:flex;flex-direction:column;padding:8px 2px;border-top:1px solid var(--line)}
+.dblayers>div:first-child,.dbsecs>div:first-child,.dbchecks>div:first-child,.dbsnap:first-child{border-top:none}
+.dblayers span,.dbsec small,.dbchecks small,.dbsnap small{font-size:12px;color:var(--muted)}
+.dbsec{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:8px 2px;border-top:1px solid var(--line)}
+.dbsec>div{display:flex;flex-direction:column;min-width:0}
+.dbchecks>div{display:grid;grid-template-columns:22px minmax(0,1fr);gap:6px;padding:7px 2px;border-top:1px solid var(--line)}
+.dbchecks>div>span{color:var(--inc);font-weight:700}
+.dbchecks>div.bad>span{color:var(--exp)}
+.dbchecks>div>div{display:flex;flex-direction:column}
+.dbsnap{display:flex;flex-direction:column;gap:6px;padding:8px 2px;border-top:1px solid var(--line)}
+.dbsnap>div:first-child{display:flex;flex-direction:column}
+.cmptbl{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}
+.cmptbl th,.cmptbl td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:right}
+.cmptbl th{color:var(--muted);font-weight:600;font-size:12.5px}
+.cmptbl td.diff{color:var(--accent);font-weight:700}
 .plangrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .pt{border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:12px;display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:right;box-shadow:var(--shadow)}
 .pt b{font-size:14px}

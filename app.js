@@ -4,7 +4,7 @@
  *
  * المحتويات:
  *   1. الأساسيات: الثوابت والحالة والدوال المساعدة
- *   2. التخزين في الجهاز
+ *   2. التخزين في الجهاز وقاعدة البيانات الداخلية
  *   3. النسخ الاحتياطي والإشعارات الصغيرة
  *   4. أيقونات الفئات
  *   5. لوحة «أقسامي» في الرئيسية
@@ -91,21 +91,163 @@ function list(){return Object.values(S.tx)}
 function inMonth(m){return list().filter(t=>t.date&&t.date.slice(0,7)===m)}
 function sum(a,type){return a.filter(t=>t.type===type).reduce((s,t)=>s+(+t.amount||0),0)}
 
-/* ---------- 2. التخزين في الجهاز ---------- */
-function cacheSave(){try{localStorage.setItem('masareef:v1',JSON.stringify({tx:S.tx,del:S.del,settings:S.settings}))}catch(e){toast('تعذّر الحفظ في ذاكرة الهاتف')}}
-function cacheLoad(){try{const r=JSON.parse(localStorage.getItem('masareef:v1')||'null');if(r){S.tx=r.tx||{};S.del=r.del||{};S.settings=Object.assign({monthlyBudget:0,budgets:{}},r.settings||{})}}catch(e){}}
+/* ---------- 2. التخزين في الجهاز وقاعدة البيانات الداخلية ---------- */
+function cacheSave(){try{localStorage.setItem('masareef:v1',JSON.stringify({tx:S.tx,del:S.del,settings:S.settings}))}catch(e){if(!S.lsWarned){S.lsWarned=1;toast('ذاكرة التطبيق ممتلئة. بياناتك محفوظة في قاعدة البيانات الداخلية، واحفظ نسخة احتياطية كملف',null,7000)}}mirrorSoon()}
+function cacheLoad(){let raw=null;try{raw=localStorage.getItem('masareef:v1')}catch(e){}
+  if(!raw){S.lsState='missing';return}
+  try{const r=JSON.parse(raw);if(!r||typeof r!=='object')throw 0;S.tx=r.tx||{};S.del=r.del||{};S.settings=Object.assign({monthlyBudget:0,budgets:{}},r.settings||{});S.lsState='ok';if(S.snapVer)S.snapVerData=backupText()}
+  catch(e){S.lsState='corrupt';try{localStorage.setItem('masareef:v1:corrupt',raw)}catch(er){}}}
+/* ===== قاعدة البيانات الداخلية =====
+   الحفظ على ثلاث طبقات داخل هاتفك:
+   1) ذاكرة التطبيق (localStorage): النسخة الأساسية السريعة.
+   2) قاعدة بيانات IndexedDB مقسّمة: كل عملية سجل مستقل، وكل قسم (الديون، الالتزامات، الخطط...) في خانة مستقلة.
+      تُحدَّث تلقائيًا بعد كل حفظ، ومنها تُستعاد البيانات إذا تلفت الذاكرة الأساسية.
+   3) لقطات يومية تلقائية (آخر 14 يومًا) + لقطة قبل كل تحديث أو استعادة أو حذف شامل. */
+const DATA_SECS=[['debts','الديون'],['recurring','الالتزامات الشهرية'],['goals','الخطط والادخار'],['trusts','الأمانات'],['cars','السيارات'],['people','الأهل']];
+const IDB=(()=>{let dbp=null;
+  const open=()=>dbp||(dbp=new Promise((res,rej)=>{if(!window.indexedDB){rej(new Error('noidb'));return}const r=indexedDB.open('masareef-data',1);
+    r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore('tx',{keyPath:'id'});d.createObjectStore('sec');d.createObjectStore('snap',{keyPath:'id'})};r.onsuccess=()=>res(r.result);r.onerror=()=>{dbp=null;rej(r.error)}}));
+  const req=r=>new Promise((res,rej)=>{r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+  return{open,
+    tr:(stores,fn)=>open().then(d=>new Promise((res,rej)=>{const t=d.transaction(stores,'readwrite');fn(t);t.oncomplete=()=>res(true);t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error||new Error('abort'))})),
+    all:s=>open().then(d=>req(d.transaction(s).objectStore(s).getAll())),
+    get:(s,k)=>open().then(d=>req(d.transaction(s).objectStore(s).get(k))),
+    keys:s=>open().then(d=>req(d.transaction(s).objectStore(s).getAllKeys()))}})();
+/* تقسيم الإعدادات إلى أقسام مستقلة */
+function splitSettings(st){st=st||S.settings;const out={},rest=Object.assign({},st);DATA_SECS.forEach(([k])=>{out[k]=st[k]||[];delete rest[k]});out.settings=rest;return out}
+function joinSettings(parts){const st=Object.assign({monthlyBudget:0,budgets:{}},parts.settings||{});DATA_SECS.forEach(([k])=>{if(Array.isArray(parts[k])&&parts[k].length)st[k]=parts[k]});return st}
+function fmtAt(iso){const d=new Date(iso);return isNaN(d)?'':fmtD(isoD(d))+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')}
+function fnv(s){let h=0x811c9dc5;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,0x01000193)}return (h>>>0).toString(16).toUpperCase().padStart(8,'0')}
+/* المرآة: تكتب فقط ما تغيّر منذ آخر مرة */
+const Mirror={known:null,secs:{},t:null,at:0,ok:null,err:'',busy:false,again:false};
+function mirrorSoon(){clearTimeout(Mirror.t);Mirror.t=setTimeout(mirrorFlush,350)}
+async function mirrorFlush(){if(!Mirror.known)return;if(Mirror.busy){Mirror.again=true;return}Mirror.busy=true;
+  try{const put=[],gone=[],nk=new Map();for(const t of Object.values(S.tx)){const s=JSON.stringify(t);nk.set(t.id,s);if(Mirror.known.get(t.id)!==s)put.push(t)}
+    for(const id of Mirror.known.keys())if(!nk.has(id))gone.push(id);
+    const parts=splitSettings();parts.del=S.del;const secPut=Object.entries(parts).map(([k,v])=>[k,v,JSON.stringify(v)]).filter(([k,,s])=>Mirror.secs[k]!==s);
+    if(put.length||gone.length||secPut.length){await IDB.tr(['tx','sec'],t=>{const T=t.objectStore('tx'),X=t.objectStore('sec');put.forEach(x=>T.put(x));gone.forEach(id=>T.delete(id));
+      secPut.forEach(([k,v])=>X.put(v,k));X.put({at:Date.now(),n:nk.size,v:APP_VERSION},'meta')});
+      secPut.forEach(([k,,s])=>Mirror.secs[k]=s)}
+    Mirror.known=nk;Mirror.at=Date.now();Mirror.ok=true;Mirror.err=''}
+  catch(e){Mirror.ok=false;Mirror.err=String(e&&e.message||e)}
+  Mirror.busy=false;if(Mirror.again){Mirror.again=false;mirrorSoon()}}
+/* عند الفتح: تجهيز المرآة، واستعادة البيانات منها إذا كانت الذاكرة الأساسية فارغة أو تالفة */
+async function dbBoot(){try{const [txs,keys]=await Promise.all([IDB.all('tx'),IDB.keys('sec')]);const sec={};for(const k of keys)sec[k]=await IDB.get('sec',k);
+    if(S.lsState!=='ok'&&(txs.length||(sec.settings&&Object.keys(sec.settings).length>2))){
+      S.tx={};txs.forEach(t=>{if(t&&t.id)S.tx[t.id]=t});S.del=sec.del||{};S.settings=joinSettings(sec);
+      Mirror.known=new Map(txs.map(t=>[t.id,JSON.stringify(t)]));cacheSave();migrateRecs();render();
+      toast(S.lsState==='corrupt'?'كانت الذاكرة الأساسية تالفة، واستُعيدت بياناتك كاملة من قاعدة البيانات الداخلية':'استُعيدت بياناتك من قاعدة البيانات الداخلية',null,6000);S.lsState='ok'}
+    else{Mirror.known=new Map(txs.map(t=>[t.id,JSON.stringify(t)]));Object.keys(sec).forEach(k=>{if(k!=='meta')Mirror.secs[k]=JSON.stringify(sec[k])})}
+    await mirrorFlush();
+    if(S.snapVer)await snapTake('قبل التحديث إلى الإصدار '+APP_VERSION,false,S.snapVerData);S.snapVer=null;S.snapVerData=null;
+    setTimeout(snapDaily,2500)}
+  catch(e){Mirror.ok=false;Mirror.err=String(e&&e.message||e)}}
+/* اللقطات */
+function dataCounts(st){st=st||S.settings;const L=st===S.settings?list():[];const D=st.debts||[];
+  return{tx:L.length,inc:L.filter(t=>t.type==='inc').length,exp:L.filter(t=>t.type==='exp').length,recurring:(st.recurring||[]).length,debts:D.length,debtsDone:D.filter(d=>!(+d.balance>0.0005)).length,debtPays:D.reduce((s,d)=>s+(d.pays||[]).length,0),goals:(st.goals||[]).length,trusts:(st.trusts||[]).length,cars:(st.cars||[]).length,people:(st.people||[]).length}}
+async function snapTake(label,auto,txt){try{txt=txt||backupText();const o=JSON.parse(txt);const id=auto?'day-'+today():'s-'+Date.now();
+    await IDB.tr(['snap'],t=>t.objectStore('snap').put({id,at:new Date().toISOString(),label:label||'لقطة يومية تلقائية',auto:!!auto,counts:o.counts||null,check:o.check||'',size:txt.length,data:txt}));await snapPrune();return id}catch(e){return null}}
+async function snapPrune(){const A=(await IDB.all('snap')).sort((a,b)=>b.at.localeCompare(a.at));const del=A.filter(s=>s.auto).slice(14).concat(A.filter(s=>!s.auto).slice(12));
+  if(del.length)await IDB.tr(['snap'],t=>del.forEach(s=>t.objectStore('snap').delete(s.id)))}
+async function snapDaily(){if(!list().length&&!debts().length&&!recs().length)return;try{if(!await IDB.get('snap','day-'+today()))await snapTake('',true)}catch(e){}}
+async function snapList(){try{return (await IDB.all('snap')).sort((a,b)=>b.at.localeCompare(a.at))}catch(e){return []}}
+
 async function putTx(t){delete t.localOnly;if(!S.tx[t.id]&&!t.sample&&admPendNew())t.pend=1;t.u=Date.now();S.tx[t.id]=t;cacheSave();render();Sync.soon()}
 async function delTx(id){delete S.tx[id];S.del[id]=Date.now();cacheSave();render();Sync.soon()}
 async function putSettings(){S.settings._u=Date.now();cacheSave();Sync.soon()}
 function saveFile(name,text,type){try{const blob=new Blob([text],{type});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},1500);return true}catch(e){return false}}
 
 /* ---------- 3. النسخ الاحتياطي والإشعارات الصغيرة ---------- */
-function backupText(){return JSON.stringify({app:'masareef',v:1,at:new Date().toISOString(),settings:S.settings,tx:list()})}
-async function restoreFrom(txt){try{const o=JSON.parse(txt);if(!o||o.app!=='masareef'||!Array.isArray(o.tx))throw 0;
-  const now=Date.now();o.tx.forEach(t=>{if(t&&t.id&&t.amount){const c=Object.assign({},t);delete c.localOnly;c.u=now;S.tx[c.id]=c;delete S.del[c.id]}});
-  if(o.settings){S.settings=Object.assign({monthlyBudget:0,budgets:{}},o.settings);S.settings._u=Date.now()}
-  cacheSave();render();Sync.soon();toast('استُعيدت '+o.tx.length+' عملية')}
- catch(err){toast('هذا الملف ليس نسخة احتياطية من إدارة شؤوني')}}
+/* النسخة الاحتياطية: ملف مقسّم إلى أقسام واضحة، مع عدد السجلات وبصمة للتحقق من سلامته */
+function backupObj(){const tx=list().slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.createdAt||'').localeCompare(b.createdAt||''));const data=Object.assign({tx},splitSettings());
+  return{app:'masareef',v:2,name:'إدارة شؤوني - نسخة احتياطية',at:new Date().toISOString(),appVersion:APP_VERSION,counts:dataCounts(),check:fnv(JSON.stringify(data)),data}}
+function backupText(){return JSON.stringify(backupObj(),null,1)}
+/* قراءة أي نسخة (القديمة 1 أو الجديدة 2) والتحقق منها */
+function parseBackup(txt){let o;try{o=JSON.parse(txt)}catch(e){return{err:'الملف تالف أو ليس بصيغة صحيحة'}}
+  if(!o||o.app!=='masareef')return{err:'هذا الملف ليس نسخة احتياطية من إدارة شؤوني'};
+  let tx,settings,check=null;
+  if(o.v>=2&&o.data){tx=o.data.tx;settings=joinSettings(o.data);check=o.check?fnv(JSON.stringify(o.data))===o.check:null}
+  else{tx=o.tx;settings=Object.assign({monthlyBudget:0,budgets:{}},o.settings||{})}
+  if(!Array.isArray(tx))return{err:'لا توجد عمليات في الملف'};
+  const ok=[],bad=[];tx.forEach(t=>{if(t&&t.id&&(t.type==='inc'||t.type==='exp')&&isFinite(+t.amount)&&+t.amount>0&&/^\d{4}-\d\d-\d\d$/.test(t.date||''))ok.push(t);else bad.push(t)});
+  return{tx:ok,bad:bad.length,settings,check,at:o.at||'',appVersion:o.appVersion||'',v:o.v||1}}
+async function applyBackup(B,mode){const now=Date.now();
+  if(mode==='replace'){const keep=new Set(B.tx.map(t=>t.id));Object.keys(S.tx).forEach(id=>{if(!keep.has(id)){delete S.tx[id];S.del[id]=now}})}
+  B.tx.forEach(t=>{const c=Object.assign({},t);delete c.localOnly;c.u=now;S.tx[c.id]=c;delete S.del[c.id]});
+  S.settings=mode==='replace'?Object.assign({},B.settings):Object.assign({},S.settings,B.settings,(()=>{const o={};DATA_SECS.forEach(([k])=>{const a=S.settings[k]||[],b=B.settings[k]||[];const m=new Map(a.map(x=>[x.id,x]));b.forEach(x=>m.set(x.id,x));o[k]=[...m.values()]});return o})());
+  S.settings._u=now;cacheSave();migrateRecs();render();Sync.soon()}
+/* نافذة الاستعادة: معاينة ما في الملف ومقارنته بما عندك قبل أي تغيير */
+function openRestore(txt,label){const L=document.getElementById('layer');const B=parseBackup(txt);if(B.err){toast(B.err);return}let mode='replace';
+  const cur=dataCounts(),nw=Object.assign(dataCounts(B.settings),{tx:B.tx.length,inc:B.tx.filter(t=>t.type==='inc').length,exp:B.tx.filter(t=>t.type==='exp').length});
+  const rows=[['العمليات','tx'],['الديون','debts'],['دفعات الديون','debtPays'],['الالتزامات الشهرية','recurring'],['الخطط','goals'],['الأمانات','trusts'],['السيارات','cars'],['الأهل','people']];
+  const draw=()=>{L.innerHTML=`${sheetTop('استعادة')}<h2 style="margin-top:0">استعادة ${esc(label||'نسخة احتياطية')}</h2>
+   <div class="panel paybk"><div class="sumrow"><span>تاريخ النسخة</span><b>${B.at?fmtAt(B.at):'—'}</b></div>${B.appVersion?`<div class="sumrow"><span>من الإصدار</span><b>${esc(B.appVersion)}</b></div>`:''}
+    <div class="sumrow"><span>سلامة الملف</span><b class="${B.check===false?'amt-exp':'amt-inc'}">${B.check===true?'سليم ومطابق لبصمته ✓':B.check===false?'⚠ البصمة لا تطابق: الملف عُدّل أو تلف جزء منه':'نسخة قديمة بدون بصمة'}</b></div>
+    ${B.bad?`<div class="sumrow"><span>سجلات غير صالحة ستُتجاهل</span><b class="amt-exp">${B.bad}</b></div>`:''}</div>
+   <table class="cmptbl"><thead><tr><th>القسم</th><th>عندك الآن</th><th>في الملف</th></tr></thead><tbody>${rows.map(([n,k])=>`<tr><td>${n}</td><td class="num">${cur[k]}</td><td class="num${nw[k]!==cur[k]?' diff':''}">${nw[k]}</td></tr>`).join('')}</tbody></table>
+   <div class="field" style="margin-top:12px"><label>طريقة الاستعادة</label><div class="seg"><button class="n" data-rsm="replace" aria-pressed="${mode==='replace'}">استبدال كامل بما في الملف</button><button class="n" data-rsm="merge" aria-pressed="${mode==='merge'}">دمج مع بياناتي</button></div></div>
+   <p class="note">${mode==='replace'?'تصبح بياناتك مطابقة تمامًا للملف، ويُحذف ما ليس فيه.':'تُضاف العمليات والسجلات الموجودة في الملف، ويُحدَّث المتشابه منها، ولا يُحذف شيء من بياناتك.'} قبل الاستعادة تُحفظ لقطة من بياناتك الحالية، ويمكنك التراجع.</p>
+   <div class="actions"><button class="btn block" id="rsGo">استعادة الآن</button><button class="btn ghost block" data-close>إلغاء</button></div></div></div>`};
+  draw();L.oninput=L.onchange=null;
+  L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
+    if(x.dataset.rsm){mode=x.dataset.rsm;draw();return}
+    if(x.id==='rsGo'){x.disabled=true;const before=backupText();const sid=await snapTake('قبل الاستعادة',false,before);await applyBackup(B,mode);L.innerHTML='';
+      toast('استُعيدت البيانات: '+countWord(B.tx.length,'عملية واحدة','عمليتان','عمليات','عملية'),async()=>{await applyBackup(parseBackup(before),'replace');toast('أُعيدت بياناتك كما كانت')},10000)}}}
+/* للتوافق مع النسخ السابقة من الأزرار */
+function restoreFrom(txt){openRestore(txt)}
+/* فحص السلامة: يقرأ كل قسم ويتأكد من صحة ترابطه */
+async function dataHealth(){const L=list(),R=recs(),D=debts();const out=[];const add=(ok,t,d)=>out.push({ok,t,d});
+  let lsOk=false,lsSize=0;try{const raw=localStorage.getItem('masareef:v1')||'';lsSize=raw.length;const p=JSON.parse(raw);lsOk=!!p&&Object.keys(p.tx||{}).length===L.length}catch(e){}
+  add(lsOk,'الذاكرة الأساسية تُقرأ بالكامل',lsOk?countWord(L.length,'عملية واحدة','عمليتان','عمليات','عملية')+' · '+Math.ceil(lsSize/1024)+' كيلوبايت':'لم تُطابق، وستُعاد كتابتها');
+  let mOk=false,mTx=0;try{await mirrorFlush();mTx=(await IDB.keys('tx')).length;const st=await IDB.get('sec','settings');mOk=mTx===L.length&&!!st}catch(e){}
+  add(mOk,'قاعدة البيانات الداخلية مطابقة',mOk?'كل عملية سجل مستقل، وكل قسم في خانته':'غير مطابقة ('+mTx+' من '+L.length+')'+(Mirror.err?' · '+Mirror.err:''));
+  const bad=L.filter(t=>!(isFinite(+t.amount)&&+t.amount>0)||!/^\d{4}-\d\d-\d\d$/.test(t.date||'')||!(t.type==='inc'||t.type==='exp'));
+  add(!bad.length,'كل العمليات لها نوع ومبلغ وتاريخ صحيح',bad.length?bad.length+' عملية تحتاج مراجعة من السجل':'');
+  const orphan=L.filter(t=>t.rec&&!R.some(r=>r.id===t.rec)).length;add(true,'دفعات الالتزامات مرتبطة بالتزاماتها',orphan?orphan+' دفعة لالتزامات حذفتها، محفوظة في السجل':'');
+  const lostTx=D.reduce((s,d)=>s+(d.pays||[]).filter(p=>p.tx&&!S.tx[p.tx]).length,0);add(true,'دفعات الديون محفوظة داخل كل دين',countWord(D.reduce((s,d)=>s+(d.pays||[]).length,0),'دفعة واحدة','دفعتان','دفعات','دفعة')+(lostTx?' · '+lostTx+' منها حُذف مصروفها من السجل':''));
+  const neg=D.filter(d=>!(+d.balance>=0)||!isFinite(+d.balance));add(!neg.length,'أرصدة الديون صحيحة',neg.length?neg.map(d=>d.name).join('، '):'');
+  const dup={};L.forEach(t=>{const k=[t.date,t.type,t.cat,(+t.amount).toFixed(3),t.note||''].join('|');dup[k]=(dup[k]||0)+1});const dups=Object.values(dup).filter(n=>n>1).length;
+  add(true,'العمليات المكررة المحتملة',dups?dups+' مجموعة متشابهة (نفس اليوم والمبلغ والبيان)، راجعها في السجل':'لا يوجد');
+  let pers=null;try{pers=navigator.storage&&navigator.storage.persisted?await navigator.storage.persisted():null}catch(e){}
+  const inst=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
+  add(pers||inst,'حماية التخزين من الحذف التلقائي',pers?'محمي دائمًا':inst?'التطبيق مثبّت على الشاشة الرئيسية، فلا يحذف النظام بياناته تلقائيًا':'افتح التطبيق من أيقونته على الشاشة الرئيسية وليس من Safari، واحفظ نسخة احتياطية كملف بانتظام');
+  return out}
+/* مركز قاعدة البيانات */
+async function openDataCenter(){const L=document.getElementById('layer');L.innerHTML=`${sheetTop('قاعدة البيانات')}<h2 style="margin-top:0">🗄️ قاعدة البيانات</h2><p class="note">جارٍ الفحص…</p></div></div>`;
+  const H=await dataHealth(),SN=await snapList();let est=null;try{est=navigator.storage&&navigator.storage.estimate?await navigator.storage.estimate():null}catch(e){}
+  const c=dataCounts(),lb=advLastBackup(),lbd=lb?Math.max(0,-daysTo(lb)):null,warn=H.filter(h=>!h.ok).length;const fp=backupObj().check;
+  const secRows=[['tx','العمليات (الدخل والمصاريف)',c.tx,c.inc+' دخل · '+c.exp+' مصروف'],['debts','الديون',c.debts,(c.debts-c.debtsDone)+' قائم · '+c.debtsDone+' منتهٍ · '+c.debtPays+' دفعة'],['monthly','الالتزامات الشهرية',c.recurring,''],['plans','الخطط والادخار',c.goals,''],['trusts','الأمانات',c.trusts,''],['','السيارات',c.cars,''],['','الأهل',c.people,''],['','مستنداتي (خزنة مشفّرة منفصلة)',Vault.docs.length,'لها نسخة احتياطية مشفّرة خاصة من «مستنداتي»']];
+  const draw=()=>{L.innerHTML=`${sheetTop('قاعدة البيانات')}<h2 style="margin-top:0">🗄️ قاعدة البيانات</h2>
+   <div class="dbstat ${warn?'warn':'ok'}"><b>${warn?'⚠ '+countWord(warn,'ملاحظة واحدة','ملاحظتان','ملاحظات','ملاحظة')+' تحتاج انتباهك':'✓ قاعدة البيانات سليمة ومحفوظة'}</b><small>بصمة البيانات الحالية: <span dir="ltr" class="num">${fp}</span></small></div>
+   <h3>أين تُحفظ بياناتك</h3><div class="panel dblayers">
+    <div><b>1. ذاكرة التطبيق</b><span>النسخة الأساسية، تُحفظ فورًا عند كل تغيير</span></div>
+    <div><b>2. قاعدة البيانات الداخلية</b><span>نسخة ثانية مقسّمة: كل عملية سجل مستقل وكل قسم في خانته${Mirror.at?' · آخر تحديث '+fmtAt(new Date(Mirror.at).toISOString()).split(' ').pop():''}</span></div>
+    <div><b>3. اللقطات التلقائية</b><span>${SN.length?countWord(SN.length,'لقطة واحدة','لقطتان','لقطات','لقطة')+' · آخرها '+fmtAt(SN[0].at):'تبدأ اليوم'} (يومية لآخر 14 يومًا، وقبل كل تحديث أو استعادة)</span></div>
+    <div><b>4. Google Drive</b><span>${Sync.linked()?'مربوط: نسخة في مجلد خاص بالتطبيق في حسابك':'غير مربوط (اختياري)'}</span></div>
+    <div class="${lbd===null||lbd>14?'amt-exp':''}"><b>5. ملف نسخة احتياطية عندك</b><span>${lb?'آخر نسخة '+fmtD(lb)+(lbd>14?' · مرّ '+daysWord(lbd)+'، احفظ نسخة جديدة':''):'لم تحفظ نسخة كملف بعد، احفظ واحدة الآن'}</span></div>
+    ${est&&est.usage?`<div><b>المساحة المستخدمة</b><span>${(est.usage/1048576).toFixed(1)} ميجابايت</span></div>`:''}</div>
+   <h3>الأقسام</h3><div class="panel dbsecs">${secRows.map(([k,n,v,d])=>`<div class="dbsec"><div><b>${n}</b>${d?`<small>${d}</small>`:''}</div><b class="num">${v}</b>${k?`<button class="chip" data-dbx="${k}" aria-label="تصدير ${n}">📊</button>`:'<span></span>'}</div>`).join('')}</div>
+   <h3>فحص السلامة</h3><div class="panel dbchecks">${H.map(h=>`<div class="${h.ok?'':'bad'}"><span>${h.ok?'✓':'⚠'}</span><div><b>${h.t}</b>${h.d?`<small>${esc(h.d)}</small>`:''}</div></div>`).join('')}</div>
+   <h3>اللقطات المحفوظة</h3><div class="panel dbsnaps">${SN.length?SN.map(s=>`<div class="dbsnap"><div><b>${esc(s.label)}</b><small>${fmtAt(s.at)}${s.counts?' · '+s.counts.tx+' عملية · '+s.counts.debts+' دين · '+s.counts.recurring+' التزام':''}</small></div><div class="chips"><button class="chip" data-snapsave="${esc(s.id)}">حفظ كملف</button><button class="chip" data-snaprest="${esc(s.id)}">استعادة</button></div></div>`).join(''):'<p class="note" style="margin:6px">لا توجد لقطات بعد.</p>'}
+    <button class="btn ghost block" id="snapNow" style="margin-top:8px">أخذ لقطة الآن</button></div>
+   <h3>الحفظ والاستخراج</h3><div class="stack">
+    <button class="btn block" id="dcBackup">💾 حفظ نسخة احتياطية كاملة (ملف)</button>
+    <label class="btn ghost block" for="restoreFile2" id="dcRestoreLbl" style="text-align:center;cursor:pointer">📂 استعادة من ملف نسخة احتياطية</label><input type="file" id="restoreFile2" accept=".json,application/json" hidden>
+    <div class="row2"><button class="btn ghost" id="dcXlsx">📊 Excel / Numbers</button><button class="btn ghost" id="dcPrint">🖨️ طباعة / PDF</button></div></div>
+   <p class="note">بياناتك لا تغادر هاتفك إلا إلى ملف تحفظه أنت، أو إلى Google Drive الخاص بك إن ربطته.</p>
+   <div class="actions"><button class="btn ghost block" data-close>إغلاق</button></div></div></div>`};
+  draw();L.oninput=null;
+  L.onchange=e=>{if(e.target.id==='restoreFile2'&&e.target.files[0]){const r=new FileReader();r.onload=()=>openRestore(r.result,'من ملف');r.readAsText(e.target.files[0]);e.target.value=''}};
+  L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
+    if(x.id==='dcBackup'){await saveBackupFile();openDataCenter();return}
+    if(x.id==='dcXlsx'){openExport();return}
+    if(x.id==='dcPrint'){openPrintSheet('full');return}
+    if(x.id==='snapNow'){x.disabled=true;await snapTake('لقطة يدوية');toast('أُخذت لقطة من بياناتك');openDataCenter();return}
+    if(x.dataset.dbx){const m={tx:['summary','tx'],debts:['summary','debts'],monthly:['monthly'],plans:['plans'],trusts:['trusts']}[x.dataset.dbx];exportXlsx(m,'all');return}
+    if(x.dataset.snapsave){const s=(await snapList()).find(y=>y.id===x.dataset.snapsave);if(s)await shareFile('idarat-shuooni-snapshot-'+s.at.slice(0,10)+'.json',s.data,'application/json');return}
+    if(x.dataset.snaprest){const s=(await snapList()).find(y=>y.id===x.dataset.snaprest);if(s)openRestore(s.data,'لقطة '+fmtD(s.at.slice(0,10)));return}}}
+async function saveBackupFile(){const r=await shareFile('idarat-shuooni-backup-'+today()+'.json',backupText(),'application/json');
+  if(r!=='cancel'){try{localStorage.setItem('masareef:lastBackup',today())}catch(e){}toast(r==='shared'?'اختر «حفظ في الملفات» أو iCloud Drive لحفظ النسخة':'حُفظت النسخة الاحتياطية في الملفات')}}
 
 let tt;function toast(msg,undo,dur){let el=document.querySelector('.toast');if(!el){el=document.createElement('div');el.className='toast';el.setAttribute('role','status');document.body.appendChild(el)}el.innerHTML='';const s=document.createElement('span');s.textContent=msg;el.appendChild(s);if(undo){const b=document.createElement('button');b.textContent='تراجع';b.onclick=()=>{el.hidden=true;undo()};el.appendChild(b)}el.hidden=false;clearTimeout(tt);tt=setTimeout(()=>el.hidden=true,dur||(undo?6000:2600))}
 
@@ -542,7 +684,8 @@ function vReportsMonth(){
   <h2>ملخص ${esc(monthName(S.month))}</h2>${monthStatsHtml(S.month)}${catBreakdownHtml(S.month)}
   <h2>بياناتك</h2>${syncHtml()}
   <div class="panel stack">
-   <button class="btn block" id="expOpen">تصدير Excel / Numbers / PDF</button>
+   <button class="btn block" id="dbOpen">🗄️ قاعدة البيانات: الحفظ والفحص والاستعادة</button>
+   <button class="btn ghost block" id="expOpen">تصدير Excel / Numbers / PDF</button>
    <button class="btn ghost block" id="csvBtn" data-x="1">${S.rmode==='year'?'تنزيل عمليات السنة كملف Excel (CSV)':'تنزيل عمليات الشهر كملف Excel (CSV)'}</button>
    <button class="btn ghost block" data-wopen="1">ويدجت الآيفون والماك</button>
    <button class="btn ghost block" id="fileBackup">حفظ نسخة احتياطية كملف</button>
@@ -2157,7 +2300,7 @@ function admAsk(then,why){let el=document.getElementById('admLayer');if(!el){el=
   if(!c.bio)setTimeout(()=>{const i=document.getElementById('admPin');if(i)i.focus()},60)}
 /* كل زر تعديل أو حذف أو تراجع أو اعتماد يمر من هنا أولًا */
 const ADM_SEL=['[data-edit]','[data-txdel]','[data-txedit]','[data-dpe]','[data-redit]','[data-dedit]','[data-tedit]','[data-cedit]','[data-gedit]','[data-pedit]','[data-sedit]','[data-rpedit]',
-  '[data-apv]','[data-apedit]','[data-unpay]','#dnEdit','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
+  '[data-apv]','[data-apedit]','[data-unpay]','#dnEdit','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','label[for="restoreFile2"]','[data-snaprest]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
 document.addEventListener('click',e=>{if(!admOn())return;if(e.target.closest('#admLayer'))return;
   if(admOpen()){if(e.target.closest('button,label'))Adm.last=Date.now();return}
   const b=e.target.closest(ADM_SEL);if(!b)return;e.preventDefault();e.stopImmediatePropagation();
@@ -2212,7 +2355,7 @@ function openAdmSetup(change){const L=document.getElementById('layer');let bio=f
     const wantBio=!!(document.getElementById('amBio')||{}).checked;if(wantBio)bio=(await verifyUser())==='ok';
     admSave({salt:b64e(salt),hash,approve:document.getElementById('amApv').checked,bio,since:today()});admUnlocked();L.innerHTML='';render();
     toast(wantBio&&!bio?'فُعّل وضع المدير بالرمز. لم تُفعَّل بصمة الوجه':'فُعّل وضع المدير')}})}
-async function wipeAll(){for(const t of list())await delTx(t.id);S.settings={monthlyBudget:0,budgets:{}};await putSettings();render();toast('حُذفت كل البيانات')}
+async function wipeAll(){await snapTake('قبل حذف كل البيانات');for(const t of list())await delTx(t.id);S.settings={monthlyBudget:0,budgets:{}};await putSettings();render();toast('حُذفت كل البيانات')}
 async function openWipe(){const L=document.getElementById('layer');const uv=await uvAvailable();const hasPin=!!Vault.cfg;let showPin=!uv&&hasPin,busy=false;
   const word='احذف';const norm=s=>String(s||'').replace(/[ً-ْـ\s]/g,'').replace(/[أإآ]/g,'ا');
   const draw=()=>{L.innerHTML=`${sheetTop('حذف كل البيانات')}
@@ -2482,8 +2625,9 @@ function openLook(){const L=document.getElementById('layer');
 
 /* ---------- 24. الإصدار وما الجديد ---------- */
 const DEV={name:'ماجد الرميمي',title:'مهندس ومطور تقنية معلومات',country:'سلطنة عُمان',phone:'95134234',intl:'96895134234'};
-const APP_VERSION='2.12.1';
+const APP_VERSION='2.13.0';
 const CHANGELOG=[
+ {v:'2.13.0',d:'2026-10-14',items:['قاعدة بيانات داخلية ثانية مقسّمة: كل عملية سجل مستقل، وكل قسم (الديون، الالتزامات، الخطط، الأمانات، السيارات، الأهل) في خانة مستقلة، تُحدَّث تلقائيًا بعد كل حفظ','استعادة تلقائية من قاعدة البيانات الداخلية إذا تلفت ذاكرة التطبيق أو فرغت','لقطات تلقائية: يومية لآخر 14 يومًا، وقبل كل تحديث أو استعادة أو حذف شامل، مع استعادتها أو حفظها كملف','«🗄️ قاعدة البيانات» في التقارير: أين تُحفظ بياناتك، عدد السجلات في كل قسم، فحص السلامة، بصمة البيانات، والتصدير لكل قسم','نسخة احتياطية جديدة مقسّمة إلى أقسام واضحة مع عدد السجلات وبصمة تتحقق من سلامة الملف','الاستعادة صارت بمعاينة: تقارن ما في الملف بما عندك، وتختار استبدالًا كاملًا أو دمجًا، مع «تراجع»']},
  {v:'2.12.1',d:'2026-10-14',items:['خانة «🤲 تذكير» في قسم الديون: اكتب فيها أدعية وآيات التيسير وقضاء الدين، وتعديلها من وضع المدير فقط','مقترحات جاهزة من القرآن والأدعية المأثورة تضيفها بضغطة','تظهر كاملة أعلى قسم الديون، وواحدة منها كل يوم في الرئيسية، وفي أعلى تقرير الديون المطبوع']},
  {v:'2.12.0',d:'2026-10-14',items:['تصدير Excel / Numbers (.xlsx) حقيقي من داخل التطبيق: كل قسم في ورقة مرتبة من اليمين لليسار، مع أسهم الفلترة والترتيب ومجاميع بالمعادلات','أوراق الديون: الديون الحالية بأقسامها، كل الدفعات بالفائدة والمتبقي بعد كل دفعة، والديون المنتهية بمدتها وطريقة التخلص منها','أوراق أخرى: الملخص، الالتزامات الشهرية بكل شهر ودفعاته، العمليات، الخطط، الأمانات','«تقرير الديون» للطباعة أو PDF: كل قسم في جدول، شريط التقدّم، ما سدّدته شهرًا بشهر، سجل المنتهية، وعمود ☐ للمراجعة','نافذة «تصدير وطباعة التقارير» من التقارير، وأزرار مباشرة في قسم الديون والالتزامات الشهرية','على الآيفون: اختر «Numbers» من قائمة المشاركة لفتح الملف وتعديله، أو «حفظ في الملفات»']},
  {v:'2.11.1',d:'2026-10-14',items:['زر «إلغاء الدفع» في الالتزامات الشهرية وأقساط الديون: إذا ضغطت «دفعت» بالخطأ يرجع الالتزام «بانتظار الدفع» كما كان، لأي شهر تختاره','يعرض قبل الإلغاء الدفعات التي ستُحذف ومجموعها، ويُسجَّل في «التحديثات»، مع زر «تراجع»']},
@@ -2522,7 +2666,7 @@ function versionHtml(){
    <details${S.showNew?' open':''}><summary class="note" style="cursor:pointer">ما الجديد</summary><div style="margin-top:8px">${CHANGELOG.map(c=>`<div style="padding-block:6px"><b class="num" style="font-size:13px">${c.v}</b> <span class="note">${fmtD(c.d)}</span><ul style="margin:4px 0 0;padding-inline-start:18px;font-size:13px;line-height:1.7">${c.items.map(i=>`<li>${esc(i)}</li>`).join('')}</ul></div>`).join('')}</div></details></div>`;
 }
 function checkVersion(){let last=null;try{last=localStorage.getItem('masareef:ver')}catch(e){}
-  if(last&&last!==APP_VERSION){S.showNew=true;setTimeout(()=>toast('تم التحديث إلى الإصدار '+APP_VERSION+'. اطّلع على الجديد في التقارير'),600)}
+  if(last&&last!==APP_VERSION){S.showNew=true;S.snapVer=1;setTimeout(()=>toast('تم التحديث إلى الإصدار '+APP_VERSION+'. اطّلع على الجديد في التقارير'),600)}
   try{localStorage.setItem('masareef:ver',APP_VERSION)}catch(e){}}
 
 /* ---------- 25. بيانات المثال ---------- */
@@ -3070,8 +3214,9 @@ document.addEventListener('click',async e=>{
   if(b.id==='copyBackup'){const txt=backupText();
     try{await navigator.clipboard.writeText(txt);toast('نُسخت النسخة الاحتياطية، الصقها في ملاحظاتك أو أرسلها لنفسك')}
     catch(err){const ta=document.getElementById('restoreTxt');ta.closest('details').open=true;ta.value=txt;ta.select();toast('حدّد النص الظاهر وانسخه يدويًا')}return}
-  if(b.id==='restoreBtn'){await restoreFrom(document.getElementById('restoreTxt').value);return}
-  if(b.id==='fileBackup'){saveFile('idarat-shuooni-backup-'+today()+'.json',backupText(),'application/json')?toast('حُفظت النسخة الاحتياطية في الملفات'):toast('تعذّر حفظ الملف');return}
+  if(b.id==='restoreBtn'){openRestore(document.getElementById('restoreTxt').value,'من نص');return}
+  if(b.id==='dbOpen'){openDataCenter();return}
+  if(b.id==='fileBackup'){await saveBackupFile();return}
   if(b.id==='csvBtn'){const yr=S.rmode==='year';const a=(yr?list().filter(t=>t.date&&t.date.slice(0,4)===S.month.slice(0,4)):inMonth(S.month)).sort((x,y)=>x.date.localeCompare(y.date));
     const rows=[['التاريخ','النوع','الفئة','المبلغ','طريقة الدفع','ملاحظة','الشخص']].concat(a.map(t=>[t.date,t.type==='inc'?'دخل':'مصروف',catOf(t.cat).n,money(t.amount),(METHODS.find(m=>m[0]===t.method)||['',''])[1],t.note||'',t.person?personName(t.person):'']));
     const csv='\ufeff'+rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\r\n');
@@ -3080,10 +3225,10 @@ document.addEventListener('click',async e=>{
 let debtT;document.addEventListener('input',e=>{if(e.target.id==='q'){S.q=e.target.value;render()}
   if(e.target.id==='debtExtra'){S.settings.debtPlan=Object.assign(debtPlan(),{extra:parseAmt(e.target.value)});const r=document.getElementById('debtRes');if(r)r.innerHTML=debtResHtml();clearTimeout(debtT);debtT=setTimeout(putSettings,800)}});
 document.addEventListener('change',e=>{
-  if(e.target.id==='restoreFile'&&e.target.files[0]){const r=new FileReader();r.onload=()=>restoreFrom(r.result);r.readAsText(e.target.files[0]);e.target.value=''}});
+  if(e.target.id==='restoreFile'&&e.target.files[0]){const r=new FileReader();r.onload=()=>openRestore(r.result,'من ملف');r.readAsText(e.target.files[0]);e.target.value=''}});
 
 /* ---------- 29. التشغيل ---------- */
-checkVersion();cacheLoad();migrateRecs();render();Sync.start();setTimeout(notifyCarAlerts,1500);vaultLoad();
+checkVersion();cacheLoad();migrateRecs();render();dbBoot();Sync.start();setTimeout(notifyCarAlerts,1500);vaultLoad();
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.classList&&e.target.classList.contains('pin')){const b=document.getElementById(e.target.id==='vPin'?'vaultUnlock':'vaultSetup');b&&b.click()}});
 document.addEventListener('change',async e=>{if(e.target.id==='vaultImportFile'&&e.target.files[0]){const f=e.target.files[0];e.target.value='';const txt=await f.text();const L=document.getElementById('layer');
   L.innerHTML=`<div class="scrim" data-close></div><div class="sheet" data-vault role="dialog" aria-modal="true" aria-label="استيراد خزنة"><div class="in"><div class="grab"></div><h2 style="margin-top:0">استيراد خزنة</h2><div class="stack"><div class="field"><label for="vImpPin">رمز الخزنة التي صُدّر منها الملف</label><input class="inp num pin" id="vImpPin" type="password" inputmode="numeric" maxlength="8"></div><div class="actions"><button class="btn block" id="vImpGo">استيراد</button><button class="btn ghost block" data-close>إلغاء</button></div></div></div></div>`;
