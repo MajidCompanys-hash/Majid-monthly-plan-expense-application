@@ -22,7 +22,7 @@
  *  17. ديوني وخطة التخلص منها
  *  18. الأمانات: أموال الآخرين التي عندك
  *  19. مستنداتي: الخزنة المشفّرة
- *  20. بصمة الوجه: فتح الخزنة وتأكيد العمليات الخطيرة
+ *  20. بصمة الوجه، تأكيد العمليات الخطيرة، ووضع المدير
  *  21. قراءة رسائل البنك
  *  22. المزامنة مع Google Drive
  *  23. المظهر والثيمات
@@ -94,7 +94,7 @@ function sum(a,type){return a.filter(t=>t.type===type).reduce((s,t)=>s+(+t.amoun
 /* ---------- 2. التخزين في الجهاز ---------- */
 function cacheSave(){try{localStorage.setItem('masareef:v1',JSON.stringify({tx:S.tx,del:S.del,settings:S.settings}))}catch(e){toast('تعذّر الحفظ في ذاكرة الهاتف')}}
 function cacheLoad(){try{const r=JSON.parse(localStorage.getItem('masareef:v1')||'null');if(r){S.tx=r.tx||{};S.del=r.del||{};S.settings=Object.assign({monthlyBudget:0,budgets:{}},r.settings||{})}}catch(e){}}
-async function putTx(t){delete t.localOnly;t.u=Date.now();S.tx[t.id]=t;cacheSave();render();Sync.soon()}
+async function putTx(t){delete t.localOnly;if(!S.tx[t.id]&&!t.sample&&admPendNew())t.pend=1;t.u=Date.now();S.tx[t.id]=t;cacheSave();render();Sync.soon()}
 async function delTx(id){delete S.tx[id];S.del[id]=Date.now();cacheSave();render();Sync.soon()}
 async function putSettings(){S.settings._u=Date.now();cacheSave();Sync.soon()}
 function saveFile(name,text,type){try{const blob=new Blob([text],{type});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},1500);return true}catch(e){return false}}
@@ -493,7 +493,7 @@ function repHomeHtml(){if(!list().length)return '';
 /* ---------- 8. الشاشات: الرئيسية، السجل، الميزانية، التقارير ---------- */
 function txRow(t){const c=catOf(t.cat);const cls=t.type==='inc'?'amt-inc':'amt-exp';
   return `<button class="tx" data-edit="${esc(t.id)}"><span class="ic" style="background:${c.c}1f;color:${c.c}">${catIcon(t.cat)}</span>
-  <span class="t"><b>${esc(t.note||c.n)}</b><small>${esc(c.n)} · ${esc((METHODS.find(m=>m[0]===t.method)||['',''])[1])}${t.person?' · لـ'+esc(personName(t.person)):''}${t.sample?' · مثال':''}</small></span>
+  <span class="t"><b>${esc(t.note||c.n)}</b><small>${esc(c.n)} · ${esc((METHODS.find(m=>m[0]===t.method)||['',''])[1])}${t.person?' · لـ'+esc(personName(t.person)):''}${t.sample?' · مثال':''}${t.pend?' · <span class="pendtag">⏳ بانتظار الاعتماد</span>':''}</small></span>
   <span class="num ${cls}">${t.type==='inc'?'+':'−'}${amtH(t.amount)}</span></button>`}
 
 function vHome(){
@@ -503,7 +503,7 @@ function vHome(){
   return `<section class="hero"><div class="lbl">المتبقي في ${esc(MONTHS[+m.slice(5)-1])}</div>
    <div class="big"><span class="num">${left<0?'−':''}${money(Math.abs(left))}</span> <small>${CUR}</small></div>
    <div class="row"><div class="cell"><span><span class="ar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 7 7 17M7 9v8h8"/></svg></span>الدخل</span><b class="num">${amtH(inc)}</b></div><div class="cell"><span><span class="ar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></span>المصاريف</span><b class="num">${amtH(exp)}</b></div></div></section>${todayHtml()}
-   ${billAlertsHtml()||trustAlertsHtml()||carAlertsHtml()||docAlertsHtml()?'<div style="margin-top:14px">'+billAlertsHtml()+trustAlertsHtml()+carAlertsHtml()+docAlertsHtml()+'</div>':''}${widgetNudgeHtml()}${empty}${advHomeHtml()}${quickHtml()}${plansHomeHtml()}${debtHomeHtml()}${repHomeHtml()}<h2>أقسامي</h2>${dashHtml()}
+   ${pendHtml()||billAlertsHtml()||trustAlertsHtml()||carAlertsHtml()||docAlertsHtml()?'<div style="margin-top:14px">'+pendHtml()+billAlertsHtml()+trustAlertsHtml()+carAlertsHtml()+docAlertsHtml()+'</div>':''}${widgetNudgeHtml()}${empty}${advHomeHtml()}${quickHtml()}${plansHomeHtml()}${debtHomeHtml()}${repHomeHtml()}<h2>أقسامي</h2>${dashHtml()}
    ${recent.length?`<h2>آخر العمليات</h2><div class="panel" style="padding:6px 10px">${recent.map(txRow).join('')}</div><div style="margin-top:8px"><button class="chip" data-tab="log">عرض كل العمليات</button></div>`:''}`;
 }
 
@@ -551,6 +551,7 @@ function vReportsMonth(){
    <details><summary class="note" style="cursor:pointer">استعادة من نص منسوخ</summary>
      <div class="stack" style="margin-top:10px"><textarea class="inp" id="restoreTxt" placeholder="الصق النسخة الاحتياطية هنا"></textarea><button class="btn ghost" id="restoreBtn">استعادة</button></div></details>
    ${list().some(t=>t.sample)?'<button class="btn ghost block" id="clearSample">حذف بيانات المثال</button>':''}
+   ${admHtml()}
    <div id="wipeArea"><button class="btn ghost block" id="wipeAsk" style="color:var(--exp)">حذف كل البيانات</button></div>
    <p class="note" style="margin:0">${Sync.linked()?'بياناتك محفوظة في جهازك، وتُنسخ إلى مجلد خفي خاص بالتطبيق في Google Drive الخاص بك فقط. لا يتصل التطبيق بأي جهة غير Google Drive الخاص بك.':'التطبيق لا يتصل بالإنترنت ولا يرسل بياناتك لأي جهة، وكل شيء محفوظ داخل هاتفك فقط. لذلك احفظ نسخة احتياطية كملف بين حين وآخر، لأن حذف التطبيق من الهاتف يحذف بياناته.'}</p>
   </div>`;
@@ -599,7 +600,7 @@ function reportsMonthExtras(){const m=S.month,a=inMonth(m),st=recStatus(m);
   return personSplitHtml(a,'المصاريف حسب الأشخاص')+(st.R.length?`<h2>الالتزامات الشهرية</h2><div class="panel"><div class="sumrow"><span>المدفوع</span><b class="num">${amtH(st.paidAmt)}</b></div><div class="sumrow"><span>عدد المدفوع</span><b>${st.paid.length} من ${st.R.length}</b></div><div class="sumrow"><span>المتوقع شهريًا</span><b class="num">${amtH(st.total)}</b></div></div>`:'')}
 
 /* ---------- 10. العرض ---------- */
-function render(){
+function render(){admChip();
   document.getElementById('mLabel').textContent=monthName(S.month);
   document.getElementById('monthbar').hidden=false;
   const v=document.getElementById('view');
@@ -660,7 +661,7 @@ function openSheet(t,pre){
     if(!amt){err.hidden=false;err.textContent='اكتب المبلغ أولًا، مثل 3.500';return}
     if(!t.cat){err.hidden=false;err.textContent='اختر الفئة';return}
     const rec={id:t.id,type:t.type,amount:amt,cat:t.cat,date:t.date||today(),method:t.method,note:(t.note||'').trim(),createdAt:t.createdAt||new Date().toISOString()};
-    if(t.sample)rec.sample=true; if(t.type==='exp'&&t.person)rec.person=t.person; ['rec','src','car','debt'].forEach(k=>{if(t[k])rec[k]=t[k]});
+    if(t.sample)rec.sample=true; if(t.type==='exp'&&t.person)rec.person=t.person; ['rec','src','car','debt','pend','apv'].forEach(k=>{if(t[k])rec[k]=t[k]});
     let setChanged=false;
     if(S.settings.lastMethod!==t.method){S.settings.lastMethod=t.method;setChanged=true}
     if(rec.note&&manualCat){const k=mkey(rec.note);if(k&&(S.settings.merchantCats||{})[k]!==rec.cat){S.settings.merchantCats=Object.assign({},S.settings.merchantCats||{},{[k]:rec.cat});setChanged=true}}
@@ -945,7 +946,7 @@ function recHistHtml(r,m){const H=recHistory(r,m);const lg=(r.log||[]).slice().r
   return `<details class="rechist"><summary>سجل الالتزام <span class="note">(${countWord(H.length,'شهر واحد','شهران','أشهر','شهرًا')}${lg.length?' · '+countWord(lg.length,'تحديث واحد','تحديثان','تحديثات','تحديثًا'):''})</span></summary>
    <div class="rh-list">${H.map(h=>`<div class="rh-m${h.m===m?' cur':''}"><div class="rh-top"><b>${esc(monthName(h.m))}</b><span class="pill ${h.remaining<=0.0005?'paid':h.paid?'soon':'late'}">${h.remaining<=0.0005?'مدفوع':h.paid?'باقٍ '+money(h.remaining):'لم يُدفع'}</span></div>
      <div class="note">فاتورة ${rial(h.bill)}${h.prev>0.0005?' + متأخرات '+money(h.prev):h.prev<-0.0005?' − رصيد '+money(-h.prev):''}${Math.abs(h.prev)>0.0005?' = '+rial(h.total):''} · دفعت ${rial(h.paid)}</div>
-     ${h.pays.length?`<div class="paylist">${h.pays.map(t=>`<span class="paychip"><button class="pce" data-txedit="${esc(t.id)}" aria-label="تعديل الدفعة"><span class="num">${amtH(t.amount)}</span> · ${fmtD(t.date)} ✎</button><button data-txdel="${esc(t.id)}" aria-label="حذف الدفعة">✕</button></span>`).join('')}</div>`:''}</div>`).join('')}</div>
+     ${h.pays.length?`<div class="paylist">${h.pays.map(t=>`<span class="paychip"><button class="pce" data-txedit="${esc(t.id)}" aria-label="تعديل الدفعة"><span class="num">${amtH(t.amount)}</span> · ${fmtD(t.date)}${t.pend?' ⏳':''} ✎</button><button data-txdel="${esc(t.id)}" aria-label="حذف الدفعة">✕</button></span>`).join('')}</div>`:''}</div>`).join('')}</div>
    ${lg.length?`<div class="rh-log"><b>التحديثات</b>${lg.slice(0,8).map(x=>`<div class="sumrow sub"><span>${esc(x.t)}</span><span>${fmtD(x.at)}</span></div>`).join('')}</div>`:''}
    <div class="chips" style="margin:8px 0 0"><button class="chip" data-recprint="${esc(r.id)}">كشف للطباعة</button></div></details>`}
 /* كشف التزام واحد للطباعة أو الحفظ PDF، من نفس بيانات الخانة */
@@ -1642,7 +1643,7 @@ function debtHomeHtml(){const F=debtFree();if(!F)return '';
 /* سجل الدين داخل خانته: الدفعات (تعديل/حذف)، المستندات المشفّرة، التحديثات، والكشف */
 function debtHistHtml(d){const P=debtPays(d).reverse();const lg=(d.log||[]).slice().reverse();const D=Vault.docs.filter(x=>x.debt===d.id);const lock=!Vault.key&&Vault.cfg;
   return `<details class="rechist"><summary>سجل الدين <span class="note">(${countWord(P.length,'دفعة واحدة','دفعتان','دفعات','دفعة')}${D.length?' · '+D.length+' 📎':''}${lg.length?' · '+lg.length+' تحديث':''})</span></summary>
-   ${P.length?`<div class="paylist">${P.slice(0,24).map(p=>`<span class="paychip"><button class="pce" data-dpe="${esc(d.id)}|${esc(p.id||'')}" aria-label="تعديل الدفعة"><span class="num">${amtH(p.amt)}</span> · ${fmtD(p.date)} ✎</button></span>`).join('')}</div>
+   ${P.length?`<div class="paylist">${P.slice(0,24).map(p=>`<span class="paychip"><button class="pce" data-dpe="${esc(d.id)}|${esc(p.id||'')}" aria-label="تعديل الدفعة"><span class="num">${amtH(p.amt)}</span> · ${fmtD(p.date)}${S.tx[p.tx]&&S.tx[p.tx].pend?' ⏳':''} ✎</button></span>`).join('')}</div>
     <div class="note" style="margin:4px 2px">اضغط على أي دفعة لتعديلها أو حذفها، ويُصحَّح المتبقي تلقائيًا.</div>`:'<div class="note">لا دفعات مسجّلة بعد.</div>'}
    <div class="rh-log"><b>مستندات الدين ${lock?'🔒':''}</b>${D.length?`<div class="chips" style="margin:6px 0 0">${D.map(x=>`<button class="chip" data-cdview="${esc(x.id)}">📎 ${esc(x.title)}${(x.files||[]).length>1?' ('+x.files.length+')':''}</button>`).join('')}</div>`:'<div class="note">أرفق عقد القرض وإيصالات السداد، تُحفظ مشفّرة في خزنتك ولا تُزامَن.</div>'}
     <div class="chips" style="margin:6px 0 0"><button class="chip pay" data-ddoc="${esc(d.id)}:debtdoc">+ العقد أو مستند</button><button class="chip" data-ddoc="${esc(d.id)}:debtrcpt">+ إيصال سداد</button></div></div>
@@ -1957,7 +1958,7 @@ async function vaultImport(txt){try{const o=JSON.parse(txt);if(!o||o.app!=='masa
     const rec=Object.assign({},d,{files,secret:sec});await VDB.put('docs',rec);Vault.docs.push(rec);n++}
   render();toast('استُورد '+n+' مستند');return true}catch(e){toast('هذا الملف ليس خزنة من إدارة شؤوني');return false}}
 
-/* ---------- 20. بصمة الوجه: فتح الخزنة وتأكيد العمليات الخطيرة ---------- */
+/* ---------- 20. بصمة الوجه، تأكيد العمليات الخطيرة، ووضع المدير ---------- */
 const BIO_SALT=te('masareef-vault-faceid-v1');
 const bioCapable=()=>!!(window.PublicKeyCredential&&navigator.credentials&&navigator.credentials.create);
 async function bioKeyFrom(prfOut){return crypto.subtle.importKey('raw',prfOut,{name:'AES-GCM'},false,['encrypt','decrypt'])}
@@ -2006,6 +2007,102 @@ async function verifyUser(){if(!await uvAvailable())return 'unavailable';
     const ad=c.response.getAuthenticatorData?c.response.getAuthenticatorData():null;return !ad||uvFlag(ad)?'ok':'fail'
   }catch(e){return e&&(e.name==='NotAllowedError'||e.name==='AbortError')?'cancel':'fail'}}
 async function vaultPinOk(pin){if(!Vault.cfg||!pin)return false;try{const key=await vDerive(pin,Vault.cfg.salt);await vDec(key,Vault.cfg.check);return true}catch(e){return false}}
+/* وضع المدير: التعديل والحذف والتراجع واعتماد العمليات تحتاج رمز المدير أو بصمة الوجه.
+   الإعداد محفوظ في هذا الهاتف فقط ولا يدخل في المزامنة ولا النسخة الاحتياطية. */
+const ADM_K='masareef:admin',ADM_IDLE=5*60*1000;
+const Adm={open:false,last:0,cfg:undefined,fails:0,wait:0};
+function admCfg(){if(Adm.cfg===undefined){try{Adm.cfg=JSON.parse(localStorage.getItem(ADM_K)||'null')||null}catch(e){Adm.cfg=null}}return Adm.cfg}
+function admSave(c){Adm.cfg=c||null;try{c?localStorage.setItem(ADM_K,JSON.stringify(c)):localStorage.removeItem(ADM_K)}catch(e){}}
+function admOn(){return !!admCfg()}
+function admOpen(){if(!admOn())return true;if(Adm.open&&Date.now()-Adm.last>ADM_IDLE)admLock(true);return Adm.open}
+function admLock(silent){Adm.open=false;admChip();if(!silent)toast('قُفل وضع المدير')}
+function admUnlocked(){Adm.open=true;Adm.last=Date.now();Adm.fails=0;admChip()}
+/* العمليات الجديدة وقت قفل وضع المدير تنتظر اعتمادك */
+function admPendNew(){const c=admCfg();return !!c&&c.approve!==false&&!admOpen()}
+async function admHash(pin,salt){const base=await crypto.subtle.importKey('raw',te(pin),'PBKDF2',false,['deriveBits']);return b64e(new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:150000,hash:'SHA-256'},base,256)))}
+async function admPinOk(pin){const c=admCfg();if(!c||!pin)return false;return await admHash(String(pin),b64d(c.salt))===c.hash}
+setInterval(()=>{if(Adm.open&&Date.now()-Adm.last>ADM_IDLE)admLock(true)},30000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&Adm.open){Adm.hid=Date.now()}else if(Adm.hid){if(Date.now()-Adm.hid>60000)admLock(true);Adm.hid=0}});
+function admChip(){const h=document.querySelector('.hdr-actions');if(!h)return;let b=document.getElementById('admChip');
+  if(!admOn()){if(b)b.remove();return}
+  if(!b){b=document.createElement('button');b.id='admChip';b.type='button';h.prepend(b)}
+  const o=Adm.open;b.className='admchip'+(o?' on':'');b.textContent=o?'🛡️ المدير':'🔒';b.setAttribute('aria-label',o?'وضع المدير مفتوح، اضغط للقفل':'وضع المدير مقفل، اضغط للفتح')}
+/* نافذة فتح وضع المدير: فوق أي نافذة مفتوحة، ثم تكمل العملية التي طلبتها */
+function admAsk(then,why){let el=document.getElementById('admLayer');if(!el){el=document.createElement('div');el.id='admLayer';document.body.appendChild(el)}const c=admCfg();
+  el.innerHTML=`<div class="scrim adm" data-x></div><div class="sheet adm" role="dialog" aria-modal="true" aria-label="صلاحية المدير"><div class="in"><div class="grab"></div>
+   <h2 style="margin-top:0">🛡️ صلاحية المدير</h2><p class="note" style="margin-top:-4px">${esc(why||'التعديل والحذف والتراجع والاعتماد تحتاج صلاحية المدير.')}</p>
+   ${c.bio?'<button class="btn block" id="admBio">فتح ببصمة الوجه</button>':''}
+   <div class="field" style="margin-top:10px"><label for="admPin">رمز المدير</label><input class="inp num pin" id="admPin" type="password" inputmode="numeric" maxlength="8" autocomplete="off"></div>
+   <p class="note" id="admErr" hidden style="color:var(--exp);margin:0"></p>
+   <div class="actions"><button class="btn block${c.bio?' ghost':''}" id="admGo">فتح بالرمز</button><button class="btn ghost block" data-x>إلغاء</button></div>
+   <p class="note" style="margin:0">يبقى مفتوحًا 5 دقائق من آخر استخدام، ويُقفل عند الخروج من التطبيق.</p></div></div>`;
+  const close=()=>{el.innerHTML=''};const ok=()=>{close();admUnlocked();toast('فُتح وضع المدير');if(then)setTimeout(then,40)};
+  const err=m=>{const e=document.getElementById('admErr');if(e){e.hidden=false;e.textContent=m}};
+  el.onclick=async e=>{const x=e.target.closest('button,[data-x]');if(!x)return;e.stopPropagation();
+    if(x.hasAttribute('data-x')){close();return}
+    if(x.id==='admBio'){const r=await verifyUser();if(r==='ok')ok();else err(r==='cancel'?'أُلغيت بصمة الوجه. حاول مرة أخرى أو استخدم الرمز':'تعذّرت بصمة الوجه، استخدم الرمز');return}
+    if(x.id==='admGo'){if(Date.now()<Adm.wait){err('محاولات كثيرة. انتظر '+Math.ceil((Adm.wait-Date.now())/1000)+' ثانية');return}
+      x.disabled=true;const good=await admPinOk(document.getElementById('admPin').value);x.disabled=false;
+      if(good){ok();return}Adm.fails++;if(Adm.fails>=5){Adm.wait=Date.now()+30000;Adm.fails=0}err('الرمز غير صحيح');const i=document.getElementById('admPin');i.value='';i.focus()}};
+  el.onkeydown=e=>{if(e.key==='Enter'&&e.target.id==='admPin'){e.preventDefault();document.getElementById('admGo').click()}};
+  if(!c.bio)setTimeout(()=>{const i=document.getElementById('admPin');if(i)i.focus()},60)}
+/* كل زر تعديل أو حذف أو تراجع أو اعتماد يمر من هنا أولًا */
+const ADM_SEL=['[data-edit]','[data-txdel]','[data-txedit]','[data-dpe]','[data-redit]','[data-dedit]','[data-tedit]','[data-cedit]','[data-gedit]','[data-pedit]','[data-sedit]','[data-rpedit]',
+  '[data-apv]','[data-apedit]','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
+document.addEventListener('click',e=>{if(!admOn())return;if(e.target.closest('#admLayer'))return;
+  if(admOpen()){if(e.target.closest('button,label'))Adm.last=Date.now();return}
+  const b=e.target.closest(ADM_SEL);if(!b)return;e.preventDefault();e.stopImmediatePropagation();
+  admAsk(()=>{if(b.isConnected)b.click()},b.matches('.toast button')?'التراجع عن عملية يحتاج صلاحية المدير.':b.matches('[data-apv],[data-apedit],#apvAll')?'اعتماد العمليات يحتاج صلاحية المدير.':null)},true);
+/* العمليات بانتظار الاعتماد */
+function pendList(){return list().filter(t=>t.pend).sort((a,b)=>(b.date||'').localeCompare(a.date||''))}
+function pendHtml(){if(!admOn())return '';const P=pendList();if(!P.length)return '';const tot=P.filter(t=>t.type==='exp').reduce((s,t)=>s+(+t.amount||0),0);
+  return `<div class="alertbox"><div class="alerthead"><b>بانتظار اعتمادك</b><span class="pill soon">${P.length}</span></div><div class="alertrow warn"><span class="adot"></span><div style="min-width:0"><b>تحتاج مراجعتك: ${countWord(P.length,'عملية واحدة','عمليتان','عمليات','عملية')}</b><small>أُدخلت ووضع المدير مقفل${tot?' · مصاريف بمجموع '+rial(tot):''}</small></div><button class="chip pay" data-apopen="1">مراجعة</button></div></div>`}
+function openApprovals(){const L=document.getElementById('layer');
+  const draw=()=>{const P=pendList();if(!P.length){L.innerHTML='';render();toast('لا عمليات بانتظار الاعتماد');return}
+    L.innerHTML=`${sheetTop('الاعتماد')}<h2 style="margin-top:0">بانتظار اعتمادك (${P.length})</h2>
+     <p class="note" style="margin-top:-6px">هذه العمليات أُدخلت ووضع المدير مقفل. هي محسوبة في أرصدتك من الآن، والاعتماد يوثّق أنك راجعتها.</p>
+     <div class="panel" style="padding-block:4px">${P.map(t=>{const c=catOf(t.cat);return `<div class="apvrow"><span class="ic" style="background:${c.c}1f;color:${c.c}">${catIcon(t.cat)}</span>
+      <div style="min-width:0"><b>${esc(t.note||c.n)}</b><small>${fmtD(t.date)} · ${esc(c.n)}</small></div><b class="num ${t.type==='inc'?'amt-inc':'amt-exp'}">${t.type==='inc'?'+':'−'}${amtH(t.amount)}</b>
+      <div class="apvbtns"><button class="chip pay" data-apv="${esc(t.id)}">اعتماد ✓</button><button class="chip" data-apedit="${esc(t.id)}">تعديل أو حذف</button></div></div>`}).join('')}</div>
+     <div class="actions"><button class="btn block" id="apvAll">اعتماد الكل (${P.length})</button><button class="btn ghost block" data-close>إغلاق</button></div></div></div>`};
+  const approve=async ids=>{for(const id of ids){const t=S.tx[id];if(!t)continue;const c=Object.assign({},t);delete c.pend;c.apv=today();await putTx(c)}};
+  draw();L.oninput=L.onchange=null;
+  L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;
+    if(x.hasAttribute('data-close')){L.innerHTML='';return}
+    if(x.dataset.apv){await approve([x.dataset.apv]);toast('اعتُمدت العملية');draw();return}
+    if(x.dataset.apedit){const t=S.tx[x.dataset.apedit];if(t){L.innerHTML='';openSheet(t)}return}
+    if(x.id==='apvAll'){const ids=pendList().map(t=>t.id);await approve(ids);L.innerHTML='';render();toast('اعتُمدت '+countWord(ids.length,'عملية واحدة','عمليتان','عمليات','عملية'))}}}
+/* إعداد وضع المدير */
+function admHtml(){const c=admCfg();
+  if(!c)return `<div class="panel stack admbox"><b>🛡️ وضع المدير</b><span class="note">احمِ تطبيقك من الأخطاء والعبث: التعديل والحذف والتراجع واعتماد العمليات وتعديل الالتزامات والديون والخطط تحتاج رمز المدير أو بصمة الوجه. والإدخال الجديد يبقى متاحًا، ويُعلَّم «بانتظار الاعتماد» حتى تراجعه.</span><button class="btn block" id="admSetup">تفعيل وضع المدير</button></div>`;
+  const P=pendList().length;
+  return `<div class="panel stack admbox"><div class="sumrow" style="align-items:center"><b>🛡️ وضع المدير مفعّل</b><span class="pill ${Adm.open?'paid':'soon'}">${Adm.open?'مفتوح':'مقفل'}</span></div>
+   <span class="note">${Adm.open?'يمكنك الآن التعديل والحذف والاعتماد. يُقفل تلقائيًا بعد 5 دقائق بدون استخدام.':'التعديل والحذف والتراجع والاعتماد تحتاج الرمز أو بصمة الوجه.'}</span>
+   <div class="sumrow"><span>اعتماد العمليات المُدخلة وهو مقفل</span><button class="chip${c.approve!==false?' pay':''}" id="admApprove">${c.approve!==false?'مفعّل':'متوقف'}</button></div>
+   ${P?`<div class="sumrow"><span>بانتظار الاعتماد</span><button class="chip pay" data-apopen="1">${P} · مراجعة</button></div>`:''}
+   <div class="sumrow"><span>بصمة الوجه للمدير</span><button class="chip" id="admBioSet">${c.bio?'مفعّلة · إيقاف':'تفعيل'}</button></div>
+   <div class="row2"><button class="btn ghost" id="${Adm.open?'admLockBtn':'admUnlockBtn'}">${Adm.open?'قفل الآن':'فتح وضع المدير'}</button><button class="btn ghost" id="admPinChange">تغيير الرمز</button></div>
+   <button class="btn ghost block" id="admOff" style="color:var(--exp)">إيقاف وضع المدير</button></div>`}
+function openAdmSetup(change){const L=document.getElementById('layer');let bio=false;
+  uvAvailable().then(uv=>{
+  L.innerHTML=`${sheetTop('وضع المدير')}<h2 style="margin-top:0">${change?'تغيير رمز المدير':'تفعيل وضع المدير'}</h2>
+   <div class="stack"><p class="note" style="margin:0">اختر رمزًا من 4 إلى 8 أرقام، مختلفًا عن رمز قفل الهاتف إن أمكن. يُحفظ مشفّرًا في هذا الهاتف فقط.</p>
+   <div class="row2"><div class="field"><label for="amP1">رمز المدير</label><input class="inp num pin" id="amP1" type="password" inputmode="numeric" maxlength="8" autocomplete="off"></div>
+   <div class="field"><label for="amP2">أعد كتابته</label><input class="inp num pin" id="amP2" type="password" inputmode="numeric" maxlength="8" autocomplete="off"></div></div>
+   ${change?'':`<label class="note" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="amApv" checked style="width:18px;height:18px"> العمليات المُدخلة وهو مقفل تنتظر اعتمادي</label>
+   ${uv?'<label class="note" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="amBio" checked style="width:18px;height:18px"> الفتح ببصمة الوجه أيضًا</label>':''}`}
+   <p class="note" id="amErr" hidden style="color:var(--exp);margin:0"></p>
+   <div class="actions"><button class="btn block" id="amSave">${change?'حفظ الرمز الجديد':'تفعيل'}</button><button class="btn ghost block" data-close>إلغاء</button></div></div></div></div>`;
+  L.oninput=L.onchange=null;
+  L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
+    if(x.id!=='amSave')return;const er=document.getElementById('amErr');const p1=document.getElementById('amP1').value.trim(),p2=document.getElementById('amP2').value.trim();
+    if(!/^\d{4,8}$/.test(p1)){er.hidden=false;er.textContent='الرمز من 4 إلى 8 أرقام';return}
+    if(p1!==p2){er.hidden=false;er.textContent='الرمزان غير متطابقين';return}
+    x.disabled=true;const salt=crypto.getRandomValues(new Uint8Array(16));const hash=await admHash(p1,salt);
+    if(change){admSave(Object.assign({},admCfg(),{salt:b64e(salt),hash}));L.innerHTML='';render();toast('تغيّر رمز المدير');return}
+    const wantBio=!!(document.getElementById('amBio')||{}).checked;if(wantBio)bio=(await verifyUser())==='ok';
+    admSave({salt:b64e(salt),hash,approve:document.getElementById('amApv').checked,bio,since:today()});admUnlocked();L.innerHTML='';render();
+    toast(wantBio&&!bio?'فُعّل وضع المدير بالرمز. لم تُفعَّل بصمة الوجه':'فُعّل وضع المدير')}})}
 async function wipeAll(){for(const t of list())await delTx(t.id);S.settings={monthlyBudget:0,budgets:{}};await putSettings();render();toast('حُذفت كل البيانات')}
 async function openWipe(){const L=document.getElementById('layer');const uv=await uvAvailable();const hasPin=!!Vault.cfg;let showPin=!uv&&hasPin,busy=false;
   const word='احذف';const norm=s=>String(s||'').replace(/[ً-ْـ\s]/g,'').replace(/[أإآ]/g,'ا');
@@ -2276,8 +2373,9 @@ function openLook(){const L=document.getElementById('layer');
 
 /* ---------- 24. الإصدار وما الجديد ---------- */
 const DEV={name:'ماجد الرميمي',title:'مهندس ومطور تقنية معلومات',country:'سلطنة عُمان',phone:'95134234',intl:'96895134234'};
-const APP_VERSION='2.9.0';
+const APP_VERSION='2.10.0';
 const CHANGELOG=[
+ {v:'2.10.0',d:'2026-10-13',items:['«وضع المدير»: التعديل والحذف والتراجع وتعديل الالتزامات الشهرية والديون والخطط والسيارات والأمانات تحتاج رمز المدير أو بصمة الوجه','اعتماد المدفوعات: ما يُدخل ووضع المدير مقفل يُعلَّم «⏳ بانتظار الاعتماد» حتى تراجعه وتعتمده أو تعدّله، مع «اعتماد الكل»','تنبيه «بانتظار اعتمادك» في الرئيسية، وعلامة ⏳ على الدفعات المنتظرة في الالتزامات والديون والسجل','قفل تلقائي بعد 5 دقائق بدون استخدام أو عند الخروج من التطبيق، وزر 🛡️ في الأعلى للفتح والقفل','رمز المدير يُحفظ مشفّرًا في هاتفك فقط، ولا يدخل في المزامنة ولا النسخة الاحتياطية']},
  {v:'2.9.0',d:'2026-10-13',items:['«التحرر من الديون» في الرئيسية: كم قسطًا باقيًا، ويوم التحرر من الديون بالتاريخ، وعدّ تنازلي بالأيام، ونسبة ما سدّدته، والقسط القادم','كل دين صار له «سجل الدين» داخل خانته: الدفعات، المستندات، والتحديثات','تعديل أي دفعة قديمة أو حذفها بالضغط عليها، ويُصحَّح المتبقي من الدين والمصروف المرتبط تلقائيًا مع زر «تراجع»','إرفاق عقد القرض وإيصالات السداد بالدين، تُحفظ مشفّرة في خزنة «مستنداتي» ولا تُزامَن','«كشف للطباعة» لكل دين: الملخص، كل دفعة بتاريخها ومبلغها والفائدة والمتبقي بعدها، المستندات المرفقة، وسجل التحديثات','«باقٍ X قسطًا» في خانة كل دين وفي التقرير المطبوع، وفي ويدجت الآيفون والماك','كل دفعة دين تُحفظ بفائدتها وأصلها والمتبقي بعدها لكشف أدق']},
  {v:'2.8.0',d:'2026-10-13',items:['كل التزام شهري صار خانة واحدة بأيقونته (كهرباء، ماء، إنترنت، هاتف، إيجار...)، وفيها كل ما يخصه','«سجل الالتزام» داخل الخانة: كل شهر بفاتورته والمتأخرات وما دفعته والمتبقي، مع دفعاته وتعديلها أو حذفها من نفس المكان','«التحديثات» تُحفظ داخل الخانة تلقائيًا: إضافة الالتزام، تغيير المبلغ، المتأخرات، فاتورة شهر، يوم الدفع، تعديل أو حذف دفعة','«كشف للطباعة» لكل التزام من نفس بياناته: الأشهر والدفعات والمتبقي وسجل التحديثات','التقرير الشهري المطبوع يعرض لكل التزام: المستحق والمدفوع والمتبقي وتواريخ الدفعات والحالة (مدفوع أو جزئي)','سجل السداد داخل خانة كل قسط دين','زر ثابت «+ إضافة التزام» أعلى صفحة الشهرية وأسفلها، يفتح كل الأنواع دائمًا ويمكن تكرار النوع نفسه (مثل كهرباء لبيتين)']},
  {v:'2.7.0',d:'2026-10-13',items:['نافذة دفع منظمة للالتزامات الشهرية: فاتورة الشهر + المتأخرات − ما دفعته سابقًا = المستحق الآن','عند كتابة المبلغ يظهر فورًا كم يبقى عليك بعد الدفعة، مع أزرار «كامل المستحق» و«فاتورة الشهر فقط» و«النصف»','خطوة تأكيد قبل الحفظ تعرض المبلغ والتاريخ وطريقة الدفع والمتبقي','زر «تراجع» بعد كل دفعة، وحذف أي دفعة خاطئة لاحقًا من سجل الالتزام مع إمكانية إعادتها','«عادةً أدفع النصف»: يجعل نصف المبلغ هو الافتراضي لهذه الفاتورة','«ذكّرني بالمتبقي يوم...»: تختار تاريخ التذكير بالباقي (الافتراضي يوم الراتب)، فيظهر في الرئيسية ويصلك إشعار','«تسجيل كل المتبقي» صار يعرض القائمة والمجموع للتأكيد، مع تراجع عن الكل','سداد الديون يعرض المتبقي من الدين بعد الدفعة، مع زر تراجع','الملخص الشهري يحسب الدفعات الجزئية ويعرض ما بقي عليك','تعديل أي دفعة مسجلة (المبلغ والتاريخ والطريقة) بالضغط عليها، مع المتبقي بعد التعديل وزر تراجع','المبالغ تظهر بدون كسور إذا كانت صحيحة (25 بدل 25.000)، وبالبيسة فقط عند وجود كسور، ومعها «ر.ع.»','الالتزامات الشهرية: شهر بداية وشهر نهاية اختياري (أو مستمر)، ومعاينة الأشهر القادمة قبل الحفظ','تغيير مبلغ الالتزام: «من هذا الشهر فصاعدًا» مع بقاء الأشهر السابقة بمبلغها القديم، أو «هذا الشهر فقط»','إصلاح: المبالغ من 1,000 فأكثر في الحقول المعبأة مسبقًا كانت تُقرأ خطأً (مثل 1,636 تصبح 1.636)']},
@@ -2577,6 +2675,16 @@ document.addEventListener('click',async e=>{
   if(b.dataset.wopen){openWidget();return}
   if(b.dataset.cdoc){const [cid,ty]=b.dataset.cdoc.split(':');const pre=carDocPre(cid,ty);if(pre)withVault(()=>openDoc(null,pre));return}
   if(b.dataset.ddoc){const [did,ty]=b.dataset.ddoc.split(':');const pre=debtDocPre(did,ty);if(pre)withVault(()=>openDoc(null,pre));return}
+  if(b.id==='admChip'){if(admOpen()){admLock();render()}else admAsk(()=>render(),'افتح وضع المدير للتعديل والحذف والتراجع والاعتماد.');return}
+  if(b.id==='admSetup'){openAdmSetup(false);return}
+  if(b.id==='admPinChange'){openAdmSetup(true);return}
+  if(b.id==='admUnlockBtn'){admAsk(()=>render());return}
+  if(b.id==='admLockBtn'){admLock();render();return}
+  if(b.id==='admApprove'){const c=admCfg();admSave(Object.assign({},c,{approve:c.approve===false}));render();toast(c.approve===false?'العمليات المُدخلة وهو مقفل تنتظر اعتمادك':'أُوقف الاعتماد، العمليات الجديدة تُحفظ مباشرة');return}
+  if(b.id==='admBioSet'){const c=admCfg();if(c.bio){admSave(Object.assign({},c,{bio:false}));render();toast('أُوقفت بصمة الوجه للمدير');return}
+    const r=await verifyUser();if(r==='ok'){admSave(Object.assign({},c,{bio:true}));render();toast('فُعّلت بصمة الوجه للمدير')}else toast(r==='unavailable'?'بصمة الوجه غير متاحة هنا':'لم تُفعَّل بصمة الوجه');return}
+  if(b.id==='admOff'){const P=pendList();for(const t of P){const c=Object.assign({},t);delete c.pend;await putTx(c)}admSave(null);Adm.open=false;render();toast('أُوقف وضع المدير'+(P.length?' واعتُمدت العمليات المنتظرة':''));return}
+  if(b.dataset.apopen){openApprovals();return}
   if(b.dataset.dpe){const [did,pid]=b.dataset.dpe.split('|');openDebtPayEdit(did,pid);return}
   if(b.dataset.dprint){printDebt(b.dataset.dprint);return}
   if(b.dataset.cdview){const id=b.dataset.cdview;withVault(()=>viewDoc(id));return}
