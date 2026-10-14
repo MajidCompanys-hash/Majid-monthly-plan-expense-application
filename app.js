@@ -287,6 +287,48 @@ try{new MutationObserver(fitSoon).observe(document.body,{childList:true,subtree:
 window.addEventListener('resize',()=>{document.querySelectorAll('[data-mq]').forEach(el=>{if(!el.querySelector('.mq-in'))delete el.dataset.mq});fitSoon()});
 document.addEventListener('toggle',fitSoon,true);
 
+
+/* ===== التصغير والتكبير لكل الأقسام والعناوين =====
+   يعمل تلقائيًا على كل الشاشات والنوافذ، بدون تعديل كل شاشة على حدة:
+   - العناوين الأساسية (h2) والفرعية (h3) ومجموعات الديون: الضغط على العنوان يصغّر أو يكبّر ما تحته حتى العنوان التالي.
+   - بطاقات البنود (الخطط، الديون، الأمانات، السيارات، المستندات، الادخار): الضغط على رأس البطاقة يصغّرها إلى اسمها.
+   - عنوان الصفحة نفسها (الذي فيه زر «الرئيسية») وعنوان النافذة لا يُصغَّران.
+   - يُحفظ اختيارك في هذا الجهاز، ويبقى بعد إعادة الفتح. */
+const FOLD_KEY='masareef:fold';
+const Fold={c:null,
+  load(){if(this.c)return this.c;let a=[];try{a=JSON.parse(localStorage.getItem(FOLD_KEY)||'[]')}catch(e){}this.c=new Set(Array.isArray(a)?a:[]);return this.c},
+  save(){try{localStorage.setItem(FOLD_KEY,JSON.stringify([...this.load()].slice(-400)))}catch(e){}},
+  is(k){return this.load().has(k)},
+  set(k,closed){const c=this.load();if(closed)c.add(k);else c.delete(k);this.save()}};
+const FOLD_ITEM='.ghead,.carhead,.savhead,.dghead,.dayhead,.alerthead';
+const FOLD_SKIP='.hero,.lk-in,.paperwrap,#printArea,.qduas,.qhead,.tile,.recrow,.mq-in,.impcard,[data-nofold]';
+function foldTxt(el){return (el.querySelector('h2,h3,b')||el).textContent.replace(/[0-9٠-٩.,٫٬()%+−\-—·:]/g,'').replace(/\s+/g,' ').trim().slice(0,48)}
+function foldScope(el){const sh=el.closest('.sheet');return sh?'s:'+(sh.getAttribute('aria-label')||''):'v:'+(S.tab||'home')}
+function foldLevel(el){if(el.matches('h2')||(el.matches('.backrow')&&el.querySelector(':scope>h2')))return 2;if(el.matches('h3'))return 3;if(el.matches('.dghead,.dayhead'))return 3;if(el.matches(FOLD_ITEM))return 4;return 0}
+function foldIsTitle(el){if(el.matches('[data-nofold]')||el.querySelector('[data-tab="home"]'))return true;
+  if(el.closest('.sheet')){let p=el.previousElementSibling;while(p&&p.matches('.grab,.scrim'))p=p.previousElementSibling;return !p&&el.parentElement&&el.parentElement.matches('.sheet>.in')}return false}
+function foldify(root){if(!root)return;const heads=[...root.querySelectorAll('h2,h3,.backrow,'+FOLD_ITEM)].filter(el=>!el.dataset.fold&&!el.closest(FOLD_SKIP)&&!(el.matches('h2,h3')&&el.parentElement.matches('.backrow'))&&foldLevel(el));
+  heads.sort((a,b)=>foldLevel(a)-foldLevel(b));
+  for(const h of heads){h.dataset.fold='x';if(foldIsTitle(h))continue;const lv=foldLevel(h);const body=[];let n=h.nextElementSibling;
+    while(n){const l=n.dataset&&n.dataset.fold!==undefined?foldLevel(n):(n.matches('h2,h3,.backrow,.dghead,.dayhead')?foldLevel(n):0);if(l&&l<=lv)break;if(n.matches('.fold-tools'))break;body.push(n);n=n.nextElementSibling}
+    if(!body.length||body.every(x=>x.matches('script,template')))continue;
+    const w=document.createElement('div');w.className='fold-b';h.parentNode.insertBefore(w,body[0]);body.forEach(x=>w.appendChild(x));
+    const k=foldScope(h)+'|'+lv+'|'+foldTxt(h);h.dataset.fold=k;h.classList.add('fold-h','fold-l'+lv);h.setAttribute('role','button');h.tabIndex=0;
+    const closed=Fold.is(k);h.classList.toggle('fold-closed',closed);w.hidden=closed;h.setAttribute('aria-expanded',!closed)}
+  const scope=root.matches&&root.matches('#view')?root:null;
+  if(scope&&!scope.querySelector('.fold-tools,.rec-tools')&&scope.querySelectorAll('.fold-l2,.fold-l3').length>=2){const t=document.createElement('div');t.className='fold-tools';
+    t.innerHTML='<button class="chip" type="button" data-fall="0">⊖ تصغير الكل</button><button class="chip" type="button" data-fall="1">⊕ توسيع الكل</button>';
+    let n=scope.querySelector('.fold-h');while(n&&n.parentElement!==scope&&!n.parentElement.matches('.fold-b'))n=n.parentElement;if(n)n.parentNode.insertBefore(t,n)}}
+function foldToggle(h,closed){if(closed===undefined)closed=!h.classList.contains('fold-closed');const w=h.nextElementSibling;if(!w||!w.matches('.fold-b'))return;
+  h.classList.toggle('fold-closed',closed);w.hidden=closed;h.setAttribute('aria-expanded',!closed);Fold.set(h.dataset.fold,closed);if(!closed)fitSoon()}
+function foldAll(root,open){root.querySelectorAll('.fold-h').forEach(h=>{if(!h.closest('.fold-b[hidden]')||open)foldToggle(h,!open)})}
+document.addEventListener('click',e=>{const fa=e.target.closest('[data-fall]');if(fa){e.stopPropagation();foldAll(fa.closest('#view,.sheet')||document,fa.dataset.fall==='1');return}
+  const h=e.target.closest('.fold-h');if(!h||e.target.closest('button,a,input,select,textarea,label,summary,[data-edit],[data-rtog]'))return;
+  foldToggle(h)},true);
+document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.classList&&e.target.classList.contains('fold-h')){e.preventDefault();foldToggle(e.target)}});
+try{const fo=new MutationObserver(()=>{foldify(document.getElementById('view'));foldify(document.getElementById('layer'))});
+  ['view','layer'].forEach(id=>{const el=document.getElementById(id);if(el)fo.observe(el,{childList:true,subtree:true})})}catch(e){}
+
 let tt;function toast(msg,undo,dur){let el=document.querySelector('.toast');if(!el){el=document.createElement('div');el.className='toast';el.setAttribute('role','status');document.body.appendChild(el)}el.innerHTML='';const s=document.createElement('span');s.textContent=msg;el.appendChild(s);if(undo){const b=document.createElement('button');b.textContent='تراجع';b.onclick=()=>{el.hidden=true;undo()};el.appendChild(b)}el.hidden=false;clearTimeout(tt);tt=setTimeout(()=>el.hidden=true,dur||(undo?6000:2600))}
 
 /* ---------- 4. أيقونات الفئات ---------- */
@@ -971,7 +1013,7 @@ function vMonthly(){
     return `<div class="recsec${closed?' closed':''}" data-sec="${k}"><div class="recsec-h"><button class="recsec-t" data-stog="${k}" aria-expanded="${!closed}"><span class="chev">${closed?'◂':'▾'}</span><span class="rst"><b>${title}</b><small>${np} من ${I.length} مدفوع · المقرر <span class="num">${amtH(tot)}</span></small></span></button>
       <div class="recsec-left ${left<=0.0005?'ok':''}">${left<=0.0005?'<b>✓ مدفوع بالكامل</b>':`<small>المتبقي</small><b class="num">${money(left)}</b>`}</div></div>
      <div class="recsec-body"><div class="panel" style="padding-block:4px">${rows.map(row).join('')}</div><button class="chip secadd" data-secadd="${k}"><span class="lk">🔒 </span>+ إضافة في ${title.replace(/^\S+\s/,'')}</button></div></div>`}).join('');
-  return `<div class="backrow" style="margin-top:4px"><h2 style="margin:0">الالتزامات الشهرية</h2><span style="display:flex;gap:6px"><button class="chip" data-paycal="1">📅 التقويم</button><button class="chip pay" data-recpick="1"><span class="lk">🔒 </span>+ إضافة التزام</button></span></div>
+  return `<div class="backrow" data-nofold style="margin-top:4px"><h2 style="margin:0">الالتزامات الشهرية</h2><span style="display:flex;gap:6px"><button class="chip" data-paycal="1">📅 التقويم</button><button class="chip pay" data-recpick="1"><span class="lk">🔒 </span>+ إضافة التزام</button></span></div>
   ${st.R.length?`<div class="planbox"><span class="note" style="color:var(--fg)">${st.left?'دفعت '+st.paid.length+' من '+st.R.length+' هذا الشهر'+(st.partial.length?' · '+countWord(st.partial.length,'واحدة مدفوعة جزئيًا','اثنتان مدفوعتان جزئيًا','مدفوعة جزئيًا','مدفوعة جزئيًا'):'')+' · باقٍ عليك '+money(st.dueLeft):'دفعت كل مصاريفك الثابتة هذا الشهر'}</span>
     <span class="big2"><span class="num">${amtH(st.paidAmt)}</span> <small style="font-size:14px;font-weight:400">من <span class="num">${money(st.total)}</span> ${CUR}</small></span></div>
     ${recRows}
@@ -2812,8 +2854,9 @@ function openLook(){const L=document.getElementById('layer');
 
 /* ---------- 24. الإصدار وما الجديد ---------- */
 const DEV={name:'ماجد الرميمي',title:'مهندس ومطور تقنية معلومات',country:'سلطنة عُمان',phone:'95134234',intl:'96895134234'};
-const APP_VERSION='2.18.0';
+const APP_VERSION='2.18.1';
 const CHANGELOG=[
+ {v:'2.18.1',d:'2026-10-14',items:['التصغير والتكبير صار في كل التطبيق: اضغط على أي عنوان أساسي أو فرعي ليُصغَّر ما تحته أو يظهر','بطاقات الديون والخطط والأمانات والسيارات والمستندات والادخار تُصغَّر إلى اسمها بالضغط على رأسها','مجموعات أيام السجل، ومجموعات الديون، وصناديق التنبيهات قابلة للتصغير أيضًا','أقسام النوافذ مثل «قاعدة البيانات» تُصغَّر وتُكبَّر كذلك','زرا «تصغير الكل» و«توسيع الكل» أعلى كل صفحة فيها أكثر من قسم، ويُحفظ اختيارك في جهازك']},
  {v:'2.18.0',d:'2026-10-14',items:['مراجعة شاملة للتطبيق: توحيد أسماء الأقسام («الالتزامات الشهرية» و«ديوني» في كل مكان)','إصلاح مهم: إذا امتلأت ذاكرة التطبيق الأساسية لم تكن آخر تعديلاتك تُعتمد عند الفتح التالي؛ الآن تُستعاد تلقائيًا من قاعدة البيانات الداخلية','المزامنة بين الأجهزة تدمج كل قسم على حدة، فلا يضيع تعديل الديون على جهاز بسبب تعديل الالتزامات على جهاز آخر','«حذف كل البيانات» وحذف بيانات المثال واستيراد الرسائل والاعتماد صارت تُحفظ دفعة واحدة (أسرع بكثير مع البيانات الكبيرة)','الحسابات والتحويلات صارت أقسامًا مستقلة في قاعدة البيانات والنسخة الاحتياطية ومعاينة الاستعادة','تقريب المبالغ بدقة البيسة في كل المجاميع','تحسين ملف التشغيل بدون إنترنت: لا يحفظ صفحات الخطأ','حذف أكواد وتنسيقات غير مستخدمة، وتوحيد دوال التنزيل وأيام الشهر']},
  {v:'2.17.1',d:'2026-10-14',items:['تصغير وتكبير كل قسم في الالتزامات الشهرية بالضغط على عنوانه، ويُحفظ اختيارك','كل بند يظهر مختصرًا (الاسم والمبلغ وزر «دفعت»)، وبالضغط على اسمه تظهر تفاصيله وسجله وأزرار التعديل','«توسيع الكل» و«تصغير الكل»','زر «+ إضافة في …» داخل كل قسم يضيف التزامًا من نوع القسم مباشرة، من وضع المدير']},
  {v:'2.17.0',d:'2026-10-14',items:['«حساباتي»: رصيد الجاري والكاش والبطاقات، والتحويل بينها (لا يُحسب دخلًا ولا مصروفًا)، ومطابقة الرصيد الفعلي مع كشف الفرق','«هل نزل راتبك؟» في يوم الراتب بالمبلغ المعتاد، وتؤكده بضغطة','توقّع الأشهر الثلاثة القادمة في التقارير، وتنبيه المستشار إذا كان شهر متوقعًا بالسالب','قفل التطبيق ببصمة الوجه أو رمز عند فتحه، وإخفاء المبالغ بزر 👁 في الأعلى','نسخة احتياطية مشفّرة بكلمة سر، وتذكير بحفظ نسخة كل أسبوع','إرفاق صورة الإيصال بأي عملية، محفوظة مشفّرة في خزنة «مستنداتي»','تقويم المدفوعات: الفواتير والأقساط والراتب والخطط والتجديدات على شهر كامل','حاسبة الزكاة: النصاب بسعر الذهب، وخصم الأمانات والديون الحالّة، وموعد الحول','تنبيه عند الوصول إلى 80% من سقف أي فئة، وكشف الاشتراكات المتكررة','مقارنة بنفس الشهر من العام الماضي، واتجاه أهم الفئات لستة أشهر','الالتزامات الشهرية مقسّمة: الفواتير والسكن، مصروف العائلة والرواتب، أقساط الديون، وأخرى؛ لكل قسم المقرر والمتبقي بخط كبير، والمدفوع بالأخضر','«متبقٍ من الشهر الماضي» يظهر بوضوح على الالتزام الذي لم يُسدَّد كاملًا، وتتجدد القائمة كل شهر تلقائيًا','تسجيل رسائل البنك تلقائيًا عبر اختصارات الآيفون، وتسجيل مصروف سريع من رابط','مساحة التطبيق على جهازك في التقارير وقاعدة البيانات']},
@@ -3671,7 +3714,7 @@ document.addEventListener('click',async e=>{
   if(b.dataset.recpick){openRecPick();return}
   if(b.dataset.secadd){openRecPick(b.dataset.secadd);return}
   if(b.dataset.stog){const c=secToggle(b.dataset.stog);const sec=b.closest('.recsec');if(sec){sec.classList.toggle('closed',c);b.setAttribute('aria-expanded',!c);b.querySelector('.chev').textContent=c?'◂':'▾'}return}
-  if(b.dataset.rall!==undefined){const on=b.dataset.rall==='1';S.recOpen={};document.querySelectorAll('.recrow.rec2[data-rkey]').forEach(r=>{r.classList.toggle('open',on);if(on)S.recOpen[r.dataset.rkey]=1});if(on){document.querySelectorAll('.recsec.closed').forEach(sc=>{secToggle(sc.dataset.sec);sc.classList.remove('closed');const t=sc.querySelector('.chev');if(t)t.textContent='▾'})}return}
+  if(b.dataset.rall!==undefined){const on=b.dataset.rall==='1';foldAll(document.getElementById('view'),on);S.recOpen={};document.querySelectorAll('.recrow.rec2[data-rkey]').forEach(r=>{r.classList.toggle('open',on);if(on)S.recOpen[r.dataset.rkey]=1});if(on){document.querySelectorAll('.recsec.closed').forEach(sc=>{secToggle(sc.dataset.sec);sc.classList.remove('closed');const t=sc.querySelector('.chev');if(t)t.textContent='▾'})}return}
   if(b.dataset.recprint){printRec(b.dataset.recprint);return}
   if(b.id==='payAll'){payAll();return}
   if(b.dataset.gadd){openGoal(null,b.dataset.gadd);return}
