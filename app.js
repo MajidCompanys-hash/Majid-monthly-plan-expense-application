@@ -757,7 +757,7 @@ function vMonthly(){
     const pay=i.isPaid?'':`<button class="chip pay" ${i.kind==='debt'?'data-dpay':'data-rpay'}="${esc(i.id)}">دفعت</button>`;
     const edit=`<button class="chip" ${i.kind==='debt'?'data-dedit':'data-redit'}="${esc(i.id)}" aria-label="تعديل ${esc(i.name)}">تعديل</button>`;
     return `<div class="recrow rec2${i.isPaid?' done':''}">${i.kind==='debt'?debtBadge(i.ref):recBadge(i.ref)}<div><b>${i.kind==='debt'?'<span class="tag">دين</span>':''}${esc(i.name)}</b><small>${i.tracked?`فاتورة <span class="num">${amtH(i.bill)}</span>${i.prev>0.0005?' + متأخرات سابقة <span class="num amt-exp">'+amtH(i.prev)+'</span>':i.prev<-0.0005?' − رصيد لك <span class="num">'+amtH(-i.prev)+'</span>':''}${Math.abs(i.prev)>0.0005?' = <span class="num">'+amtH(i.amount)+'</span>':''}${i.paidAmt&&!i.isPaid?' · دفعت <span class="num">'+amtH(i.paidAmt)+'</span> · المتبقي <b class="num">'+amtH(i.amount-i.paidAmt)+'</b>'+((i.ref.later||{})[m]?' · تذكير '+fmtD(i.ref.later[m]):''):''}<br>`:`<span class="num">${money(i.amount)}</span> ${CUR}${i.variable?' تقريبًا':''} · `}يوم الدفع ${i.day}${i.kind==='rec'?' · تذكير يوم '+remindDay(i.ref)+' · 🔁 '+(i.ref.until?'حتى '+monthName(i.ref.until):'شهريًا مستمر'):''}${i.person?' · لـ'+esc(personName(i.person)):''}${i.kind==='debt'?' · متبقٍ <span class="num">'+amtH(i.ref.balance)+'</span>':''}</small></div>
-      <div class="recact">${pill}${pay}${edit}</div>${i.kind==='rec'?recHistHtml(i.ref,m):debtHistHtml(i.ref)}</div>`};
+      <div class="recact">${pill}${pay}${i.paidAmt>0.0005?`<button class="chip unpay" data-unpay="${i.kind}|${esc(i.id)}|${m}" aria-label="إلغاء دفع ${esc(i.name)}">إلغاء الدفع</button>`:''}${edit}</div>${i.kind==='rec'?recHistHtml(i.ref,m):debtHistHtml(i.ref)}</div>`};
   const pending=st.R.filter(i=>!i.isPaid).sort((x,y)=>x.day-y.day),done=st.R.filter(i=>i.isPaid).sort((x,y)=>x.day-y.day);
   const recRows=(pending.length?`<div class="grouphead">بانتظار الدفع <span class="num">(${pending.length})</span></div><div class="panel" style="padding-block:4px">${pending.map(row).join('')}</div>`:'<div class="okbox" style="margin-top:10px">دفعت كل مصاريفك وأقساطك الثابتة لهذا الشهر.</div>')
     +(done.length?`<div class="grouphead">تم الدفع <span class="num">(${done.length})</span></div><div class="panel" style="padding-block:4px">${done.map(row).join('')}</div>`:'');
@@ -985,6 +985,26 @@ function openPayEdit(txId){const t0=S.tx[txId];if(!t0)return;const r=recs().find
       const lft=left();const old=Object.assign({},t0);const t=Object.assign({},t0,{amount:amt,date,method});if(r){recLog(r,'تعديل دفعة '+fmtD(t0.date)+' من '+money(t0.amount)+' إلى '+rial(amt)+(date!==t0.date?' وتاريخها '+fmtD(date):''));await putSettings()}await putTx(t);L.innerHTML='';
       toast(r?(lft>0.0005?'عُدّلت الدفعة إلى '+rial(amt)+'، المتبقي '+rial(lft):'عُدّلت الدفعة إلى '+rial(amt)):'عُدّلت الدفعة',async()=>{if(r){r.log=(r.log||[]).slice(0,-1);await putSettings()}await putTx(old);toast('أُعيدت الدفعة كما كانت')},9000)}}}
 /* حذف دفعة خاطئة لاحقًا من سجل الالتزام */
+/* إلغاء الدفع: يرجع الالتزام أو القسط «غير مدفوع» لأي شهر إذا ضغطت «دفعت» بالخطأ */
+function openUnpay(kind,id,m){const L=document.getElementById('layer');const r=kind==='rec'?recs().find(x=>x.id===id):null,d=kind==='debt'?debts().find(x=>x.id===id):null;if(!r&&!d)return;
+  const P=r?recPays(r).filter(t=>t.date.slice(0,7)===m).sort((a,b)=>a.date.localeCompare(b.date)):debtPays(d).filter(p=>p.date&&p.date.slice(0,7)===m);
+  if(!P.length){toast('لا توجد دفعات في '+monthName(m));return}
+  const amt=p=>r?+p.amount:+p.amt;const tot=r3(P.reduce((s,p)=>s+amt(p),0));const name=r?r.name:'قسط '+d.name;
+  L.innerHTML=`${sheetTop('إلغاء الدفع')}<h2 style="margin-top:0">إرجاع «${esc(name)}» غير مدفوع؟</h2>
+   <div class="panel paybk"><div class="sumrow"><span>الشهر</span><b>${esc(monthName(m))}</b></div>
+    ${P.map(p=>`<div class="sumrow sub"><span>دفعة ${fmtD(p.date)}</span><span class="num">${money(amt(p))}</span></div>`).join('')}
+    <div class="sumrow total"><span>${P.length>1?'مجموع الدفعات التي ستُلغى':'الدفعة التي ستُلغى'}</span><b class="num">${money(tot)}</b></div></div>
+   <p class="note">${r?'يُحذف المصروف من السجل، ويرجع الالتزام إلى «بانتظار الدفع» بمستحقه كاملًا كما كان.':'تُحذف الدفعة ومصروفها، ويرجع المبلغ إلى المتبقي من الدين، ويرجع القسط إلى «بانتظار الدفع».'} يمكنك التراجع بعدها.</p>
+   <div class="actions"><button class="btn danger block" id="upYes">نعم، ألغِ الدفع</button><button class="btn ghost block" data-close>رجوع</button></div></div></div>`;
+  L.oninput=L.onchange=null;
+  L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
+    if(x.id!=='upYes')return;x.disabled=true;
+    const txs=(r?P.map(t=>t.id):P.map(p=>p.tx).filter(Boolean)).map(k=>S.tx[k]).filter(Boolean).map(t=>Object.assign({},t));
+    const snap=JSON.stringify({recurring:S.settings.recurring||[],debts:debts()});
+    if(r){for(const t of P)await delTx(t.id);recLog(r,'إلغاء دفع '+monthName(m)+': '+countWord(P.length,'دفعة واحدة','دفعتان','دفعات','دفعة')+' بمجموع '+money(tot)+'، ورجع غير مدفوع')}
+    else for(const p of P.slice())await delDebtPay(d,p);
+    await putSettings();L.innerHTML='';render();
+    toast('رجع «'+name+'» غير مدفوع لشهر '+monthName(m),async()=>{const o=JSON.parse(snap);S.settings.recurring=o.recurring;S.settings.debts=o.debts;for(const t of txs){delete S.del[t.id];await putTx(t)}await putSettings();render();toast('أُعيدت الدفعات')},9000)}}
 function openPayDel(txId){const t=S.tx[txId];if(!t)return;const L=document.getElementById('layer');
   L.innerHTML=`${sheetTop('حذف دفعة')}<h2 style="margin-top:0">حذف هذه الدفعة؟</h2>
    <div class="panel"><div class="sumrow"><span>${esc(t.note||catOf(t.cat).n)}</span><b class="num">${amtH(t.amount)}</b></div><div class="sumrow"><span>التاريخ</span><b>${fmtD(t.date)}</b></div></div>
@@ -2111,7 +2131,7 @@ function admAsk(then,why){let el=document.getElementById('admLayer');if(!el){el=
   if(!c.bio)setTimeout(()=>{const i=document.getElementById('admPin');if(i)i.focus()},60)}
 /* كل زر تعديل أو حذف أو تراجع أو اعتماد يمر من هنا أولًا */
 const ADM_SEL=['[data-edit]','[data-txdel]','[data-txedit]','[data-dpe]','[data-redit]','[data-dedit]','[data-tedit]','[data-cedit]','[data-gedit]','[data-pedit]','[data-sedit]','[data-rpedit]',
-  '[data-apv]','[data-apedit]','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
+  '[data-apv]','[data-apedit]','[data-unpay]','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
 document.addEventListener('click',e=>{if(!admOn())return;if(e.target.closest('#admLayer'))return;
   if(admOpen()){if(e.target.closest('button,label'))Adm.last=Date.now();return}
   const b=e.target.closest(ADM_SEL);if(!b)return;e.preventDefault();e.stopImmediatePropagation();
@@ -2436,8 +2456,9 @@ function openLook(){const L=document.getElementById('layer');
 
 /* ---------- 24. الإصدار وما الجديد ---------- */
 const DEV={name:'ماجد الرميمي',title:'مهندس ومطور تقنية معلومات',country:'سلطنة عُمان',phone:'95134234',intl:'96895134234'};
-const APP_VERSION='2.11.0';
+const APP_VERSION='2.11.1';
 const CHANGELOG=[
+ {v:'2.11.1',d:'2026-10-14',items:['زر «إلغاء الدفع» في الالتزامات الشهرية وأقساط الديون: إذا ضغطت «دفعت» بالخطأ يرجع الالتزام «بانتظار الدفع» كما كان، لأي شهر تختاره','يعرض قبل الإلغاء الدفعات التي ستُحذف ومجموعها، ويُسجَّل في «التحديثات»، مع زر «تراجع»']},
  {v:'2.11.0',d:'2026-10-14',items:['«قسم الديون» مرتب في أقسام: البنوك والتمويل، ديون لأشخاص (باسم الشخص)، ديون شخصية وأخرى','فرز الديون حسب: الأقرب انتهاءً، الأكبر مبلغًا، الأطول مدة، الأعلى فائدة، مع تصفية حسب القسم','لكل دين: تاريخ البداية، موعد الانتهاء المقرر، ومدته الكاملة','طريقتا سداد: أقساط شهرية، أو دفعة واحدة بالمبلغ الإجمالي في موعد تحدده، وزر «كامل المتبقي» للسداد النهائي','«سجل الديون المنتهية»: كل دين ينتهي يبقى محفوظًا بدفعاته ومستنداته، ومتى بدأ وانتهى، والمدة التي استغرقها، وطريقة التخلص منه','تقرير مبسّط لقسم الديون أسفل الرئيسية: المتبقي، الأقساط الباقية، يوم التحرر، وكل قسم بضغطة','التقرير المطبوع وكشف الدين يعرضان القسم والمدة والديون المنتهية']},
  {v:'2.10.0',d:'2026-10-13',items:['«وضع المدير»: التعديل والحذف والتراجع وتعديل الالتزامات الشهرية والديون والخطط والسيارات والأمانات تحتاج رمز المدير أو بصمة الوجه','اعتماد المدفوعات: ما يُدخل ووضع المدير مقفل يُعلَّم «⏳ بانتظار الاعتماد» حتى تراجعه وتعتمده أو تعدّله، مع «اعتماد الكل»','تنبيه «بانتظار اعتمادك» في الرئيسية، وعلامة ⏳ على الدفعات المنتظرة في الالتزامات والديون والسجل','قفل تلقائي بعد 5 دقائق بدون استخدام أو عند الخروج من التطبيق، وزر 🛡️ في الأعلى للفتح والقفل','رمز المدير يُحفظ مشفّرًا في هاتفك فقط، ولا يدخل في المزامنة ولا النسخة الاحتياطية']},
  {v:'2.9.0',d:'2026-10-13',items:['«التحرر من الديون» في الرئيسية: كم قسطًا باقيًا، ويوم التحرر من الديون بالتاريخ، وعدّ تنازلي بالأيام، ونسبة ما سدّدته، والقسط القادم','كل دين صار له «سجل الدين» داخل خانته: الدفعات، المستندات، والتحديثات','تعديل أي دفعة قديمة أو حذفها بالضغط عليها، ويُصحَّح المتبقي من الدين والمصروف المرتبط تلقائيًا مع زر «تراجع»','إرفاق عقد القرض وإيصالات السداد بالدين، تُحفظ مشفّرة في خزنة «مستنداتي» ولا تُزامَن','«كشف للطباعة» لكل دين: الملخص، كل دفعة بتاريخها ومبلغها والفائدة والمتبقي بعدها، المستندات المرفقة، وسجل التحديثات','«باقٍ X قسطًا» في خانة كل دين وفي التقرير المطبوع، وفي ويدجت الآيفون والماك','كل دفعة دين تُحفظ بفائدتها وأصلها والمتبقي بعدها لكشف أدق']},
@@ -2754,6 +2775,7 @@ document.addEventListener('click',async e=>{
   if(b.dataset.dgrp){S.debtGrp=b.dataset.dgrp;render();return}
   if(b.dataset.dsort){S.debtSort=b.dataset.dsort;render();return}
   if(b.dataset.dgo){S.debtGrp=b.dataset.dgo;S.tab='debts';render();const el=b.dataset.dgo==='done'&&document.getElementById('debtArch');if(el)el.scrollIntoView({block:'start'});else window.scrollTo(0,0);return}
+  if(b.dataset.unpay){const [k,id,m]=b.dataset.unpay.split('|');openUnpay(k,id,m);return}
   if(b.dataset.dpe){const [did,pid]=b.dataset.dpe.split('|');openDebtPayEdit(did,pid);return}
   if(b.dataset.dprint){printDebt(b.dataset.dprint);return}
   if(b.dataset.cdview){const id=b.dataset.cdview;withVault(()=>viewDoc(id));return}
