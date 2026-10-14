@@ -440,6 +440,36 @@ body:has(.sheet) .toast{bottom:auto;top:calc(12px + env(safe-area-inset-top,0px)
 .qbasm{text-align:center;margin-bottom:8px}
 .qn{color:#9A7B25;font-size:.8em;white-space:nowrap}
 .qnote{margin-top:10px;padding:10px;border-radius:12px;background:var(--surface-2);text-align:center;white-space:pre-line}
+@font-face{font-family:"Amiri Quran App";src:url(amiri-quran.woff) format("woff");font-display:swap}
+.qtext,.zk-q{font-family:"Amiri Quran App","Geeza Pro","Noto Naskh Arabic",serif}
+.qtext{line-height:2.5}
+.qend{text-align:center;margin-top:10px;font-size:.8em;opacity:.8}
+.qduas{margin-top:14px;padding:12px;border-radius:16px;border:1px solid #D9C98F;background:#FBF7EA;background:color-mix(in srgb,#E9D9A0 14%,var(--surface))}
+.qduas h3{margin:0 0 6px;text-align:center}
+.qdua{padding:10px 2px;border-top:1px dashed #D9C98F;text-align:center}
+.qdua:first-of-type{border-top:none}
+.qdua small{display:block;color:var(--muted);font-size:12px;margin-top:4px}
+.zk-t{font-size:1em;line-height:1.95;white-space:pre-line}
+.zk-q{font-size:1.12em;line-height:2.3;margin-top:4px}
+/* بطاقتا الورد والأذكار */
+.spirit{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 12px}
+.spirit.one{grid-template-columns:1fr}
+.spirit.mid,.spirit.bottom{margin-top:14px}
+.spirit .wirdcard{margin:0;grid-template-columns:auto minmax(0,1fr);padding:11px 12px}
+.spirit .wd-ic{font-size:22px}
+.wirdcard.zkcard{background:linear-gradient(135deg,#7A5A1E,#5E4415)}
+.wirdcard.zkcard.done{background:var(--surface)}
+.zkprog{display:flex;flex-direction:column;gap:4px;margin:10px 0 0;font-size:13px;color:var(--muted)}
+.zklist{display:flex;flex-direction:column;gap:10px}
+.zk{display:flex;flex-direction:column;gap:6px;text-align:center;padding:14px 12px;border-radius:16px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:inherit;font-size:inherit;cursor:pointer;transition:opacity .2s,background .2s}
+.zk.ok{opacity:.55;background:var(--surface-2)}
+.zk-f{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;color:var(--muted);border-top:1px dashed var(--line);padding-top:6px}
+.zk-n{color:var(--accent);font-size:15px;white-space:nowrap}
+.zk.ok .zk-n{color:var(--inc)}
+/* شريط الأدعية داخل قسم الديون */
+.dnote-tk{display:flex;align-items:center;gap:8px;margin-top:12px}
+.dnote-tk .ticker{margin:0;flex:1;min-width:0}
+.dnote-tk .chip{flex:none;white-space:nowrap}
 .duaread p{margin:0;padding:14px 4px;border-bottom:1px dashed #D9C98F;text-align:center;font-size:19px;line-height:2;white-space:pre-line}
 .plangrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .pt{border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:12px;display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:right;box-shadow:var(--shadow)}
