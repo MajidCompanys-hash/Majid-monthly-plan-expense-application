@@ -229,6 +229,13 @@ async function dataHealth(){const L=list(),R=recs(),D=debts();const out=[];const
   const inst=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
   add(pers||inst,'حماية التخزين من الحذف التلقائي',pers?'محمي دائمًا':inst?'التطبيق مثبّت على الشاشة الرئيسية، فلا يحذف النظام بياناته تلقائيًا':'افتح التطبيق من أيقونته على الشاشة الرئيسية وليس من Safari، واحفظ نسخة احتياطية كملف بانتظام');
   return out}
+/* 🔄 تحديث البيانات: إعادة قراءة كل البيانات من الحفظ، وإعادة حساب الديون والأقسام، ومطابقة قاعدة البيانات الداخلية، ثم فحص السلامة */
+async function refreshAll(btn){if(btn)btn.disabled=true;const t0=Date.now();
+  try{migrateRecs();debts().forEach(d=>{try{debtSync(d)}catch(e){}});secSeed();cacheSave();await mirrorFlush();const H=await dataHealth();if(Sync.linked())Sync.soon();render();
+    const bad=H.filter(h=>!h.ok);const c=dataCounts();
+    toast(bad.length?'تم التحديث · '+countWord(bad.length,'ملاحظة واحدة','ملاحظتان','ملاحظات','ملاحظة')+': '+bad[0].t:'✓ تم تحديث البيانات وقراءتها: '+countWord(c.tx,'عملية واحدة','عمليتان','عمليات','عملية')+' · '+countWord(c.debts,'دين','دينان','ديون','دينًا')+' · '+countWord(c.recurring,'التزام','التزامان','التزامات','التزامًا'),null,6000);
+    if(document.querySelector('#layer .dbstat'))openDataCenter()}
+  catch(e){toast('تعذّر التحديث: '+(e&&e.message||e))}if(btn)btn.disabled=false}
 /* مركز قاعدة البيانات */
 async function openDataCenter(){const L=document.getElementById('layer');L.innerHTML=`${sheetTop('قاعدة البيانات')}<h2 style="margin-top:0">🗄️ قاعدة البيانات</h2><p class="note">جارٍ الفحص…</p></div></div>`;
   const H=await dataHealth(),SN=await snapList();let est=null;try{est=navigator.storage&&navigator.storage.estimate?await navigator.storage.estimate():null}catch(e){}
@@ -236,6 +243,7 @@ async function openDataCenter(){const L=document.getElementById('layer');L.inner
   const secRows=[['tx','العمليات (الدخل والمصاريف)',c.tx,c.inc+' دخل · '+c.exp+' مصروف'],['debts','الديون',c.debts,(c.debts-c.debtsDone)+' قائم · '+c.debtsDone+' منتهٍ · '+c.debtPays+' دفعة'],['monthly','الالتزامات الشهرية',c.recurring,''],['plans','الخطط والادخار',c.goals,''],['trusts','الأمانات',c.trusts,''],['','السيارات',c.cars,''],['','الأهل',c.people,''],['','حساباتي والتحويلات',c.accounts,c.transfers+' تحويل'],['','مستنداتي (خزنة مشفّرة منفصلة)',Vault.docs.length,'لها نسخة احتياطية مشفّرة خاصة من «مستنداتي»']];
   const draw=()=>{L.innerHTML=`${sheetTop('قاعدة البيانات')}<h2 style="margin-top:0">🗄️ قاعدة البيانات</h2>
    <div class="dbstat ${warn?'warn':'ok'}"><b>${warn?'⚠ '+countWord(warn,'ملاحظة واحدة','ملاحظتان','ملاحظات','ملاحظة')+' تحتاج انتباهك':'✓ قاعدة البيانات سليمة ومحفوظة'}</b><small>بصمة البيانات الحالية: <span dir="ltr" class="num">${fp}</span></small></div>
+   <button class="btn block" id="dcRefresh" style="margin:10px 0">🔄 تحديث البيانات وإعادة الفحص</button>
    <h3>أين تُحفظ بياناتك</h3><div class="panel dblayers">
     <div><b>1. ذاكرة التطبيق</b><span>النسخة الأساسية، تُحفظ فورًا عند كل تغيير</span></div>
     <div><b>2. قاعدة البيانات الداخلية</b><span>نسخة ثانية مقسّمة: كل عملية سجل مستقل وكل قسم في خانته${Mirror.at?' · آخر تحديث '+fmtAt(new Date(Mirror.at).toISOString()).split(' ').pop():''}</span></div>
@@ -260,6 +268,7 @@ async function openDataCenter(){const L=document.getElementById('layer');L.inner
   L.onclick=async e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
     if(x.id==='dcBackup'){await saveBackupFile();openDataCenter();return}
     if(x.id==='dcXlsx'){openExport();return}
+    if(x.id==='dcRefresh'){refreshAll(x);return}
     if(x.id==='dcEnc'){openEncBackup();return}
     if(x.id==='dcPrint'){openPrintSheet('full');return}
     if(x.id==='snapNow'){x.disabled=true;await snapTake('لقطة يدوية');toast('أُخذت لقطة من بياناتك');openDataCenter();return}
@@ -368,8 +377,44 @@ CI.phone='<rect x="7" y="2.5" width="10" height="19" rx="2.2"/><path d="M11 18.5
 CI.bolt='<path d="M13 2.5 5 13.5h6l-1 8 8-11h-6z"/>';
 CI.drop='<path d="M12 3s6 6.4 6 11a6 6 0 0 1-12 0c0-4.6 6-11 6-11z"/>';
 CI.lock='<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>';
+
+/* ===== الصورة / الأيقونة قبل الاسم: قابلة للتغيير من «إدارة البيانات»، وتتحدث في كل الصفحات =====
+   المفتاح: نوع:معرّف (cat:food، rec:…، debt:…، person:…، payee:…، acc:…، goal:…) */
+const ICO_EMO=['💡','⚡','💧','📶','📱','🏠','🔑','🧹','👩‍👧','👨‍👩‍👧','👵','👴','👶','🚗','⛽','🛒','🍽️','☕','🥖','🏥','💊','🎓','📚','🎁','🕌','🤲','💰','💳','🏦','📈','✈️','🧳','🎉','💍','🛋️','🧺','👕','💈','🐑','🌴','📦','🔧','🧾','📄','🎮','🏋️','⚽','🐪','🌙','⭐'];
+const ICO_COL=['#2F7F7A','#3E7CB1','#1F5AA6','#6B5CA5','#8A4F7D','#B8423A','#C2562F','#B0662F','#C9881E','#3B8F5A','#1E7A4F','#7A8494'];
+function icoOv(key){return ((S.settings&&S.settings.icons)||{})[key]||null}
+function icoHtml(o,cls){cls=cls||'cbadge';if(o.t==='img')return `<span class="${cls} icoimg"><img src="${o.v}" alt=""></span>`;const c=o.c||'#2F7F7A';
+  return `<span class="${cls}" style="background:${c}1f;color:${c}">${o.t==='emo'?`<span class="icoemo">${o.v}</span>`:svgI(CI[o.v]||CI.other)}</span>`}
+function ovBadge(key,fb){const o=icoOv(key);return o?icoHtml(o):fb}
+function openIconPick(key,name,defHtml){const L=document.getElementById('layer');const cur=icoOv(key)||{};let t=cur.t||'svg',v=cur.v||'',c=cur.c||ICO_COL[0];
+  const keys=Object.keys(CI).filter(k=>typeof CI[k]==='string');
+  const draw=()=>{const prev=v?icoHtml({t,v,c},'cbadge big'):(defHtml||'').replace('class="cbadge"','class="cbadge big"');
+    L.innerHTML=`${sheetTop('الأيقونة')}<h2 style="margin-top:0">تغيير الصورة قبل «${esc(name)}»</h2>
+     <div class="icoprev">${prev}<b>${esc(name)}</b></div>
+     <div class="seg seg3"><button class="n" data-ict="svg" aria-pressed="${t==='svg'}">أيقونة</button><button class="n" data-ict="emo" aria-pressed="${t==='emo'}">رمز</button><button class="n" data-ict="img" aria-pressed="${t==='img'}">صورة</button></div>
+     ${t==='img'?`<div class="stack" style="margin-top:12px"><label class="btn ghost block" for="icoFile" style="text-align:center;cursor:pointer">📷 اختيار صورة أو شعار من الجهاز</label><input type="file" id="icoFile" accept="image/*" hidden><p class="note" style="margin:0">تُصغَّر الصورة تلقائيًا وتُحفظ داخل بياناتك، وتظهر على كل أجهزتك بعد المزامنة.</p></div>`
+     :`<div class="icogrid">${(t==='svg'?keys:ICO_EMO).map(x=>`<button class="icocell${v===x?' on':''}" data-icv="${esc(x)}" aria-label="${esc(x)}">${t==='svg'?svgI(CI[x]):`<span class="icoemo">${x}</span>`}</button>`).join('')}</div>
+     <div class="icocols">${ICO_COL.map(x=>`<button class="icocol${c===x?' on':''}" data-icc="${x}" style="background:${x}" aria-label="لون"></button>`).join('')}</div>`}
+     <div class="actions"><button class="btn block" id="icoSave" ${v?'':'disabled'}>حفظ</button>${icoOv(key)?'<button class="btn ghost block" id="icoReset">إرجاع الأيقونة الأصلية</button>':''}<button class="btn ghost block" data-close>إلغاء</button></div></div></div>`};
+  const set=o=>{S.settings.icons=Object.assign({},S.settings.icons||{});if(o)S.settings.icons[key]=o;else delete S.settings.icons[key];putSettings();render()};
+  draw();L.oninput=null;
+  L.onchange=e=>{if(e.target.id!=='icoFile'||!e.target.files[0])return;const f=e.target.files[0];const img=new Image();const u=URL.createObjectURL(f);
+    img.onload=()=>{const N=96,cv=document.createElement('canvas');cv.width=cv.height=N;const g=cv.getContext('2d');const m=Math.min(img.width,img.height);g.fillStyle='#fff';g.fillRect(0,0,N,N);g.drawImage(img,(img.width-m)/2,(img.height-m)/2,m,m,0,0,N,N);URL.revokeObjectURL(u);v=cv.toDataURL('image/jpeg',.82);t='img';draw()};
+    img.onerror=()=>{URL.revokeObjectURL(u);toast('تعذّر فتح الصورة')};img.src=u};
+  L.onclick=e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
+    if(x.dataset.ict){if(t!==x.dataset.ict){t=x.dataset.ict;v=''}draw();return}
+    if(x.dataset.icv){v=x.dataset.icv;draw();return}
+    if(x.dataset.icc){c=x.dataset.icc;draw();return}
+    if(x.id==='icoSave'&&v){set(t==='img'?{t,v}:{t,v,c});L.innerHTML='';toast('تغيّرت الصورة قبل «'+name+'» في كل الصفحات');return}
+    if(x.id==='icoReset'){set(null);L.innerHTML='';toast('أُرجعت الأيقونة الأصلية');return}}}
+/* أيقونة العملية في السجل: أيقونة التزامها أو دينها إن غُيّرت، وإلا أيقونة فئتها */
+function personAv(p){const o=icoOv('person:'+p.id);return o?icoHtml(o,'avatar icoav'):`<span class="avatar" style="background:${personColor(p.id)}22;color:${personColor(p.id)}">${esc(p.name.charAt(0))}</span>`}
+const PAYEE_IC={bank:['loan','#1F5AA6'],shop:['shop','#C2562F'],gov:['bills','#6B5CA5'],person:['family','#2F7F7A'],other:['other','#7A8494']};
+function payeeBadge(p){const d=PAYEE_IC[p.type]||PAYEE_IC.other;return ovBadge('payee:'+p.id,`<span class="cbadge" style="background:${d[1]}1f;color:${d[1]}">${svgI(CI[d[0]]||CI.other)}</span>`)}
+function accBadge(a){const c=a.kind==='card'?'#B8423A':a.kind==='cash'?'#3B8F5A':'#1F5AA6';return ovBadge('acc:'+a.id,`<span class="cbadge" style="background:${c}1f;color:${c}">${svgI(a.kind==='cash'?CI.salary:CI.card||CI.other)}</span>`)}
+function txIco(t,c){const o=(t.rec&&icoOv('rec:'+t.rec))||(t.debt&&icoOv('debt:'+t.debt))||icoOv('cat:'+t.cat);return o?icoHtml(o,'ic'):`<span class="ic" style="background:${c.c}1f;color:${c.c}">${catIcon(t.cat)}</span>`}
 function catIcon(id){return `${svgI(CI[id]||CI.other)}`}
-function cbadge(id){const c=catOf(id);return `<span class="cbadge" style="background:${c.c}1f;color:${c.c}">${catIcon(id)}</span>`}
+function cbadge(id){const c=catOf(id);return ovBadge('cat:'+id,`<span class="cbadge" style="background:${c.c}1f;color:${c.c}">${catIcon(id)}</span>`)}
 
 /* ===== أسماء الأقسام القابلة للتعديل من وضع المدير =====
    كل اسم له مفتاح واسم أصلي؛ ما تكتبه يُحفظ في بياناتك (labels) ويظهر في الشاشات والطباعة والتصدير. */
@@ -377,7 +422,7 @@ const LBL_GROUPS=[
  ['أقسام القائمة الشهرية',[['msec.bills','الفواتير والسكن'],['msec.family','مصروف العائلة والرواتب'],['msec.debt','أقساط الديون'],['msec.other','التزامات أخرى']]],
  ['مجموعات الديون',[['dgrp.bank','البنوك والتمويل'],['dgrp.people','ديون لأشخاص'],['dgrp.personal','ديون شخصية وأخرى']]],
  ['أقسامي في الرئيسية وعناوين صفحاتها',[['sec.master','إدارة البيانات'],['sec.monthly','الالتزامات الشهرية'],['sec.debts','ديوني'],['sec.trusts','الأمانات'],['sec.docs','مستنداتي'],['sec.cars','السيارات'],['sec.house','الأهل والبيت'],['sec.budget','الميزانية'],['sec.plans','خططي وأهدافي'],['sec.acc','حساباتي'],['sec.cal','تقويم المدفوعات'],['sec.zakat','حاسبة الزكاة'],['sec.sms','رسائل البنك'],['sec.widget','ويدجت الآيفون والماك']]],
- ['الشريط السفلي',[['tab.home','الرئيسية'],['tab.monthly','الشهرية'],['tab.log','السجل'],['tab.budget','إدارة البيانات'],['tab.reports','التقارير']]]];
+ ['الشريط السفلي',[['tab.home','الرئيسية'],['tab.monthly','الشهرية'],['tab.debts','ديوني'],['tab.log','السجل'],['tab.budget','إدارة البيانات'],['tab.reports','التقارير']]]];
 const LBL_DEF={};LBL_GROUPS.forEach(([,L])=>L.forEach(([k,d])=>LBL_DEF[k]=d));
 function lbl(k){const v=((S.settings&&S.settings.labels)||{})[k];return v&&String(v).trim()?String(v).trim():(LBL_DEF[k]||k)}
 function lblClean(v){return String(v||'').replace(/[<>&"'`]/g,'').replace(/\s+/g,' ').trim().slice(0,40)}
@@ -754,7 +799,7 @@ function repHomeHtml(){if(!list().length)return '';
   <div class="hrep-btns"><button class="chip" data-gorep="month">التقرير الشهري</button><button class="chip" data-gorep="year">التقرير السنوي</button><button class="chip" data-gorep="print">طباعة / PDF</button></div></div>`}
 /* ---------- 8. الشاشات: الرئيسية، السجل، الميزانية، التقارير ---------- */
 function txRow(t){const c=catOf(t.cat);const cls=t.type==='inc'?'amt-inc':'amt-exp';
-  return `<button class="tx" data-edit="${esc(t.id)}"><span class="ic" style="background:${c.c}1f;color:${c.c}">${catIcon(t.cat)}</span>
+  return `<button class="tx" data-edit="${esc(t.id)}">${txIco(t,c)}
   <span class="t"><b>${esc(t.note||c.n)}</b><small>${esc(c.n)} · ${esc((METHODS.find(m=>m[0]===t.method)||['',''])[1])}${t.person?' · لـ'+esc(personName(t.person)):''}${t.sample?' · مثال':''}${t.pend?' · <span class="pendtag">⏳ بانتظار الاعتماد</span>':''}${Vault.docs.some(d=>d.tx===t.id)?' · 📎':''}${t.acc&&t.acc!=='main'&&t.acc!=='cash'?' · '+esc(accName(t.acc)):''}</small></span>
   <span class="num ${cls}">${t.type==='inc'?'+':'−'}${amtH(t.amount)}</span></button>`}
 
@@ -811,7 +856,7 @@ function vBudget(){
    <button class="btn block" id="saveBudget" style="margin-top:12px">حفظ حدود الفئات</button><p class="note" style="margin:6px 0 0;text-align:center">يُحفظ أيضًا تلقائيًا عند الخروج من الخانة.</p></div>`;
 }
 
-function vReports(){const seg=`<div class="row2" style="margin-bottom:12px"><button class="btn" id="printRep">طباعة التقرير وخياراته</button><button class="btn ghost" id="quickPrint">طباعة سريعة</button></div><div class="seg" style="margin-bottom:4px"><button class="n" data-rmode="month" aria-pressed="${S.rmode!=='year'}">تقرير شهري</button><button class="n" data-rmode="year" aria-pressed="${S.rmode==='year'}">تقرير سنوي</button></div>`;
+function vReports(){const seg=`<button class="btn ghost block refreshbtn" id="refreshAll" style="margin-bottom:10px">🔄 تحديث البيانات والتقارير</button><div class="row2" style="margin-bottom:12px"><button class="btn" id="printRep">طباعة التقرير وخياراته</button><button class="btn ghost" id="quickPrint">طباعة سريعة</button></div><div class="seg" style="margin-bottom:4px"><button class="n" data-rmode="month" aria-pressed="${S.rmode!=='year'}">تقرير شهري</button><button class="n" data-rmode="year" aria-pressed="${S.rmode==='year'}">تقرير سنوي</button></div>`;
   const mm=vReportsMonth();const i=mm.indexOf('<h2>بياناتك</h2>');
   return seg+(S.rmode==='year'?vYear():mm.slice(0,i)+reportsMonthExtras())+mm.slice(i)+versionHtml()}
 function vReportsMonth(){
@@ -1018,7 +1063,7 @@ function debtPaidIn(d,m){return (d.pays||[]).filter(p=>p.date&&p.date.slice(0,7)
 function monthItems(m){const out=[];
   recs().forEach(r=>{if(!recActive(r,m))return;const L=billLedger(r,m);if(L){out.push({kind:'rec',id:r.id,name:r.name,amount:L.total,bill:L.bill,prev:L.prev,day:+r.day||1,person:r.person||'',variable:!!(REC_KINDS[r.kind]&&REC_KINDS[r.kind].variable),isPaid:L.remaining<=0.0005,paidAmt:L.paid,tracked:true,ref:r});return}
     const p=recPaid(r,m);out.push({kind:'rec',id:r.id,name:r.name,amount:billAmt(r,m),day:+r.day||1,person:r.person||'',variable:!!(REC_KINDS[r.kind]&&REC_KINDS[r.kind].variable),isPaid:!!p,paidAmt:p?+p.amount:0,ref:r})});
-  debts().forEach(d=>{const pa=debtPaidIn(d,m);if(!(+d.balance>0)&&!pa)return;if(d.start&&m<d.start.slice(0,7)&&!pa)return;const once=d.mode==='once';if(once&&!pa&&(!d.end||d.end.slice(0,7)!==m))return;out.push({kind:'debt',id:d.id,name:(once?'سداد ':'قسط ')+d.name,amount:once?r3((+d.balance)+pa):+d.payment||0,day:+d.day||1,person:'',variable:false,isPaid:pa>0,paidAmt:pa,ref:d})});
+  debts().forEach(d=>{const pa=debtPaidIn(d,m);if(!(+d.balance>0)&&!pa)return;if(d.start&&m<d.start.slice(0,7)&&!pa)return;if(d.trackFrom&&m<d.trackFrom.slice(0,7)&&!pa)return;const once=d.mode==='once';if(once&&!pa&&(!d.end||d.end.slice(0,7)!==m))return;const arr=once?0:debtArrLeft(d,m),base=once?r3((+d.balance)+pa):+d.payment||0;out.push({kind:'debt',id:d.id,name:(once?'سداد ':'قسط ')+d.name,amount:r3(base+arr),prev:arr,day:+d.day||1,person:'',variable:false,isPaid:arr>0?pa>=r3(base+arr)-0.0005:pa>0,paidAmt:pa,ref:d})});
   return out}
 function recStatus(m){const R=monthItems(m);const paid=R.filter(i=>i.isPaid);const total=R.reduce((x,i)=>x+i.amount,0);const paidAmt=R.reduce((x,i)=>x+(i.paidAmt||0),0);const partial=R.filter(i=>!i.isPaid&&i.paidAmt>0);return{R,paid,partial,total,paidAmt,dueLeft:r3(R.filter(i=>!i.isPaid).reduce((x,i)=>x+i.amount-(i.paidAmt||0),0)),left:R.length-paid.length}}
 /* حساب الفاتورة: فاتورة كل شهر + المتأخرات السابقة − ما دفعته = المتبقي (للفواتير التي فيها «since») */
@@ -1068,7 +1113,7 @@ function vMonthly(){
   const Y=m.slice(0,4),YM={};for(let k=1;k<=12;k++){const mm=Y+'-'+String(k).padStart(2,'0');YM[mm]={};monthItems(mm).forEach(x=>YM[mm][x.kind+x.id]=x)}
   /* تفاصيل الدفع لكل أشهر السنة: الموعد والمبلغ وتاريخ الدفع، أخضر = مدفوع، أحمر = غير مدفوع */
   const yearGridHtml=i=>{const td=today();const cells=Object.keys(YM).map(mm=>{const x=YM[mm][i.kind+i.id];const mn=MONTHS[+mm.slice(5)-1];
-      if(!x)return `<div class="yg-c off"><b>${mn}</b><small>—</small></div>`;
+      if(!x){const tf=i.kind==='debt'&&i.ref.trackFrom&&mm<i.ref.trackFrom.slice(0,7);return `<div class="yg-c off${tf?' pre':''}"><b>${mn}</b><small>${tf?'قبل المتابعة':'—'}</small></div>`}
       const du=dueOf(x,mm),pd=(x.kind==='rec'?(PD[x.id+'|'+mm]||[]):(x.ref.pays||[]).filter(p=>p.date&&p.date.slice(0,7)===mm).map(p=>p.date)).sort().pop();
       const cls=x.isPaid?'ok':du<=td?'bad':x.paidAmt?'part':'up';
       return `<button class="yg-c ${cls}${mm===m?' cur':''}" type="button" data-gomonth="${mm}" aria-label="${mn} ${Y}"><b>${mn}</b><span class="num">${money(x.isPaid?x.paidAmt:cls==='up'&&x.tracked?x.bill:Math.max(0,x.amount-(x.paidAmt||0)))}</span><small>${x.isPaid?'دُفع':'موعده'}</small><small class="num">${x.isPaid?dmy(pd):dmy(du)}</small></button>`}).join('');
@@ -1082,7 +1127,7 @@ function vMonthly(){
     const nextLine=nx?`<div class="nextdue">التالي: <b class="num">${amtH(nx.amt)}</b> · موعده ${dmy(nx.date)}${payLockCfg().on&&nx.date>today()?' · يُفتح الدفع '+(+payLockCfg().before?'في '+dmy(addDays(nx.date,-payLockCfg().before)):'في موعده'):''}</div>`:'';
     const edit=`<button class="chip" ${i.kind==='debt'?'data-dedit':'data-redit'}="${esc(i.id)}" aria-label="تعديل ${esc(i.name)}"><span class="lk">🔒 </span>تعديل</button>`;
     const rem=r3(Math.max(0,i.amount-(i.paidAmt||0)));const pm0=shiftMonth(m,-1);
-    const prevTag=i.prev>0.0005?`<span class="prevtag">+ متبقٍ من الشهر الماضي <span class="num">${amtH(i.prev)}</span></span>`:i.kind==='debt'&&+i.ref.balance>0&&!debtPaidIn(i.ref,pm0)&&(!i.ref.start||i.ref.start.slice(0,7)<=pm0)&&i.ref.mode!=='once'?'<span class="prevtag">لم يُسجَّل قسط الشهر الماضي</span>':'';
+    const prevTag=i.prev>0.0005?`<span class="prevtag">${i.kind==='debt'?'+ متأخرات من الأشهر الماضية':'+ متبقٍ من الشهر الماضي'} <span class="num">${amtH(i.prev)}</span></span>`:i.kind==='debt'&&+i.ref.balance>0&&!debtPaidIn(i.ref,pm0)&&(!i.ref.start||i.ref.start.slice(0,7)<=pm0)&&(!i.ref.trackFrom||i.ref.trackFrom.slice(0,7)<=pm0)&&i.ref.mode!=='once'?'<span class="prevtag">لم يُسجَّل قسط الشهر الماضي</span>':'';
     const amtBox=`<div class="rec-amt${i.isPaid?' ok':i.paidAmt?' part':''}">${i.isPaid?`<small>مدفوع ✓</small><b class="num">${money(i.paidAmt)}</b>`:`<small>${i.paidAmt?'باقٍ':'المقرر'}</small><b class="num">${money(rem)}</b>`}</div>`;
     const op=(S.recOpen||{})[i.kind+i.id];
     return `<div class="recrow rec2${i.isPaid?' done':''}${op?' open':''}" data-rkey="${i.kind+esc(i.id)}">${i.kind==='debt'?debtBadge(i.ref):recBadge(i.ref)}<div class="rtog" data-rtog="${i.kind+esc(i.id)}" role="button" aria-expanded="${op?'true':'false'}" aria-label="عرض تفاصيل ${esc(i.name)}"><b>${i.kind==='debt'?'<span class="tag">دين</span>':''}${esc(i.name)}</b><small>${i.tracked?`فاتورة <span class="num">${amtH(i.bill)}</span>${i.prev>0.0005?' + متأخرات سابقة <span class="num amt-exp">'+amtH(i.prev)+'</span>':i.prev<-0.0005?' − رصيد لك <span class="num">'+amtH(-i.prev)+'</span>':''}${Math.abs(i.prev)>0.0005?' = <span class="num">'+amtH(i.amount)+'</span>':''}${i.paidAmt&&!i.isPaid?' · دفعت <span class="num">'+amtH(i.paidAmt)+'</span> · المتبقي <b class="num">'+amtH(i.amount-i.paidAmt)+'</b>'+((i.ref.later||{})[m]?' · تذكير '+fmtD(i.ref.later[m]):''):''}<br>`:`<span class="num">${money(i.amount)}</span> ${CUR}${i.variable?' تقريبًا':''} · `}يوم الدفع ${i.day}${i.kind==='rec'?' · تذكير يوم '+remindDay(i.ref)+' · 🔁 '+(i.ref.until?'حتى '+monthName(i.ref.until):'شهريًا مستمر'):''}${i.person?' · لـ'+esc(personName(i.person)):''}${i.kind==='debt'?' · متبقٍ <span class="num">'+amtH(i.ref.balance)+'</span>':''}</small>${prevTag}</div>${amtBox}
@@ -1113,7 +1158,7 @@ function vHouse(){
   const m=S.month,a=inMonth(m);
   const P=people();const po=byPerson(a);
   const pCards=P.map(p=>{const spent=po[p.id]||0;const al=+p.allowance||0;const pct=al?Math.min(100,spent/al*100):0;
-    return `<div class="person"><div class="top2"><div style="display:flex;gap:10px;align-items:center;min-width:0"><span class="avatar" style="background:${personColor(p.id)}22;color:${personColor(p.id)}">${esc(p.name.charAt(0))}</span><div style="min-width:0"><b style="font-weight:600">${esc(p.name)}</b><div class="note">${esc(p.rel||'')}</div></div></div>
+    return `<div class="person"><div class="top2"><div style="display:flex;gap:10px;align-items:center;min-width:0">${personAv(p)}<div style="min-width:0"><b style="font-weight:600">${esc(p.name)}</b><div class="note">${esc(p.rel||'')}</div></div></div>
       <div class="gm"><span>صُرف هذا الشهر</span><b class="num" style="font-size:17px">${money(spent)}</b></div></div>
       ${al?`<div class="meter"><i class="${spent>al?'over':pct>80?'near':''}" style="width:${pct}%"></i></div><div class="budgetline" style="margin:0"><span>المخصص الشهري <b class="num">${amtH(al)}</b></span><span>${spent>al?'تجاوز بـ <b class="num amt-exp">'+amtH(spent-al)+'</b>':'متبقٍ <b class="num">'+amtH(al-spent)+'</b>'}</span></div>`:''}
       <div class="gbtns"><button class="chip" data-pspend="${esc(p.id)}">+ مصروف لـ${esc(p.name)}</button><button class="chip" data-pedit="${esc(p.id)}">تعديل</button></div></div>`}).join('');
@@ -1151,6 +1196,17 @@ function openPerson(id){
 /* مدة تكرار الالتزام: اختيار سريع بدل كتابة شهر النهاية */
 const REC_DUR=[[0,'مستمر'],[6,'6 أشهر'],[12,'سنة'],[24,'سنتان'],[36,'3 سنوات'],[60,'5 سنوات'],[120,'10 سنوات']];
 function monthsSpan(a,b){const [y1,m1]=a.split('-').map(Number),[y2,m2]=b.split('-').map(Number);return (y2-y1)*12+(m2-m1)+1}
+/* سؤال «هل توجد متأخرات لم تُدفع من الأشهر الماضية؟» في نموذجي الالتزام والدين */
+function arrQHtml(p,yes,val,note){return `<div class="field arrq"><label>هل توجد متأخرات لم تُدفع من الأشهر الماضية؟</label><div class="seg"><button class="n" type="button" data-arrq="0" aria-pressed="${!yes}">لا</button><button class="n" type="button" data-arrq="1" aria-pressed="${!!yes}">نعم، يوجد متأخرات</button></div>
+   <div id="${p}ArrBox" class="stack" style="margin-top:8px"${yes?'':' hidden'}><input class="inp num" id="${p}Arr" inputmode="decimal" value="${+val?amtIn(val):''}" placeholder="مبلغ المتأخرات 0.000" style="text-align:left" aria-label="مبلغ المتأخرات"><span class="note" style="margin:0">${note}</span></div></div>`}
+function arrQToggle(x){const box=x.closest('.arrq');const yes=x.dataset.arrq==='1';box.querySelectorAll('[data-arrq]').forEach(b=>b.setAttribute('aria-pressed',b===x));const bx=box.querySelector('[id$="ArrBox"]');bx.hidden=!yes;if(yes){const i=bx.querySelector('input');setTimeout(()=>i.focus(),30)}}
+/* تاريخ بدء متابعة الدين في التطبيق: المحدد، أو أول دفعة مسجلة، أو تاريخ الإضافة */
+function debtTrackFrom(d){if(d.trackFrom)return d.trackFrom;const P=(d.pays||[]).map(p=>p.date).filter(Boolean).sort();const L=(d.log||[]).map(x=>x.at).filter(Boolean).sort();return P[0]||L[0]||d.start||today()}
+/* الأقساط: المدفوعة (قبل المتابعة + المسجلة في التطبيق) والكلي والباقي */
+function debtInstInfo(d){const inApp=(d.pays||[]).filter(p=>+p.amt>0).length;const before=+d.paidN||0;const paid=before+inApp;const tot=+d.totalN||0;return{paid,tot,left:tot?Math.max(0,tot-paid):null,before,inApp}}
+/* متأخرات الدين المتبقية في الشهر m: تُخصم منها كل زيادة دُفعت فوق القسط في الأشهر التالية */
+function debtArrLeft(d,m){if(!(+d.arrears>0)||d.mode==='once')return 0;const since=d.arrSince||m;if(m<since)return 0;let left=+d.arrears;const inst=+d.payment||0;
+  for(let k=since;k<m;k=shiftMonth(k,1)){left-=Math.max(0,debtPaidIn(d,k)-inst);if(left<=0.0005)return 0}const bl=Number(String(d.balance).replace(/,/g,''))||0;return r3(Math.min(left,Math.max(0,bl+debtPaidIn(d,m))))}
 function openRec(id,kind){
   const L=document.getElementById('layer');const R=S.settings.recurring||(S.settings.recurring=[]);const ex=id?R.find(x=>x.id===id):null;
   const k=REC_KINDS[ex?ex.kind:kind]||REC_KINDS.custom;
@@ -1165,13 +1221,13 @@ function openRec(id,kind){
    <div class="row2"><div class="field"><label for="rAmt">المبلغ الشهري${k.variable?' (تقريبي)':''}</label><input class="inp num" id="rAmt" inputmode="decimal" value="${r.amount!==''?esc(r.amount):''}" placeholder="0.000" style="text-align:left"></div>
    <div class="field"><label for="rDay">يوم الدفع في الشهر</label><input class="inp num" id="rDay" type="number" min="1" max="31" value="${esc(r.day)}" style="text-align:left"></div></div>
    <div id="rScopeBox">${scopeHtml()}</div>
+   ${arrQHtml('r',r.arrQ!==undefined?r.arrQ:+r.arrears>0,r.arrears,'المبلغ المتأخر من الأشهر الماضية كما في الفاتورة أو الكشف. يُضاف لمستحق هذا الشهر، ويُخصم منه كل ما تدفعه.')}
    <div class="field"><label>مدة التكرار</label><div class="chips durchips">${REC_DUR.map(([n,t])=>`<button class="chip" type="button" data-rdur="${n}" aria-pressed="${n?!!r.until&&monthsSpan(r.start||S.month,r.until)===n:!r.until}">${t}</button>`).join('')}<input class="inp num" id="rCount" type="number" min="1" max="600" inputmode="numeric" placeholder="عدد الأشهر" value="${r.until&&!REC_DUR.some(([n])=>n&&monthsSpan(r.start||S.month,r.until)===n)?monthsSpan(r.start||S.month,r.until):''}" aria-label="عدد أشهر التكرار" style="width:110px;padding:6px 10px"></div></div>
    <div class="row2"><div class="field"><label for="rStart">يبدأ من شهر</label><input class="inp" type="month" id="rStart" value="${esc(r.start||'')}"></div>
    <div class="field"><label for="rUntil">ينتهي في شهر (اختياري)</label><input class="inp" type="month" id="rUntil" value="${esc(r.until||'')}" placeholder="مستمر"></div></div>
    <div class="recprev" id="rPrev">${recPreview()}</div>
    <div class="stack recadv"><h3 style="margin:6px 0 0">خيارات إضافية</h3>
-   <div class="row2"><div class="field"><label for="rRemind">يوم التذكير</label><input class="inp num" id="rRemind" type="number" min="1" max="31" value="${esc(r.remind||Math.max(1,(+r.day||1)-2))}" style="text-align:left"></div>
-   <div class="field"><label for="rArr">متأخرات سابقة (دين سابق)</label><input class="inp num" id="rArr" inputmode="decimal" value="${+r.arrears?amtIn(r.arrears):''}" placeholder="0.000" style="text-align:left"></div></div>
+   <div class="field"><label for="rRemind">يوم التذكير</label><input class="inp num" id="rRemind" type="number" min="1" max="31" value="${esc(r.remind||Math.max(1,(+r.day||1)-2))}" style="text-align:left"></div>
    <div class="field"><label for="rBill">مبلغ فاتورة ${esc(monthName(S.month))}${k.variable?' (من الفاتورة الفعلية)':' (إن اختلف)'}</label><input class="inp num" id="rBill" inputmode="decimal" value="${(r.bills||{})[S.month]!==undefined?amtIn(r.bills[S.month]):''}" placeholder="${r.amount!==''?esc(r.amount):'0.000'}" style="text-align:left"></div>
    <p class="note" style="margin:0">المتأخرات: المبلغ المستحق السابق كما يظهر في الفاتورة (مثل الكهرباء والمياه). يُضاف لفاتورة الشهر، ويُخصم منه كل ما تدفعه، فتعرف المتبقي عليك بالضبط.</p>
    <div class="row2"><div class="field"><label for="rCat">الفئة</label><select class="inp" id="rCat">${EXP_CATS.map(c=>`<option value="${c.id}" ${r.cat===c.id?'selected':''}>${esc(c.n)}</option>`).join('')}</select></div>
@@ -1181,7 +1237,7 @@ function openRec(id,kind){
    <button class="btn block" id="rSave">حفظ</button>
    ${ex?(askDel?'<div class="confirm"><span>حذف هذا الالتزام؟ تبقى الدفعات السابقة في السجل.</span><div class="row2"><button class="btn danger" id="rDel">نعم، احذف</button><button class="btn ghost" id="rDelNo">تراجع</button></div></div>':'<button class="btn ghost block" id="rDelAsk" style="color:var(--exp)">حذف الالتزام</button>'):'<button class="btn ghost block" data-close>إلغاء</button>'}
    </div></div></div>`};
-  const grab=()=>{r.name=document.getElementById('rName').value;r.amount=document.getElementById('rAmt').value;r.start=document.getElementById('rStart').value;r.until=document.getElementById('rUntil').value;r.day=document.getElementById('rDay').value;r.remind=document.getElementById('rRemind').value;r.arrearsIn=document.getElementById('rArr').value;r.billIn=document.getElementById('rBill').value;r.cat=document.getElementById('rCat').value;r.person=document.getElementById('rPerson').value};
+  const grab=()=>{r.arrQ=!!document.querySelector('#rArrBox:not([hidden])');r.name=document.getElementById('rName').value;r.amount=document.getElementById('rAmt').value;r.start=document.getElementById('rStart').value;r.until=document.getElementById('rUntil').value;r.day=document.getElementById('rDay').value;r.remind=document.getElementById('rRemind').value;r.arrearsIn=document.getElementById('rArr').value;r.billIn=document.getElementById('rBill').value;r.cat=document.getElementById('rCat').value;r.person=document.getElementById('rPerson').value};
   const live=()=>{grab();const p=document.getElementById('rPrev');if(p)p.innerHTML=recPreview();const sb=document.getElementById('rScopeBox');if(sb)sb.innerHTML=scopeHtml()};
   L.onchange=e=>{if(['rAmt','rStart','rUntil'].includes(e.target.id))live()};
   L.oninput=e=>{if(e.target.id==='rCount'){const n=parseInt(e.target.value);const st=document.getElementById('rStart').value||S.month;document.getElementById('rUntil').value=n>0?shiftMonth(st,Math.min(600,n)-1):'';live();L.querySelectorAll('[data-rdur]').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.rdur===(n>0?n:0)));return}
@@ -1189,6 +1245,7 @@ function openRec(id,kind){
   L.onclick=e=>{const x=e.target.closest('button,[data-close]');if(!x)return;
     if(x.hasAttribute('data-close')){L.innerHTML='';return}
     if(x.dataset.rscope){grab();scope=x.dataset.rscope;live();return}
+    if(x.dataset.arrq){arrQToggle(x);return}
     if(x.dataset.rdur!==undefined){grab();const n=+x.dataset.rdur;if(!r.start)r.start=S.month;r.until=n?shiftMonth(r.start,n-1):'';draw();return}
     if(x.id==='rDelAsk'){grab();askDel=true;draw();return}
     if(x.id==='rDelNo'){grab();askDel=false;draw();return}
@@ -1201,7 +1258,7 @@ function openRec(id,kind){
       if(changed){if(scope==='only'){bills[S.month]=amt;base=+ex.amount||amt}else{if(!Object.keys(amtHist).length)amtHist[ex.start||'0000-01']=+ex.amount||0;Object.keys(amtHist).filter(x=>x>S.month).forEach(x=>delete amtHist[x]);amtHist[S.month]=amt;delete bills[S.month]}}
       else if(ex)base=+ex.amount||amt;
       if(String(r.billIn||'').trim()!=='')bills[S.month]=parseAmt(r.billIn);else if(!(changed&&scope==='only'))delete bills[S.month];
-      const arrIn=String(r.arrearsIn||'').trim();const arrears=arrIn===''?0:parseAmt(arrIn);
+      const arrIn=r.arrQ?String(r.arrearsIn||'').trim():'';const arrears=arrIn===''?0:parseAmt(arrIn);
       const rec={id:r.id,kind:r.kind,name:r.name.trim(),amount:base,amtHist,start:r.start||'',until:r.until||'',cat:r.cat,day,person:r.person||'',half:!!r.half,later:r.later||{},remind:Math.min(31,Math.max(1,parseInt(r.remind)||Math.max(1,day-2))),arrears,since:(ex&&ex.since&&+ex.arrears===arrears)?ex.since:S.month,bills};if(!ex)recLog(rec,'أُضيف الالتزام بمبلغ '+rial(amt)+' شهريًا'+(rec.start?' من '+monthName(rec.start):''));else{rec.log=(ex.log||[]).slice();
         if(changed)recLog(rec,scope==='only'?'مبلغ '+monthName(S.month)+' فقط: '+rial(amt)+' (بدل '+money(amtAt(ex,S.month))+')':'تغيير المبلغ من '+money(amtAt(ex,S.month))+' إلى '+rial(amt)+' من '+monthName(S.month));
         if(Math.abs((+ex.arrears||0)-arrears)>0.0005)recLog(rec,'تعديل المتأخرات السابقة إلى '+rial(arrears));
@@ -1283,7 +1340,7 @@ function openRecPick(sec){if(sec==='debt'){openDebt();return}if(sec==='other'){o
   L.oninput=L.onchange=null;
   L.onclick=e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';return}
     if(x.dataset.radd){openRec(null,x.dataset.radd);return}if(x.dataset.dadd){L.innerHTML='';openDebt();return}}}
-function recBadge(r){const k=REC_IC[r.kind];const c=k?k[1]:catOf(r.cat).c;return `<span class="cbadge" style="background:${c}1f;color:${c}">${svgI(CI[k?k[0]:r.cat]||CI.other)}</span>`}
+function recBadge(r){const k=REC_IC[r.kind];const c=k?k[1]:catOf(r.cat).c;return ovBadge('rec:'+r.id,`<span class="cbadge" style="background:${c}1f;color:${c}">${svgI(CI[k?k[0]:r.cat]||CI.other)}</span>`)}
 /* سجل التحديثات: يُحفظ داخل الالتزام نفسه */
 function recLog(r,t){if(!r)return;r.log=(r.log||[]).concat([{at:today(),t}]).slice(-80)}
 /* أشهر الالتزام من بدايته حتى الشهر المعروض (آخر 12 شهرًا) مع الفاتورة والمدفوع والمتبقي */
@@ -1569,7 +1626,7 @@ const PLAN_T={
 Object.entries(PLAN_T).forEach(([k,v])=>{if(!GOAL_KINDS[k])GOAL_KINDS[k]={n:v.n,hint:v.hint}});
 const GOAL_ICON={ramadan:['moon','#2E8B72'],fitr:['gift','#7A6CC0'],adha:['family','#B0662F'],insurance:['car','#3E7CB1'],mulkiya:['car','#5B6F8A']};
 function goalBadge(g){const t=PLAN_T[g.kind];const ic=t?[t.icon,t.c]:GOAL_ICON[g.kind]||['iother','#7A8494'];
-  return `<span class="cbadge" style="background:${ic[1]}1f;color:${ic[1]}">${svgI(CI[ic[0]]||CI.iother)}</span>`}
+  return ovBadge('goal:'+g.id,`<span class="cbadge" style="background:${ic[1]}1f;color:${ic[1]}">${svgI(CI[ic[0]]||CI.iother)}</span>`)}
 function avgSurplus(){return pastAvg(a=>sum(a,'inc')-sum(a,'exp'))}
 function avgExpense(){return pastAvg(a=>sum(a,'exp'))||0}
 function addMonthsIso(n){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()+n);const nd=monthDays(d);d.setDate(Math.min(new Date().getDate(),nd));return isoD(d)}
@@ -1845,7 +1902,7 @@ function simDebts(list,extra,strategy,rollover){
     A.forEach(d=>{if(d.b<=0.0005&&!d.done){d.b=0;d.done=m}})}
   const stuck=A.some(d=>!d.done);
   return{months:stuck?null:m,interest,paid,finish:Object.fromEntries(A.map(d=>[d.id,d.done||null])),stuck}}
-function debtBadge(d){const t=DEBT_T[d.type]||DEBT_T.other;return `<span class="cbadge" style="background:${t[2]}1f;color:${t[2]}">${svgI(CI[t[1]]||CI.iother)}</span>`}
+function debtBadge(d){const t=DEBT_T[d.type]||DEBT_T.other;return ovBadge('debt:'+d.id,`<span class="cbadge" style="background:${t[2]}1f;color:${t[2]}">${svgI(CI[t[1]]||CI.iother)}</span>`)}
 function debtResHtml(){const Ds=debts(),P=debtPlan();if(!Ds.some(d=>+d.balance>0))return '<div class="okbox">لا توجد ديون متبقية. مبروك!</div>';
   const plan=simDebts(Ds,P.extra,P.strategy,true),base=simDebts(Ds,0,P.strategy,false);
   if(plan.stuck){const bad=Ds.filter(d=>+d.balance>0&&d.mode!=='once'&&(+d.payment||0)<=(+d.balance)*(+d.rate||0)/1200+0.0005).map(d=>d.name);
@@ -1895,6 +1952,7 @@ function debtCard(d,pl){const t=DEBT_T[d.type]||DEBT_T.other;const o=Math.max(+d
     <div class="budgetline" style="margin:0"><span>سدّدت ${Math.round(p)}% من <b class="num">${amtH(o)}</b></span>${pill}</div>
     <div class="dinfo"><div><span>بدأ</span><b>${fmtD(start)}</b></div><div><span>ينتهي المقرر</span><b>${end?fmtD(end):'—'}</b></div><div><span>المدة</span><b>${end?spanWord(start,end):'—'}</b></div></div>
     <div class="budgetline" style="margin:0"><span>${once?'يُسدَّد <b>دفعة واحدة</b> بالمبلغ الإجمالي':'القسط <b class="num">'+amtH(d.payment)+'</b>'}${+d.rate?' · فائدة '+(+d.rate)+'%':' · بدون فائدة'}</span></div>
+    ${(()=>{const I=debtInstInfo(d),tf=debtTrackFrom(d);return `<div class="dinfo dtrack"><div><span>المتابعة من</span><b>${dmy(tf)}</b></div>${!once&&(I.tot||I.paid)?`<div><span>الأقساط</span><b>${I.tot?I.paid+' من '+I.tot:I.paid+' مدفوعة'}</b></div>${I.tot?`<div><span>باقٍ</span><b>${countWord(I.left,'قسط واحد','قسطان','أقساط','قسطًا')}</b></div>`:''}`:''}${d.ref?`<div><span>رقم العقد</span><b dir="ltr">${esc(d.ref)}</b></div>`:''}</div>${d.note?`<div class="note" style="margin:0">📝 ${esc(d.note)}</div>`:''}`})()}
     ${n||dl!==null?`<div class="dleft">⏳ ${once?'':n?'باقٍ '+countWord(n,'قسط واحد','قسطان','أقساط','قسطًا')+' · ':''}${dl===null?'':dl<0?'تأخر '+daysWord(-dl):dl===0?'موعده اليوم':'بعد '+daysWord(dl)}</div>`:''}
     <div class="gbtns"><button class="chip pay" data-dpay="${esc(d.id)}">${once?'سدّدت':'سدّدت القسط'}</button><button class="chip" data-dedit="${esc(d.id)}">تعديل</button><button class="chip" data-dprint="${esc(d.id)}">كشف</button></div>
     ${debtHistHtml(d)}</div>`}
@@ -2077,7 +2135,7 @@ function openWirdSettings(){const W=wird();const L=document.getElementById('laye
       S.settings.wird=W;await putSettings();L.innerHTML='';render();toast('حُفظت إعدادات الورد')}}}
 
 function vDebts(){const Ds=debts(),P=debtPlan();
-  const head=`<div class="backrow"><h2 style="margin:4px 0">${esc(lbl('sec.debts'))}</h2><button class="chip" data-tab="home">الرئيسية ‹</button></div>`;
+  const head=`<div class="backrow"><h2 style="margin:4px 0">${esc(lbl('sec.debts'))}</h2><button class="chip" data-mdgo="debts">⚙️ إدارة الديون ‹</button></div>`;
   if(!Ds.length)return head+`<div class="panel empty"><b>اعرف ديونك ومتى تتخلص منها</b>أضف القروض وبطاقات الائتمان، والديون لأشخاص، وأي دين شخصي. أرتّبها لك في أقسام، وأحسب موعد انتهاء كل دين ومدته، وأحتفظ بسجل كامل لكل دين حتى بعد انتهائه.</div><button class="btn block" data-dadd="1" style="margin-top:12px">+ أضف دينًا</button>${debtNoteHtml()}`;
   const act=Ds.filter(d=>+d.balance>0.0005),done=Ds.filter(d=>!(+d.balance>0.0005));const pl=debtSim();const F=debtFree();
   const g=S.debtGrp||'all',k=S.debtSort||'end';
@@ -2119,7 +2177,8 @@ function debtHomeHtml(){const Ds=debts();if(!Ds.length)return '';const act=Ds.fi
     <div class="note hp-meta">${F.next?(F.next.late?'<b class="amt-exp">قسط '+esc(F.next.name)+' متأخر</b> (كان يوم '+F.next.day+')':'القادم: '+esc(F.next.name)+' يوم '+F.next.day)+' · <span class="num">'+amtH(F.next.amt)+'</span>':'دفعت أقساط هذا الشهر كلها ✓'}</div>`:''}
    <div class="hp-list">${rows}${doneRow}</div></div>`}
 function openDebt(id){const L=document.getElementById('layer');const A=S.settings.debts||(S.settings.debts=[]);const ex=id?A.find(x=>x.id===id):null;
-  const d=ex?Object.assign({},ex,{original:ex.original?money(ex.original):'',balance:money(ex.balance),payment:+ex.payment?money(ex.payment):'',rate:ex.rate||'',mode:ex.mode||'inst',start:debtStart(ex),end:ex.end||''}):{id:uidGen(),type:'loan',name:'',lender:'',original:'',balance:'',payment:'',rate:'',day:1,pays:[],mode:'inst',start:today(),end:''};let askDel=false;
+  const d=ex?Object.assign({},ex,{original:ex.original?money(ex.original):'',balance:money(ex.balance),payment:+ex.payment?money(ex.payment):'',rate:ex.rate||'',mode:ex.mode||'inst',start:debtStart(ex),end:ex.end||''}):{id:uidGen(),type:'loan',name:'',lender:'',original:'',balance:'',payment:'',rate:'',day:1,pays:[],mode:'inst',start:today(),end:'',trackFrom:today()};let askDel=false;
+  if(ex&&!d.trackFrom)d.trackFrom=debtTrackFrom(ex);
   const draw=()=>{L.innerHTML=`${sheetTop('دين')}
    <h2 style="margin-top:0">${ex?'تعديل الدين':'دين جديد'}</h2><div class="stack">
    <div class="catgrid">${Object.entries(DEBT_T).map(([k,t])=>`<button class="cg" data-dtype="${k}" aria-pressed="${d.type===k}"><i style="background:${t[2]}1f;color:${t[2]}">${svgI(CI[t[1]])}</i>${t[0]}</button>`).join('')}</div>
@@ -2134,17 +2193,25 @@ function openDebt(id){const L=document.getElementById('layer');const A=S.setting
    <div class="field"${d.mode==='once'?' hidden':''}><label for="dDay">يوم دفع القسط في الشهر</label><input class="inp num" id="dDay" type="number" min="1" max="31" value="${esc(d.day)}" style="text-align:left"></div>
    <div class="row2"><div class="field"><label for="dStart">تاريخ بداية الدين</label><input class="inp" type="date" id="dStart" value="${esc(d.start)}"></div>
    <div class="field"><label for="dEnd">${d.mode==='once'?'موعد السداد':'موعد الانتهاء حسب العقد (اختياري)'}</label><input class="inp" type="date" id="dEnd" value="${esc(d.end)}"></div></div>
+   <div class="dsec"><b>📅 متابعة الدفع في التطبيق</b>
+    <div class="field"><label for="dTrack">بدأت متابعة الدفع في التطبيق من</label><input class="inp" type="date" id="dTrack" value="${esc(d.trackFrom||'')}"><span class="note" style="margin:0">الأشهر قبل هذا التاريخ تُعتبر مدفوعة، ولا تظهر كمتأخرة. ومنه يبدأ التطبيق قراءة الأقساط ومتابعتها.</span></div>
+    ${d.mode==='once'?'':`<div class="row2"><div class="field"><label for="dTotN">عدد الأقساط الكلي (اختياري)</label><input class="inp num" id="dTotN" type="number" min="0" inputmode="numeric" value="${esc(d.totalN||'')}" placeholder="مثال: 60" style="text-align:left"></div>
+    <div class="field"><label for="dPaidN">أقساط دفعتها قبل المتابعة</label><input class="inp num" id="dPaidN" type="number" min="0" inputmode="numeric" value="${esc(d.paidN||'')}" placeholder="${d.start&&d.trackFrom?Math.max(0,monthsSpan(d.start.slice(0,7),d.trackFrom.slice(0,7))-1):'0'}" style="text-align:left"></div></div>`}</div>
+   <div class="row2"><div class="field"><label for="dRef">رقم العقد / القرض (اختياري)</label><input class="inp" id="dRef" value="${esc(d.ref||'')}" maxlength="40" dir="ltr" style="text-align:left"></div>
+   <div class="field"><label for="dNote">ملاحظة (اختياري)</label><input class="inp" id="dNote" value="${esc(d.note||'')}" maxlength="80"></div></div>
+   ${d.mode==='once'?'':arrQHtml('d',d.arrQ!==undefined?d.arrQ:(ex?debtArrLeft(ex,ym(new Date()))>0:false),d.arrQ!==undefined?d.arrIn:(ex?debtArrLeft(ex,ym(new Date())):''),'أقساط لم تُدفع من الأشهر الماضية. تُضاف لقسط هذا الشهر في «الشهرية» حتى تُسدَّد، وهي جزء من المتبقي.')}
    <p class="note" style="margin:0">المتبقي تجده في كشف حساب البنك أو تطبيقه. والفائدة اتركها فارغة إن كان الدين بدون فائدة.</p>
    <p class="note" id="dErr" hidden style="color:var(--exp);margin:0"></p>
    <div class="actions"><button class="btn block" id="dSave">حفظ</button>
    ${ex?(askDel?'<div class="confirm"><span>حذف هذا الدين؟ تبقى دفعاته في السجل.</span><div class="row2"><button class="btn danger" id="dDel">نعم، احذف</button><button class="btn ghost" id="dDelNo">تراجع</button></div></div>':'<button class="btn ghost block" id="dDelAsk" style="color:var(--exp)">حذف الدين</button>'):'<button class="btn ghost block" data-close>إلغاء</button>'}</div>
    </div></div></div>`};
   const v=i=>document.getElementById(i).value;
-  const grab=()=>{d.name=v('dName');d.lender=v('dLender');d.original=v('dOrig');d.balance=v('dBal');d.payment=v('dPay');d.rate=v('dRate');d.day=v('dDay');d.start=v('dStart');d.end=v('dEnd')};
+  const grab=()=>{const g=i=>{const e=document.getElementById(i);return e?e.value:undefined};d.trackFrom=g('dTrack')??d.trackFrom;d.totalN=g('dTotN')??d.totalN;d.paidN=g('dPaidN')??d.paidN;d.ref=g('dRef')??d.ref;d.note=g('dNote')??d.note;const ab=document.getElementById('dArrBox');d.arrQ=!!(ab&&!ab.hidden);d.arrIn=document.getElementById('dArr')?v('dArr'):d.arrIn;d.name=v('dName');d.lender=v('dLender');d.original=v('dOrig');d.balance=v('dBal');d.payment=v('dPay');d.rate=v('dRate');d.day=v('dDay');d.start=v('dStart');d.end=v('dEnd')};
   L.oninput=L.onchange=null;
   L.onclick=e=>{const x=e.target.closest('button,[data-close]');if(!x)return;
     if(x.hasAttribute('data-close')){L.innerHTML='';return}
     if(x.dataset.dmode){grab();d.mode=x.dataset.dmode;draw();return}
+    if(x.dataset.arrq){arrQToggle(x);return}
     if(x.dataset.dtype){grab();d.type=x.dataset.dtype;if(d.type==='people'&&!ex&&d.mode!=='once'&&!d.payment)d.mode='once';if(!d.name.trim()||Object.values(DEBT_T).some(t=>t[0]===d.name))d.name=DEBT_T[d.type][0];draw();return}
     if(x.id==='dDelAsk'){grab();askDel=true;draw();return}
     if(x.id==='dDelNo'){grab();askDel=false;draw();return}
@@ -2160,6 +2227,13 @@ function openDebt(id){const L=document.getElementById('layer');const A=S.setting
       if(!once&&bal&&pay<=bal*rate/1200){er.hidden=false;er.textContent='القسط أقل من الفائدة الشهرية ('+money(bal*rate/1200)+')، فلن ينتهي الدين. راجع المبالغ';return}
       const rec={id:d.id,type:d.type,name:d.name.trim(),lender:d.lender.trim(),original:Math.max(parseAmt(d.original),bal),balance:bal,payment:once?0:pay,rate,day:once?+d.end.slice(8,10):Math.min(31,Math.max(1,parseInt(d.day)||1)),mode:once?'once':'inst',start:d.start||today(),end:d.end||'',pays:(ex&&ex.pays)||[],log:(ex&&ex.log)||[]};
       if(wasDone)rec.closed=Object.assign({},ex.closed,{start:rec.start});
+      if(d.trackFrom&&d.start&&d.trackFrom<d.start.slice(0,10)){er.hidden=false;er.textContent='تاريخ بدء المتابعة قبل تاريخ بداية الدين';return}
+      rec.trackFrom=d.trackFrom||today();const tn=parseInt(d.totalN)||0,pn=parseInt(d.paidN);if(tn>0)rec.totalN=tn;if(!isNaN(pn)&&pn>=0)rec.paidN=pn;else if(d.start&&rec.trackFrom&&!once)rec.paidN=Math.max(0,monthsSpan(d.start.slice(0,7),rec.trackFrom.slice(0,7))-1);
+      if(tn&&rec.paidN>tn){er.hidden=false;er.textContent='الأقساط المدفوعة أكثر من العدد الكلي';return}
+      const rf=lblClean(d.ref||''),nt=lblClean(d.note||'');if(rf)rec.ref=rf;if(nt)rec.note=nt;
+      if(ex&&(ex.trackFrom||'')!==rec.trackFrom&&ex.trackFrom)debtLog(rec,'بدء المتابعة من '+fmtD(rec.trackFrom));
+      {const cm=ym(new Date()),aIn=!once&&d.arrQ?parseAmt(String(d.arrIn||'')):0,aOld=ex?debtArrLeft(ex,cm):0;if(Math.abs((aIn||0)-aOld)>0.0005||!ex){if(aIn>0){rec.arrears=Math.min(aIn,bal);rec.arrSince=cm}else{delete rec.arrears;delete rec.arrSince}}else if(ex&&ex.arrears){rec.arrears=ex.arrears;rec.arrSince=ex.arrSince}
+       if(aIn>0&&Math.abs(aIn-aOld)>0.0005)debtLog(rec,'متأخرات من الأشهر الماضية: '+money(aIn))}
       if(!ex)debtLog(rec,'إضافة الدين: المتبقي '+money(bal)+(once?'، يُسدَّد دفعة واحدة في '+fmtD(rec.end):'، القسط '+money(pay))+(rate?'، الفائدة '+rate+'%':''));
       else{const ch=[];if(Math.abs(ex.balance-bal)>0.0005)ch.push('المتبقي '+money(ex.balance)+' ← '+money(bal));if(Math.abs(ex.payment-pay)>0.0005)ch.push('القسط '+money(ex.payment)+' ← '+money(pay));
         if((+ex.rate||0)!==rate)ch.push('الفائدة '+(+ex.rate||0)+'% ← '+rate+'%');if((+ex.day||1)!==rec.day)ch.push('يوم القسط '+(+ex.day||1)+' ← '+rec.day);if(ex.name!==rec.name)ch.push('الاسم ← '+rec.name);if((ex.mode||'inst')!==rec.mode)ch.push(rec.mode==='once'?'صار السداد دفعة واحدة':'صار السداد أقساطًا');if((ex.end||'')!==rec.end&&rec.end)ch.push('موعد الانتهاء ← '+fmtD(rec.end));
@@ -2171,7 +2245,7 @@ function openDebtPay(id){const L=document.getElementById('layer');const d=debts(
   const intr=(+d.balance)*(+d.rate||0)/1200;const once=d.mode==='once',full=r3((+d.balance)+intr);
   L.innerHTML=`${sheetTop('سداد')}
    <h2 style="margin-top:0">سداد ${esc(d.name)}</h2>
-   <div class="amtbox"><input id="dpAmt" inputmode="decimal" value="${amtIn(once?full:Math.min(+d.payment,full))}" aria-label="المبلغ المدفوع"><span>${CUR}</span></div>
+   <div class="amtbox"><input id="dpAmt" inputmode="decimal" value="${amtIn(once?full:Math.min(r3((+d.payment)+Math.max(0,debtArrLeft(d,ym(new Date()))-0)),full))}" aria-label="المبلغ المدفوع"><span>${CUR}</span></div>${!once&&debtArrLeft(d,ym(new Date()))>0?`<p class="note" style="margin:0 0 8px;text-align:center">يشمل القسط <span class="num">${money(d.payment)}</span> + متأخرات <span class="num amt-exp">${money(debtArrLeft(d,ym(new Date())))}</span></p>`:''}
    <div class="chips" style="justify-content:center">${once?'':`<button class="chip" data-dpamt="${Math.min(+d.payment,full)}">القسط</button>`}<button class="chip pay" data-dpamt="${full}">كامل المتبقي (سداد نهائي)</button></div>
    <div class="stack"><div class="field"><label for="dpDate">تاريخ الدفع</label><input class="inp" type="date" id="dpDate" value="${today()}"></div>
    <label class="note" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="dpTx" checked style="width:18px;height:18px"> سجّلها كمصروف في فئة الأقساط</label>
@@ -2653,7 +2727,7 @@ function admAsk(then,why){let el=document.getElementById('admLayer');if(!el){el=
   if(!c.bio)setTimeout(()=>{const i=document.getElementById('admPin');if(i)i.focus()},60)}
 /* كل زر تعديل أو حذف أو تراجع أو اعتماد يمر من هنا أولًا */
 const ADM_SEL=['[data-edit]','[data-txdel]','[data-txedit]','[data-dpe]','[data-redit]','[data-dedit]','[data-tedit]','[data-cedit]','[data-gedit]','[data-pedit]','[data-sedit]','[data-rpedit]',
-  '[data-apv]','[data-apedit]','[data-unpay]','[data-recpick]','[data-secadd]','[data-early]','#rzOn','[data-rzpos]','[data-payedit]','#payAdd','[data-mdi]','#plOn','[data-plscope]','[data-plbefore]','[data-rename]','#lblEdit','[data-acedit]','#acAdd','[data-trdel]','[data-subadd]','#dnEdit','#wdEdit','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','label[for="restoreFile2"]','[data-snaprest]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
+  '[data-apv]','[data-apedit]','[data-unpay]','[data-recpick]','[data-secadd]','[data-early]','[data-icoedit]','#rzOn','[data-rzpos]','[data-payedit]','#payAdd','[data-mdi]','#plOn','[data-plscope]','[data-plbefore]','[data-rename]','#lblEdit','[data-acedit]','#acAdd','[data-trdel]','[data-subadd]','#dnEdit','#wdEdit','#apvAll','[id$="DelAsk"]','#pdYes','.toast button','#clearSample','#restoreBtn','label[for="restoreFile"]','label[for="restoreFile2"]','[data-snaprest]','#syncUnlink','#vaultReset','#admOff','#admPinChange','#admApprove','#admBioSet'].join(',');
 document.addEventListener('click',e=>{if(!admOn())return;if(e.target.closest('#admLayer'))return;
   if(admOpen()){if(e.target.closest('button,label'))Adm.last=Date.now();return}
   const b=e.target.closest(ADM_SEL);if(!b)return;e.preventDefault();e.stopImmediatePropagation();
@@ -2666,7 +2740,7 @@ function openApprovals(){const L=document.getElementById('layer');
   const draw=()=>{const P=pendList();if(!P.length){L.innerHTML='';render();toast('لا عمليات بانتظار الاعتماد');return}
     L.innerHTML=`${sheetTop('الاعتماد')}<h2 style="margin-top:0">بانتظار اعتمادك (${P.length})</h2>
      <p class="note" style="margin-top:-6px">هذه العمليات أُدخلت ووضع المدير مقفل. هي محسوبة في أرصدتك من الآن، والاعتماد يوثّق أنك راجعتها.</p>
-     <div class="panel" style="padding-block:4px">${P.map(t=>{const c=catOf(t.cat);return `<div class="apvrow"><span class="ic" style="background:${c.c}1f;color:${c.c}">${catIcon(t.cat)}</span>
+     <div class="panel" style="padding-block:4px">${P.map(t=>{const c=catOf(t.cat);return `<div class="apvrow">${txIco(t,c)}
       <div style="min-width:0"><b>${esc(t.note||c.n)}</b><small>${fmtD(t.date)} · ${esc(c.n)}</small></div><b class="num ${t.type==='inc'?'amt-inc':'amt-exp'}">${t.type==='inc'?'+':'−'}${amtH(t.amount)}</b>
       <div class="apvbtns"><button class="chip pay" data-apv="${esc(t.id)}">اعتماد ✓</button><button class="chip" data-apedit="${esc(t.id)}">تعديل أو حذف</button></div></div>`}).join('')}</div>
      <div class="actions"><button class="btn block" id="apvAll">اعتماد الكل (${P.length})</button><button class="btn ghost block" data-close>إغلاق</button></div></div></div>`};
@@ -3006,8 +3080,9 @@ function openLook(){const L=document.getElementById('layer');
 
 /* ---------- 24. الإصدار وما الجديد ---------- */
 const DEV={name:'ماجد الرميمي',title:'مهندس ومطور تقنية معلومات',country:'سلطنة عُمان',phone:'95134234',intl:'96895134234'};
-const APP_VERSION='2.25.0';
+const APP_VERSION='2.26.0';
 const CHANGELOG=[
+ {v:'2.26.0',d:'2026-10-15',items:['«ديوني» أصبح في القائمة السفلية الرئيسية (بين الشهرية والسجل)، ويمكن تغيير اسمه من ⚙️ الضبط','الديون تُدار من «إدارة البيانات» مثل باقي الأقسام: إضافة وتعديل وتغيير الأيقونة واستيراد/تصدير Excel، وزر «⚙️ إدارة الديون» في صفحة ديوني يأخذك مباشرة لقسمها','تغيير الصورة أو الأيقونة قبل أي اسم من «إدارة البيانات»: اضغط على الأيقونة (عليها ✎) واختر أيقونة بلون، أو رمزًا، أو صورة/شعارًا من جهازك','يشمل: الأشخاص، الجهات، الحسابات، الالتزامات الشهرية، الديون، والفئات (قسم جديد «🏷️ الفئات»)','تتحدث تلقائيًا في كل الصفحات: الشهرية، الديون، السجل، الأهل والبيت، وغيرها، وتنتقل لأجهزتك بالمزامنة','الصورة تُقصّ وتُصغَّر تلقائيًا، وزر «إرجاع الأيقونة الأصلية»','سؤال «هل توجد متأخرات لم تُدفع من الأشهر الماضية؟» عند إضافة أو تعديل التزام أو دين: المتأخرات تُضاف لمستحق الشهر حتى تُسدَّد، وتظهر «+ متأخرات» في الشهرية','زر «🔄 تحديث البيانات» في التقارير وقاعدة البيانات: يعيد حساب كل الأقسام ومطابقة قاعدة البيانات الداخلية وفحص السلامة','الديون: قسم جديد «📅 متابعة الدفع في التطبيق» في نموذج الدين: تاريخ بداية الدين الفعلي، وتاريخ بدء المتابعة في التطبيق تحدده أنت، والأشهر قبله تُعتبر مدفوعة ولا تظهر كمتأخرة','عدد الأقساط الكلي، وعدد الأقساط التي دفعتها قبل المتابعة (يُحسب تلقائيًا من الفرق بين التاريخين إن تركته فارغًا)، ورقم العقد/القرض، وملاحظة','بطاقة الدين تعرض: المتابعة من، الأقساط (مثلًا 21 من 60)، الأقساط الباقية، ورقم العقد، وكل دفعة من التطبيق تُحسب قسطًا','شبكة السنة تُظهر الأشهر قبل المتابعة «قبل المتابعة» بدل اعتبارها غير مدفوعة','ملف Excel للديون فيه الأعمدة الجديدة للتعديل والاستيراد']},
  {v:'2.25.0',d:'2026-10-15',items:['صفحات القراءة (سورة الملك، الأذكار، أدعية الرزق) تفتح بشاشة كاملة مع زر خروج ✕ واضح أعلى الصفحة','🎨 لون خلفية القراءة: لون التطبيق، ورقي، أخضر هادئ، أزرق فاتح، وردي فاتح، ليلي، من داخل الصفحة أو من ⚙️ الضبط','أدعية الرزق: اضغط على الدعاء أو الآية بعد كل قراءة، وبعد ٣ مرات ينتقل تلقائيًا للتالي، ويمكن اختيار التكرار مرة أو ٣ أو ٧']},
  {v:'2.24.0',d:'2026-10-15',items:['قسم «💼 الراتب والمتبقي هذا الشهر» في إدارة البيانات: نفس أرقام الرئيسية (الدخل، المصاريف، المتبقي من الراتب، الالتزامات غير المدفوعة، المتبقي بعدها، والراتب القادم) وتتحدث معها تلقائيًا','منه: تسجيل الراتب بضغطة، والراتب المعتاد، ويوم نزول الراتب (تتحول الرئيسية لحساب دورة الراتب)، وخطة الصرف اليومية','خانة «سقف المصاريف الشهري» بجانبها زر «حفظ»، وتُحفظ أيضًا بزر «تم» في لوحة المفاتيح أو عند الخروج من الخانة','تظهر فوقها حالة السقف: السقف الحالي، وما صرفته، والمتبقي أو التجاوز، والمبلغ اليومي المتاح','اقتراحات بضغطة: الشهر الماضي أو متوسط آخر الأشهر، وزر «إلغاء السقف»','حدود الفئات تُحفظ تلقائيًا عند الخروج من كل خانة، وزر حفظها صار داخل قسمها']},
  {v:'2.23.0',d:'2026-10-15',items:['زر صغير «💰 أدعية الرزق» بجانب زر الأذكار في الأعلى','صفحة قراءة بنظام الصفحات: دعاء في كل صفحة بخط كبير، مع «التالي/السابق» والسحب بالإصبع ونقاط الصفحات، ويتذكر آخر صفحة','قسمان: «عند نزول الراتب» (الحمد والشكر وسؤال البركة والإنفاق) و«البركة في الرزق» (آيات وأدعية صحيحة بمصادرها)، والآيات منسوخة حرفيًا من نص تنزيل','من ⚙️ الضبط: إظهار الزر أو إخفاؤه، ونقله بجانب الأذكار أو أعلى الرئيسية أو بعد التنبيهات أو أسفلها']},
@@ -3846,18 +3921,19 @@ function salMgmtHtml(){const now=new Date(),cm=ym(now),pc=payCycle(),a=pc?inRang
    ${pd?`<div class="setrow col"><div><b>إذا صادف جمعة أو سبت</b></div><div class="seg seg3">${[['none','في موعده'],['before','ينزل قبلها'],['after','ينزل بعدها']].map(([v,n])=>`<button class="n" data-prule="${v}" aria-pressed="${rule===v}">${n}</button>`).join('')}</div></div>`:''}
    <div class="row2"><button class="btn ghost" data-dayplan="1">📅 خطة الصرف اليومية</button><button class="btn ghost" data-tab="home">🏠 عرض في الرئيسية</button></div></div>`}
 function vMaster(){const P=people(),Y=payees(),A=accList(),R=recs(),D=debts();
-  const row=(t,s,attr,ico)=>`<div class="mdrow"><div><b>${t}</b>${s?`<small>${s}</small>`:''}</div>${attr?`<button class="chip" ${attr}><span class="lk">🔒 </span>تعديل</button>`:''}</div>`;
+  const row=(t,s,attr,ico)=>`<div class="mdrow">${ico?`<button class="mdico" data-icoedit="${ico[0]}" data-iconame="${t}" aria-label="تغيير صورة ${t}">${ico[1]}<span class="mdico-e">✎</span></button>`:''}<div><b>${t}</b>${s?`<small>${s}</small>`:''}</div>${attr?`<button class="chip" ${attr}><span class="lk">🔒 </span>تعديل</button>`:''}</div>`;
   const sec=(title,items,addAttr,addTxt,empty)=>`<h2>${title}</h2><div class="panel mdlist">${items.length?items.join(''):`<p class="note" style="margin:6px 0">${empty}</p>`}</div><button class="chip secadd" ${addAttr}><span class="lk">🔒 </span>${addTxt}</button>`;
   return `<div class="backrow" style="margin-top:4px"><h2 style="margin:0">${esc(lbl('sec.master'))}</h2><button class="chip" data-tab="home">الرئيسية ‹</button></div>
   <p class="note" style="margin:0 2px 10px">أدخل هنا الأشخاص والجهات والحسابات والالتزامات والديون مرة واحدة، فتظهر جاهزة للاختيار في كل مكان بالتطبيق، بدون كتابة الأسماء من جديد ولا أخطاء إملائية.</p>
   <h2>📊 الاستيراد والتصدير (Excel / Numbers)</h2>${mdIoHtml()}
   <h2>أقسامي</h2>${dashHtml(true)}${quickHtml()}
   <h2>💼 الراتب والمتبقي هذا الشهر</h2>${salMgmtHtml()}
-  ${sec('👨‍👩‍👧 الأشخاص',P.map(p=>row(esc(p.name),[p.rel?esc(p.rel):'',+p.allowance?'المخصص '+money(p.allowance):''].filter(Boolean).join(' · '),`data-pedit="${esc(p.id)}"`)),'data-padd="1"','+ شخص','لا يوجد أشخاص بعد.')}
-  ${sec('🏢 الجهات (بنوك، محلات، جهات)',Y.map(p=>row(esc(p.name),esc(PAYEE_T[p.type]||PAYEE_T.other)+(p.note?' · '+esc(p.note):''),`data-payedit="${esc(p.id)}"`)),'id="payAdd"','+ جهة','أضف البنوك والمحلات والجهات التي تتعامل معها لتختارها بدل كتابتها.')}
-  ${sec('💳 الحسابات',A.map(a=>row(esc(a.name),esc(ACC_KIND[a.kind]||''),`data-acedit="${esc(a.id)}"`)),'id="acAdd"','+ حساب','')}
-  ${sec('🔁 الالتزامات الشهرية',R.map(r=>row(esc(r.name),money(amtAt(r,ym(new Date())))+' '+CUR+' · يوم '+(+r.day||1)+(r.person?' · لـ'+esc(personName(r.person)):'')+(r.until?' · حتى '+esc(monthName(r.until)):''),`data-redit="${esc(r.id)}"`)),'data-recpick="1"','+ التزام','لا توجد التزامات بعد.')}
-  ${sec('🏦 الديون',D.map(d=>row(esc(d.name),esc((DEBT_T[d.type]||DEBT_T.other)[0])+(d.lender?' · '+esc(d.lender):'')+' · المتبقي '+money(d.balance),`data-dedit="${esc(d.id)}"`)),'data-dadd="1"','+ دين','لا توجد ديون.')}`}
+  ${sec('👨‍👩‍👧 الأشخاص',P.map(p=>row(esc(p.name),[p.rel?esc(p.rel):'',+p.allowance?'المخصص '+money(p.allowance):''].filter(Boolean).join(' · '),`data-pedit="${esc(p.id)}"`,['person:'+p.id,personAv(p)])),'data-padd="1"','+ شخص','لا يوجد أشخاص بعد.')}
+  ${sec('🏢 الجهات (بنوك، محلات، جهات)',Y.map(p=>row(esc(p.name),esc(PAYEE_T[p.type]||PAYEE_T.other)+(p.note?' · '+esc(p.note):''),`data-payedit="${esc(p.id)}"`,['payee:'+p.id,payeeBadge(p)])),'id="payAdd"','+ جهة','أضف البنوك والمحلات والجهات التي تتعامل معها لتختارها بدل كتابتها.')}
+  ${sec('💳 الحسابات',A.map(a=>row(esc(a.name),esc(ACC_KIND[a.kind]||''),`data-acedit="${esc(a.id)}"`,['acc:'+a.id,accBadge(a)])),'id="acAdd"','+ حساب','')}
+  ${sec('🔁 الالتزامات الشهرية',R.map(r=>row(esc(r.name),money(amtAt(r,ym(new Date())))+' '+CUR+' · يوم '+(+r.day||1)+(r.person?' · لـ'+esc(personName(r.person)):'')+(r.until?' · حتى '+esc(monthName(r.until)):''),`data-redit="${esc(r.id)}"`,['rec:'+r.id,recBadge(r)])),'data-recpick="1"','+ التزام','لا توجد التزامات بعد.')}
+  ${sec('🏦 '+esc(lbl('sec.debts')),D.map(d=>{const I=debtInstInfo(d);return row(esc(d.name),esc((DEBT_T[d.type]||DEBT_T.other)[0])+(d.lender?' · '+esc(d.lender):'')+' · المتبقي '+money(d.balance)+(d.mode!=='once'&&+d.payment?' · القسط '+money(d.payment):'')+(I.tot?' · '+I.paid+' من '+I.tot+' قسط':'')+' · المتابعة من '+dmy(debtTrackFrom(d))+(d.ref?' · عقد '+esc(d.ref):''),`data-dedit="${esc(d.id)}"`,['debt:'+d.id,debtBadge(d)])}),'data-dadd="1"','+ دين','لا توجد ديون.')}${D.length?'<button class="chip" data-tab="debts" style="margin-inline-start:6px">فتح '+esc(lbl('sec.debts'))+' ‹</button>':''}
+  <h2>🏷️ الفئات</h2><div class="panel mdlist"><p class="note" style="margin:6px 0">اضغط على أي أيقونة لتغييرها، فتتغير في السجل والتقارير وكل الصفحات.</p><div class="catico">${EXP_CATS.concat(INC_CATS).map(c=>`<button class="mdico cat" data-icoedit="cat:${c.id}" data-iconame="${esc(c.n)}">${cbadge(c.id)}<span class="mdico-e">✎</span><small>${esc(SHORT[c.id]||c.n)}</small></button>`).join('')}</div></div>`}
 function openPayee(id){const L=document.getElementById('layer');const Y=S.settings.payees||(S.settings.payees=[]);const ex=id?Y.find(x=>x.id===id):null;const p=ex?Object.assign({},ex):{id:uidGen(),name:'',type:'shop',note:''};
   const draw=()=>{L.innerHTML=`${sheetTop('جهة')}<h2 style="margin-top:0">${ex?'تعديل الجهة':'جهة جديدة'}</h2><div class="stack">
    <div class="field"><label for="pyName">الاسم</label><input class="inp" id="pyName" value="${esc(p.name)}" maxlength="40" placeholder="مثال: بنك مسقط، لولو، نماء"></div>
@@ -3917,8 +3993,8 @@ function mdSheets(only){const Lz=MD_LISTS(),sub='أُعدّ في '+fmtD(today())
    accounts:{name:'الحسابات',title:'الحسابات',sub,head:[['المعرّف','s',16],['الاسم','s',24],['النوع','s',18]],rows:accList().map(a=>[a.id,a.name,ACC_KIND[a.kind]||ACC_KIND.other]),dv:[[2,ref(4,2)]]},
    recurring:{name:'الالتزامات الشهرية',title:'الالتزامات الشهرية',sub,head:[['المعرّف','s',16],['الاسم','s',24],['النوع','s',24],['الفئة','s',18],['المبلغ الشهري','n'],['يوم الدفع','i'],['يبدأ (سنة-شهر)','s',14],['ينتهي (سنة-شهر)','s',14],['لمن','s',16]],
     rows:recs().map(r=>[r.id,r.name,(REC_KINDS[r.kind]||REC_KINDS.custom).n,catOf(r.cat).n,amtAt(r,C),{v:+r.day||1,t:'i'},r.start||'',r.until||'',r.person?personName(r.person):'']),dv:[[2,ref(1,Lz.kinds.length)],[3,ref(0,Lz.cats.length)],[8,ref(5,Lz.people.length)]]},
-   debts:{name:'الديون',title:'الديون',sub:sub+' · المتبقي للعرض فقط في الديون الموجودة (يتغيّر بالدفعات من التطبيق)',head:[['المعرّف','s',16],['الاسم','s',22],['النوع','s',16],['الجهة / الشخص','s',20],['المتبقي','n'],['القسط الشهري','n'],['الفائدة %','n'],['يوم الدفع','i']],
-    rows:debts().map(d=>[d.id,d.name,(DEBT_T[d.type]||DEBT_T.other)[0],d.lender||'',+d.balance||0,+d.payment||0,+d.rate||0,{v:+d.day||1,t:'i'}]),dv:[[2,ref(2,Lz.dtypes.length)],[3,ref(6,Lz.lenders.length)]]}};
+   debts:{name:'الديون',title:'الديون',sub:sub+' · المتبقي للعرض فقط في الديون الموجودة (يتغيّر بالدفعات من التطبيق)',head:[['المعرّف','s',16],['الاسم','s',22],['النوع','s',16],['الجهة / الشخص','s',20],['المتبقي','n'],['القسط الشهري','n'],['الفائدة %','n'],['يوم الدفع','i'],['تاريخ بداية الدين','s',14],['بداية المتابعة في التطبيق','s',16],['عدد الأقساط الكلي','i'],['أقساط مدفوعة قبل المتابعة','i'],['رقم العقد','s',16]],
+    rows:debts().map(d=>[d.id,d.name,(DEBT_T[d.type]||DEBT_T.other)[0],d.lender||'',+d.balance||0,+d.payment||0,+d.rate||0,{v:+d.day||1,t:'i'},debtStart(d)||'',debtTrackFrom(d),+d.totalN||'',+d.paidN||'',d.ref||'']),dv:[[2,ref(2,Lz.dtypes.length)],[3,ref(6,Lz.lenders.length)]]}};
   const keys=!only||only==='all'?MD_SECS.map(x=>x[0]):[only];
   return keys.map(k=>all[k]).concat([listsSheet])}
 async function mdExport(only){const data=XL.build(mdSheets(only));const sec=MD_SECS.find(x=>x[0]===only);
@@ -3968,7 +4044,15 @@ function mdPlan(book,only){const P={inc:[],exp:[],people:[],payees:[],accounts:[
   (table('الديون')||[]).forEach(o=>{const sh='الديون',name=lblClean(o['الاسم']);if(!name)return err(sh,o,'الاسم فارغ');
     const type=Object.keys(DEBT_T).find(k=>DEBT_T[k][0]===s(o['النوع']))||(s(o['النوع'])?null:'other');if(!type)return err(sh,o,'النوع «'+s(o['النوع'])+'» ليس من القائمة');
     const pay=xlNum(o['القسط الشهري']),rate=xlNum(o['الفائدة %']),bal=xlNum(o['المتبقي']);if([pay,rate,bal].some(v=>v!==''&&(v===null||isNaN(v)||v<0)))return err(sh,o,'رقم غير صحيح');
-    P.debts.push({id:s(o['المعرّف']),name,type,lender:lblClean(o['الجهة / الشخص']),payment:pay===''?0:r3(pay),rate:rate===''?0:+rate,day:Math.min(31,Math.max(1,parseInt(o['يوم الدفع'])||1)),balance:bal===''?0:r3(bal)})});
+    const dd=v=>{if(v===''||v==null)return '';const t=xlDate(v);let m=t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(m)return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');m=t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);if(m)return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');return null};
+    const X={};const has=k=>Object.prototype.hasOwnProperty.call(o,k);
+    if(has('تاريخ بداية الدين')){const v=dd(o['تاريخ بداية الدين']);if(v===null)return err(sh,o,'تاريخ البداية غير صحيح');if(v)X.start=v}
+    if(has('بداية المتابعة في التطبيق')){const v=dd(o['بداية المتابعة في التطبيق']);if(v===null)return err(sh,o,'تاريخ بداية المتابعة غير صحيح');if(v)X.trackFrom=v}
+    if(X.start&&X.trackFrom&&X.trackFrom<X.start)return err(sh,o,'بداية المتابعة قبل بداية الدين');
+    for(const [k,f] of [['عدد الأقساط الكلي','totalN'],['أقساط مدفوعة قبل المتابعة','paidN']])if(has(k)){const v=xlNum(o[k]);if(v!==''&&(v===null||isNaN(v)||v<0))return err(sh,o,'رقم غير صحيح في «'+k+'»');X[f]=v===''?'':Math.round(v)}
+    if(X.totalN&&X.paidN&&X.paidN>X.totalN)return err(sh,o,'الأقساط المدفوعة أكثر من العدد الكلي');
+    if(has('رقم العقد'))X.ref=lblClean(o['رقم العقد']);
+    P.debts.push(Object.assign({id:s(o['المعرّف']),name,type,lender:lblClean(o['الجهة / الشخص']),payment:pay===''?0:r3(pay),rate:rate===''?0:+rate,day:Math.min(31,Math.max(1,parseInt(o['يوم الدفع'])||1)),balance:bal===''?0:r3(bal)},X))});
   const xlDay=v=>{if(v===''||v==null)return '';const t=xlDate(v);let m=t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(m)return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');m=t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);if(m)return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');return null};
   const meth=v=>{v=s(v);if(!v)return 'cash';const m=METHODS.find(x=>x[1]===v||x[0]===v);return m?m[0]:null};
   const acc=v=>{v=s(v);if(!v)return '';const a=accList().find(x=>x.name===v)||P.accounts.find(x=>x.name===v);return a?(a.id||null):null};
@@ -3985,9 +4069,9 @@ function mdPlan(book,only){const P={inc:[],exp:[],people:[],payees:[],accounts:[
 function mdDiff(P){const txd=ty=>{let add=0,chg=0,same=0,dup=0,miss=0;const keyOf=t=>[t.type,t.date,r3(+t.amount),(t.note||'').trim()].join('|');const have=new Set(list().map(keyOf));
     P[ty].forEach(o=>{const ex=o.id&&S.tx[o.id];if(!ex){if(have.has(keyOf(o))){o._dup=1;dup++;return}if(o.id)miss++;add++;return}const exAcc=ex.acc||'';const ch=['date','amount','cat','note','method','person'].some(k=>String(k==='amount'?r3(+ex[k]):ex[k]||'')!==String(k==='amount'?o.amount:o[k]||''))||(o.acc&&o.acc!==accOf(ex));
       if(ch&&ex.debt&&Math.abs(r3(+ex.amount)-o.amount)>0.0005){o._skip='مرتبطة بدين: عدّل مبلغها من الدين نفسه';P.errors.push(o._sh+' · صف '+o._row+': '+o._skip);return}ch?chg++:same++});return{add,chg,same,dup,miss}};
-  const cmp=(list,cur,keys)=>{let add=0,chg=0,same=0,miss=0;list.forEach(o=>{const ex=o.id&&cur.find(c=>c.id===o.id);if(!ex){if(o.id&&!['main','cash'].includes(o.id))miss++;add++;return}keys.some(k=>String(ex[k]??'')!==String(o[k]??''))?chg++:same++});return{add,chg,same,miss}};
+  const cmp=(list,cur,keys)=>{let add=0,chg=0,same=0,miss=0;list.forEach(o=>{const ex=o.id&&cur.find(c=>c.id===o.id);if(!ex){if(o.id&&!['main','cash'].includes(o.id))miss++;add++;return}keys.some(k=>o[k]!==undefined&&String(ex[k]??'')!==String(o[k]??''))?chg++:same++});return{add,chg,same,miss}};
   return{inc:txd('inc'),exp:txd('exp'),people:cmp(P.people,people(),['name','rel','allowance']),payees:cmp(P.payees,payees(),['name','type','note']),accounts:cmp(P.accounts,accList(),['name','kind']),
-    recurring:cmp(P.recurring,recs().map(r=>Object.assign({},r,{amount:amtAt(r,ym(new Date()))})),['name','kind','cat','amount','day','start','until','person']),debts:cmp(P.debts,debts(),['name','type','lender','payment','rate','day'])}}
+    recurring:cmp(P.recurring,recs().map(r=>Object.assign({},r,{amount:amtAt(r,ym(new Date()))})),['name','kind','cat','amount','day','start','until','person']),debts:cmp(P.debts,debts().map(d=>Object.assign({},d,{start:debtStart(d)||'',trackFrom:debtTrackFrom(d)})),['name','type','lender','payment','rate','day','start','trackFrom','totalN','paidN','ref'])}}
 function mdApply(P){const st=S.settings,C=ym(new Date());const NT=[];
   const pid={};(st.people=st.people||[]);P.people.forEach(o=>{let ex=o.id&&st.people.find(x=>x.id===o.id);if(ex)Object.assign(ex,{name:o.name,rel:o.rel,allowance:o.allowance});else{ex={id:uidGen(),name:o.name,rel:o.rel,allowance:o.allowance};st.people.push(ex)}pid['@'+o.name]=ex.id});
   st.payees=st.payees||[];P.payees.forEach(o=>{const ex=o.id&&st.payees.find(x=>x.id===o.id);if(ex)Object.assign(ex,{name:o.name,type:o.type,note:o.note});else st.payees.push({id:uidGen(),name:o.name,type:o.type,note:o.note})});
@@ -3996,8 +4080,8 @@ function mdApply(P){const st=S.settings,C=ym(new Date());const NT=[];
     if(ex){const old=amtAt(ex,C);if(Math.abs(old-o.amount)>0.0005){const h=Object.assign({},ex.amtHist||{});if(!Object.keys(h).length)h[ex.start||'0000-01']=+ex.amount||0;Object.keys(h).filter(k=>k>C).forEach(k=>delete h[k]);h[C]=o.amount;ex.amtHist=h;ex.amount=o.amount;recLog(ex,'تغيير المبلغ من '+money(old)+' إلى '+rial(o.amount)+' (استيراد Excel)')}
       Object.assign(ex,{name:o.name,kind:o.kind,cat:o.cat,day:o.day,start:o.start,until:o.until,person})}
     else{const r={id:uidGen(),kind:o.kind,name:o.name,amount:o.amount,amtHist:{},start:o.start||C,until:o.until,cat:o.cat,day:o.day,person,half:false,later:{},remind:Math.max(1,o.day-2),arrears:0,since:C,bills:{}};recLog(r,'أُضيف من ملف Excel بمبلغ '+rial(o.amount));st.recurring.push(r)}});
-  st.debts=st.debts||[];P.debts.forEach(o=>{const ex=o.id&&st.debts.find(x=>x.id===o.id);if(ex)Object.assign(ex,{name:o.name,type:o.type,lender:o.lender,payment:o.payment,rate:o.rate,day:o.day});
-    else st.debts.push({id:uidGen(),type:o.type,name:o.name,lender:o.lender,original:o.balance,balance:o.balance,payment:o.payment,rate:o.rate,day:o.day,pays:[],mode:'inst',start:today(),end:'',log:[{at:today(),t:'أُضيف من ملف Excel'}]})});
+  st.debts=st.debts||[];P.debts.forEach(o=>{const ex=o.id&&st.debts.find(x=>x.id===o.id);const X={};['start','trackFrom','totalN','paidN','ref'].forEach(k=>{if(o[k]!==undefined)X[k]=o[k]});if(ex)Object.assign(ex,{name:o.name,type:o.type,lender:o.lender,payment:o.payment,rate:o.rate,day:o.day},X);
+    else st.debts.push(Object.assign({id:uidGen(),type:o.type,name:o.name,lender:o.lender,original:o.balance,balance:o.balance,payment:o.payment,rate:o.rate,day:o.day,pays:[],mode:'inst',start:today(),trackFrom:today(),end:'',log:[{at:today(),t:'أُضيف من ملف Excel'}]},X))});
   ['inc','exp'].forEach(ty=>P[ty].forEach(o=>{if(o._dup||o._skip)return;const person=o.person&&o.person[0]==='@'?pid[o.person]||'':o.person;const ex=o.id&&S.tx[o.id];
     if(ex){const c=Object.assign({},ex,{date:o.date,amount:o.amount,cat:o.cat,note:o.note,method:o.method});if(ty==='exp')c.person=person||undefined;if(o.acc)c.acc=o.acc;if(!c.person)delete c.person;NT.push(c)}
     else{const t={id:uidGen(),type:ty,amount:o.amount,cat:o.cat,date:o.date,method:o.method,note:o.note,createdAt:new Date().toISOString(),src:'xlsx'};if(ty==='exp'&&person)t.person=person;if(o.acc&&o.acc!=='main'&&o.acc!=='cash')t.acc=o.acc;NT.push(t)}}));
@@ -4021,6 +4105,7 @@ document.addEventListener('click',async e=>{
   {const rt=e.target.closest('[data-rtog]');if(rt&&!e.target.closest('button,a,summary,details')){const row=rt.closest('.recrow');const on=!row.classList.contains('open');row.classList.toggle('open',on);rt.setAttribute('aria-expanded',on);S.recOpen=S.recOpen||{};if(on)S.recOpen[rt.dataset.rtog]=1;else delete S.recOpen[rt.dataset.rtog];return}}
   const b=e.target.closest('button');if(!b||b.closest('#layer'))return;
   if(b.dataset.early&&!(admOn()&&admOpen())){toast('الدفع يُفتح في '+dmy(b.dataset.early)+'. للدفع الآن: وضع المدير، أو غيّر «قفل الدفع» من ⚙️ الضبط',null,6000);return}
+  if(b.dataset.mdgo){S.tab='budget';render();setTimeout(()=>{const h=[...document.querySelectorAll('#view h2')].find(x=>x.textContent.trim().startsWith('🏦'));if(!h){window.scrollTo(0,0);return}if(h.classList.contains('fold-closed'))h.click();h.scrollIntoView({block:'start'});window.scrollBy(0,-70)},60);return}
   if(b.dataset.tab){S.tab=b.dataset.tab;render();window.scrollTo(0,0);return}
   if(b.dataset.go){S.tab=b.dataset.go;render();return}
   if(b.dataset.dayplan){openDayPlan(b.dataset.dayplan==='pay');return}
@@ -4068,6 +4153,7 @@ document.addEventListener('click',async e=>{
   if(b.dataset.mdi){S.mdOnly=b.dataset.mdi;const f=document.getElementById('mdFile');if(f)f.click();return}
   if(b.dataset.mdper){S.settings.mdPer=b.dataset.mdper;putSettings();render();return}
   if(b.id==='payAdd'){openPayee();return}
+  if(b.dataset.icoedit){const k=b.dataset.icoedit;const tmp=document.createElement('div');tmp.innerHTML=b.innerHTML;const e=tmp.querySelector('.mdico-e');if(e)e.remove();const sm=tmp.querySelector('small');if(sm)sm.remove();if(icoOv(k)){const [ty,id]=k.split(':');tmp.innerHTML=ty==='cat'?`<span class="cbadge" style="background:${catOf(id).c}1f;color:${catOf(id).c}">${catIcon(id)}</span>`:tmp.innerHTML}openIconPick(k,b.dataset.iconame,tmp.innerHTML);return}
   if(b.dataset.payedit){openPayee(b.dataset.payedit);return}
   if(b.id==='acAdd'&&!b.closest('#layer')){openAccEdit(null);return}
   if(b.dataset.acedit&&!b.closest('#layer')){openAccEdit(b.dataset.acedit);return}
@@ -4099,6 +4185,7 @@ document.addEventListener('click',async e=>{
   if(b.id==='openImp2'){openImport();return}
   if(b.id==='sync'&&Sync.linked()){Sync.now();return}
   if(b.id==='sync'){S.tab='settings';render();setTimeout(()=>{const x=document.getElementById('syncBox');x&&x.scrollIntoView({block:'start'})},50);return}
+  if(b.id==='refreshAll'){refreshAll(b);return}
   if(b.id==='printRep'){openPrintSheet();return}
   if(b.id==='quickPrint'){quickPrint();return}
   if(b.id==='checkUpd'){if(!('serviceWorker' in navigator)){toast('أنت على آخر إصدار');return}toast('جارٍ البحث عن تحديث…');try{const r=await navigator.serviceWorker.getRegistration();if(r){await r.update();if(r.installing||r.waiting){toast('وُجد تحديث، جارٍ تحميله…');return}}toast('أنت على آخر إصدار ('+APP_VERSION+')')}catch(e){toast('تعذّر البحث، تأكد من الإنترنت')}return}
