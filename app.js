@@ -784,18 +784,31 @@ function vLog(){
   <div class="chips">${[['all','الكل'],['exp','المصاريف'],['inc','الدخل']].map(([k,n])=>`<button class="chip" data-ftype="${k}" aria-pressed="${S.ftype===k}">${n}</button>`).join('')}</div>${body}`;
 }
 
+/* سقف المصاريف الشهري: خانة واحدة بجانبها زر «حفظ»، والحالة الحالية، واقتراحات بضغطة */
+function capHtml(){const B=+S.settings.monthlyBudget||0,cm=ym(new Date()),exp=sum(inMonth(cm),'exp');
+  const prev=[1,2,3].map(k=>sum(inMonth(shiftMonth(cm,-k)),'exp')).filter(v=>v>0);const last=prev.length?prev[0]:0,avg=prev.length?r3(prev.reduce((a,b)=>a+b,0)/prev.length):0;
+  const dp=B?dailyPlan():null;const left=r3(B-exp);
+  return `<div class="panel stack capbox">
+   <div class="capnow ${B?(left<0?'over':'ok'):'none'}">${B?`<div><span>السقف الحالي</span><b class="num">${amtH(B)}</b></div><div><span>صرفت هذا الشهر</span><b class="num">${amtH(exp)}</b></div><div><span>${left<0?'تجاوزت بـ':'يتبقى'}</span><b class="num">${amtH(Math.abs(left))}</b></div>${dp&&dp.daily>0&&left>0?`<div><span>يوميًا</span><b class="num">${amtH(dp.daily)}</b></div>`:''}`:'<span>لم تحدّد سقفًا بعد. اكتب المبلغ ثم اضغط «حفظ».</span>'}</div>
+   <label for="mb" class="note" style="margin:0">${B?'تحديث السقف (بالريال العُماني)':'السقف الشهري (بالريال العُماني)'}</label>
+   <div class="capin"><input class="inp num" id="mb" inputmode="decimal" placeholder="مثال: 450.000" value="${B?amtIn(B):''}" style="text-align:left" enterkeyhint="done"><button class="btn" id="mbSave">حفظ</button></div>
+   ${last||avg?`<div class="chips"><span class="note">اقتراح:</span>${prev.length>1?`<button class="chip" data-mbset="${avg}">متوسط آخر ${countWord(prev.length,'شهر','شهرين','أشهر','شهرًا')} ${money(avg)}</button>`:''}${last&&(prev.length<2||last!==avg)?`<button class="chip" data-mbset="${last}">الشهر الماضي ${money(last)}</button>`:''}</div>`:''}
+   ${B?'<button class="chip" id="mbClear" style="align-self:flex-start">إلغاء السقف</button>':''}
+   <span class="note" style="margin:0">يُستخدم في الرئيسية لحساب المتبقي والمبلغ اليومي المتاح، ويُحفظ أيضًا بالضغط على «تم» في لوحة المفاتيح.</span></div>`}
+function capSave(v){const n=v===''||v==null?0:parseAmt(String(v));if(n===null||isNaN(n)||n<0){toast('اكتب مبلغًا صحيحًا، مثل 450');return false}
+  S.settings.monthlyBudget=r3(n);if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();putSettings();render();
+  toast(n?'حُفظ السقف '+rial(n)+(dailyPlan().daily>0?' · يوميًا '+rial(dailyPlan().daily):''):'أُلغي سقف المصاريف');return true}
 function vBudget(){
   const a=inMonth(S.month);const spent={};a.filter(t=>t.type==='exp').forEach(t=>spent[t.cat]=(spent[t.cat]||0)+(+t.amount));
   const b=S.settings.budgets||{};
   return vMaster()+`<h2>🎯 الخطط والميزانية</h2>`+goalsHtml()+`<h2>سقف المصاريف الشهري</h2>
-  <div class="panel stack"><div class="field"><label for="mb">المبلغ بالريال العُماني</label><input class="inp num" id="mb" inputmode="decimal" placeholder="مثال: 450.000" value="${S.settings.monthlyBudget?amtIn(S.settings.monthlyBudget):''}" style="text-align:left"></div>
-  <div class="note">يُستخدم لحساب المبلغ اليومي المتاح في الصفحة الرئيسية.</div></div>
+  ${capHtml()}
   <h2>حدود الفئات (اختياري)</h2>
   <div class="panel">${EXP_CATS.map(c=>{const lim=+b[c.id]||0,s=spent[c.id]||0;const pct=lim?Math.min(100,s/lim*100):0;const cls=lim&&s>lim?'over':pct>80?'near':'';
    return `<div class="brow"><div style="min-width:0"><div style="display:flex;align-items:center;gap:8px">${cbadge(c.id)}${esc(c.n)}</div>
    <div class="note">صرفت <span class="num">${amtH(s)}</span>${lim?' من <span class="num">'+amtH(lim)+'</span>':''}</div>${lim?`<div class="meter" style="height:5px;margin-top:4px"><i class="${cls}" style="width:${pct}%"></i></div>`:''}</div>
-   <input class="inp num" data-bcat="${c.id}" inputmode="decimal" placeholder="—" value="${lim?amtIn(lim):''}" aria-label="حد ${esc(c.n)}"></div>`}).join('')}</div>
-  <div style="margin-top:14px"><button class="btn block" id="saveBudget">حفظ الميزانية</button></div>`;
+   <input class="inp num" data-bcat="${c.id}" inputmode="decimal" placeholder="—" value="${lim?amtIn(lim):''}" aria-label="حد ${esc(c.n)}"></div>`}).join('')}
+   <button class="btn block" id="saveBudget" style="margin-top:12px">حفظ حدود الفئات</button><p class="note" style="margin:6px 0 0;text-align:center">يُحفظ أيضًا تلقائيًا عند الخروج من الخانة.</p></div>`;
 }
 
 function vReports(){const seg=`<div class="row2" style="margin-bottom:12px"><button class="btn" id="printRep">طباعة التقرير وخياراته</button><button class="btn ghost" id="quickPrint">طباعة سريعة</button></div><div class="seg" style="margin-bottom:4px"><button class="n" data-rmode="month" aria-pressed="${S.rmode!=='year'}">تقرير شهري</button><button class="n" data-rmode="year" aria-pressed="${S.rmode==='year'}">تقرير سنوي</button></div>`;
@@ -874,7 +887,7 @@ function render(){admChip();applyTabLabels();setTimeout(()=>fillStorage(document
   const v=document.getElementById('view');
   const keepQ=document.activeElement&&document.activeElement.id==='q';
   const focusedB=document.activeElement&&document.activeElement.dataset&&document.activeElement.dataset.bcat;
-  if(S.tab==='budget'&&(focusedB||document.activeElement?.id==='mb'))return; // don't clobber typing
+  if(S.tab==='budget'&&(focusedB||['mb','salAmt'].includes(document.activeElement?.id)))return; // don't clobber typing
   v.innerHTML=S.tab==='home'?vHome():S.tab==='log'?vLog():S.tab==='budget'?vBudget():S.tab==='house'?vHouse():S.tab==='monthly'?vMonthly():S.tab==='cars'?vCars():S.tab==='debts'?vDebts():S.tab==='docs'?vDocs():S.tab==='advisor'?vAdvisor():S.tab==='trusts'?vTrusts():S.tab==='settings'?vSettings():vReports();
   if(S.tab==='docs')setTimeout(hydrateDocs,0);
   document.querySelectorAll('nav.tabs [data-tab]').forEach(b=>b.setAttribute('aria-current',b.dataset.tab===S.tab?'page':'false'));
@@ -1963,17 +1976,19 @@ function openAdhkar(kind){let k=kind||adhkarKind();const L=document.getElementBy
 const RZ_PAGES={"sal": [{"t": "الْحَمْدُ لِلَّهِ الَّذِي بِنِعْمَتِهِ تَتِمُّ الصَّالِحَاتُ", "r": "ابن ماجه، وحسّنه الألباني", "n": "كان النبي ﷺ يقولها إذا رأى ما يحب. تُقال عند نزول الراتب وكل نعمة."}, {"q": "رَبِّ أَوْزِعْنِي أَنْ أَشْكُرَ نِعْمَتَكَ الَّتِي أَنْعَمْتَ عَلَيَّ وَعَلَىٰ وَالِدَيَّ وَأَنْ أَعْمَلَ صَالِحًا تَرْضَاهُ وَأَدْخِلْنِي بِرَحْمَتِكَ فِي عِبَادِكَ الصَّالِحِينَ ﴿١٩﴾", "r": "سورة النمل ١٩", "n": "دعاء شكر النعمة وطلب التوفيق للعمل الصالح."}, {"q": "وَإِذْ تَأَذَّنَ رَبُّكُمْ لَئِن شَكَرْتُمْ لَأَزِيدَنَّكُمْ وَلَئِن كَفَرْتُمْ إِنَّ عَذَابِي لَشَدِيدٌ ﴿٧﴾", "r": "سورة إبراهيم ٧", "n": "الشكر سبب الزيادة."}, {"t": "اللَّهُمَّ أَكْثِرْ مَالَهُ وَوَلَدَهُ، وَبَارِكْ لَهُ فِيمَا أَعْطَيْتَهُ", "r": "البخاري ومسلم", "n": "دعاء النبي ﷺ لأنس رضي الله عنه، ويُدعى به للنفس: «اللهم بارك لي فيما أعطيتني»."}, {"q": "وَمَا أَنفَقْتُم مِّن شَيْءٍ فَهُوَ يُخْلِفُهُ وَهُوَ خَيْرُ الرَّازِقِينَ ﴿٣٩﴾", "r": "سورة سبأ ٣٩", "n": "تذكير بالصدقة والإنفاق من الراتب، فما أُنفق يُخلفه الله."}], "rizq": [{"q": "إِنَّ اللَّهَ هُوَ الرَّزَّاقُ ذُو الْقُوَّةِ الْمَتِينُ ﴿٥٨﴾", "r": "سورة الذاريات ٥٨"}, {"q": "وَمَا مِن دَابَّةٍ فِي الْأَرْضِ إِلَّا عَلَى اللَّهِ رِزْقُهَا وَيَعْلَمُ مُسْتَقَرَّهَا وَمُسْتَوْدَعَهَا كُلٌّ فِي كِتَابٍ مُّبِينٍ ﴿٦﴾", "r": "سورة هود ٦"}, {"q": "فَإِذَا قُضِيَتِ الصَّلَاةُ فَانتَشِرُوا فِي الْأَرْضِ وَابْتَغُوا مِن فَضْلِ اللَّهِ وَاذْكُرُوا اللَّهَ كَثِيرًا لَّعَلَّكُمْ تُفْلِحُونَ ﴿١٠﴾", "r": "سورة الجمعة ١٠", "n": "السعي في طلب الرزق مع ذكر الله."}, {"t": "اللَّهُمَّ إِنِّي أَسْأَلُكَ عِلْمًا نَافِعًا، وَرِزْقًا طَيِّبًا، وَعَمَلًا مُتَقَبَّلًا", "r": "ابن ماجه", "n": "يُقال بعد صلاة الفجر."}, {"t": "اللَّهُمَّ إِنِّي أَسْأَلُكَ الْهُدَى وَالتُّقَى، وَالْعَفَافَ وَالْغِنَى", "r": "مسلم"}, {"t": "اللَّهُمَّ اغْفِرْ لِي، وَارْحَمْنِي، وَاهْدِنِي، وَعَافِنِي، وَارْزُقْنِي", "r": "مسلم"}, {"q": "وَمَن يَتَّقِ اللَّهَ يَجْعَل لَّهُ مَخْرَجًا ﴿٢﴾ وَيَرْزُقْهُ مِنْ حَيْثُ لَا يَحْتَسِبُ وَمَن يَتَوَكَّلْ عَلَى اللَّهِ فَهُوَ حَسْبُهُ إِنَّ اللَّهَ بَالِغُ أَمْرِهِ قَدْ جَعَلَ اللَّهُ لِكُلِّ شَيْءٍ قَدْرًا ﴿٣﴾", "r": "سورة الطلاق ٢-٣"}, {"q": "فَقُلْتُ اسْتَغْفِرُوا رَبَّكُمْ إِنَّهُ كَانَ غَفَّارًا ﴿١٠﴾ يُرْسِلِ السَّمَاءَ عَلَيْكُم مِّدْرَارًا ﴿١١﴾ وَيُمْدِدْكُم بِأَمْوَالٍ وَبَنِينَ وَيَجْعَل لَّكُمْ جَنَّاتٍ وَيَجْعَل لَّكُمْ أَنْهَارًا ﴿١٢﴾", "r": "سورة نوح ١٠-١٢"}, {"q": "قُلِ اللَّهُمَّ مَالِكَ الْمُلْكِ تُؤْتِي الْمُلْكَ مَن تَشَاءُ وَتَنزِعُ الْمُلْكَ مِمَّن تَشَاءُ وَتُعِزُّ مَن تَشَاءُ وَتُذِلُّ مَن تَشَاءُ بِيَدِكَ الْخَيْرُ إِنَّكَ عَلَىٰ كُلِّ شَيْءٍ قَدِيرٌ ﴿٢٦﴾ تُولِجُ اللَّيْلَ فِي النَّهَارِ وَتُولِجُ النَّهَارَ فِي اللَّيْلِ وَتُخْرِجُ الْحَيَّ مِنَ الْمَيِّتِ وَتُخْرِجُ الْمَيِّتَ مِنَ الْحَيِّ وَتَرْزُقُ مَن تَشَاءُ بِغَيْرِ حِسَابٍ ﴿٢٧﴾", "r": "سورة آل عمران ٢٦-٢٧"}, {"q": "فَإِنَّ مَعَ الْعُسْرِ يُسْرًا ﴿٥﴾ إِنَّ مَعَ الْعُسْرِ يُسْرًا ﴿٦﴾", "r": "سورة الشرح ٥-٦"}, {"t": "اللَّهُمَّ اكْفِنِي بِحَلاَلِكَ عَنْ حَرَامِكَ، وَأَغْنِنِي بِفَضْلِكِ عَمَّنْ سِوَاكَ.", "r": "دعاء قضاء الدين · الترمذي"}, {"t": "اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنَ الْهَمِّ وَالْحَزَنِ، وَالْعَجْزِ وَالْكَسَلِ، وَالْبُخْلِ وَالْجُبْنِ، وَضَلَعِ الدَّيْنِ وَغَلَبَةِ الرِّجَالِ.", "r": "دعاء قضاء الدين · البخاري"}, {"t": "اللَّهُمَّ إِنِّي عَبْدُكَ، ابْنُ عَبْدِكَ، ابْنُ أَمَتِكَ، نَاصِيَتِي بِيَدِكَ، مَاضٍ فِيَّ حُكْمُكَ، عَدْلٌ فِيَّ قَضَاؤُكَ، أَسْأَلُكَ بِكُلِّ اسْمٍ هُوَ لَكَ، سَمَّيْتَ بِهِ نَفْسَكَ، أَوْ أَنْزَلْتَهُ فِي كِتَابِكَ، أَوْ عَلَّمْتَهُ أَحَداً مِنْ خَلْقِكَ، أَوِ اسْتَأْثَرْتَ بِهِ فِي عِلْمِ الغَيْبِ عِنْدَكَ، أَنْ تَجْعَلَ القُرْآنَ رَبِيعَ قَلْبِي، وَنُورَ صَدْرِي، وَجَلاَءَ حُزْنِي، وَذَهَابَ هَمِّي.", "r": "دعاء الهم والحزن · أحمد"}, {"t": "لاَ إِلَهَ إِلاَّ اللَّهُ الْعَظِيمُ الْحَلِيمُ، لاَ إِلَهَ إِلاَّ اللَّهُ رَبُّ الْعَرْشِ الْعَظِيمِ، لاَ إِلَهَ إِلاَّ اللَّهُ رَبُّ السَّمَوَاتِ وَرَبُّ الْأَرْضِ وَرَبُّ الْعَرْشِ الْكَرِيمِ.", "r": "دعاء الكرب · البخاري ومسلم"}, {"t": "اللَّهُمَّ رَحْمَتَكَ أَرْجُو، فَلاَ تَكِلْنِي إِلَى نَفْسِي طَرْفَةَ عَيْنٍ، وَأَصْلِحْ لِي شَأْنِي كُلَّهُ، لاَ إِلَهَ إِلاَّ أَنْتَ.", "r": "دعاء الكرب · أبو داود"}]};
 const RZ_SECS=[['sal','عند نزول الراتب'],['rizq','البركة في الرزق']];
 const RZ_POS=[['with','بجانب زر الأذكار (الافتراضي)'],['top','أعلى الرئيسية'],['mid','بعد التنبيهات'],['bottom','أسفل الرئيسية'],['hide','مخفي']];
-function rzCfg(){return Object.assign({pos:'with'},S.settings.rizqBtn||{})}
+function rzCfg(){return Object.assign({pos:'with',rep:3},S.settings.rizqBtn||{})}
 function rzBtn(small){return `<button class="rzbtn${small?' sm':''}" data-rizq="1" aria-label="أدعية الرزق ونزول الراتب"><span class="rz-ic">💰</span><span class="rz-t">${small?'أدعية الرزق':'أدعية البركة في الرزق ونزول الراتب'}</span></button>`}
 function rzHtml(where){const c=rzCfg();const alone=c.pos==='with'&&where==='top'&&wird().pos==='hide';if(c.pos!==where&&!alone)return '';return `<div class="rzrow ${where}">${rzBtn(false)}</div>`}
 function openRizq(sec){const L=document.getElementById('layer');let fs=20,pg={};try{fs=+localStorage.getItem('masareef:zfs')||20;pg=JSON.parse(localStorage.getItem('masareef:rzpg')||'{}')||{}}catch(e){}
   let k=sec||(new Date().getDate()<=5||(S.settings.payday&&Math.abs(new Date().getDate()-(+S.settings.payday))<=2)?'sal':'rizq');if(!RZ_PAGES[k])k='sal';let i=Math.min(+pg[k]||0,RZ_PAGES[k].length-1);
-  const save=()=>{pg[k]=i;try{localStorage.setItem('masareef:rzpg',JSON.stringify(pg))}catch(e){}};
+  const save=()=>{pg[k]=i;try{localStorage.setItem('masareef:rzpg',JSON.stringify(pg))}catch(e){}};const cnt={};const ck=()=>k+':'+i;
   const draw=()=>{const A=RZ_PAGES[k],z=A[i];
     L.innerHTML=`<div class="scrim" data-close></div><div class="sheet quran rzsheet" role="dialog" aria-modal="true" aria-label="أدعية الرزق"><div class="in"><div class="grab"></div>
      <div class="qhead"><h2 style="margin:0">💰 أدعية الرزق</h2><div class="qtools"><button class="iconbtn" data-rzfs="-2" aria-label="تصغير الخط">أ−</button><button class="iconbtn" data-rzfs="2" aria-label="تكبير الخط">أ+</button></div></div>
      <div class="seg">${RZ_SECS.map(([kk,n])=>`<button class="n" data-rzsec="${kk}" aria-pressed="${k===kk}">${n}</button>`).join('')}</div>
-     <div class="rzpage" style="font-size:${fs}px" aria-live="polite">${zkHtml(z)}<div class="rz-ref">${esc(z.r||'')}</div>${z.n?`<p class="rz-note">${esc(z.n)}</p>`:''}</div>
+     <button class="rzpage${(cnt[ck()]||0)>=rzCfg().rep?' done':''}" data-rztap="1" style="font-size:${fs}px" aria-live="polite" aria-label="اضغط بعد كل قراءة">${zkHtml(z)}<span class="rz-ref">${esc(z.r||'')}</span>${z.n?`<span class="rz-note">${esc(z.n)}</span>`:''}
+      <span class="rz-cnt">${(()=>{const c=cnt[ck()]||0,n=rzCfg().rep;return n>1?(c>=n?'✓ أتممت '+AR_D(n)+' مرات':'اضغط بعد كل قراءة · '+AR_D(c)+' من '+AR_D(n)):(c?'✓':'اضغط بعد القراءة')})()}</span></button>
+     <div class="rzrep"><span class="note">التكرار:</span>${[1,3,7].map(v=>`<button class="chip" data-rzrep="${v}" aria-pressed="${rzCfg().rep===v}">${v===1?'مرة':AR_D(v)+' مرات'}</button>`).join('')}</div>
      <div class="rznav"><button class="btn ghost" data-rzgo="-1" ${i?'':'disabled'}>› السابق</button><span class="rz-n"><b class="num">${AR_D(i+1)}</b> من <span class="num">${AR_D(A.length)}</span></span><button class="btn" data-rzgo="1" ${i<A.length-1?'':'disabled'}>التالي ‹</button></div>
      <div class="rzdots">${A.map((_,j)=>`<button class="rzdot${j===i?' on':''}" data-rzto="${j}" aria-label="صفحة ${j+1}"></button>`).join('')}</div>
      ${k==='sal'?'<p class="note" style="margin:6px 0 0;text-align:center">لا يوجد دعاء مخصوص لنزول الراتب في السنة؛ والمستحب حمد الله وشكره وسؤال البركة والإنفاق منه.</p>':''}
@@ -1985,9 +2000,23 @@ function openRizq(sec){const L=document.getElementById('layer');let fs=20,pg={};
   L.onkeydown=e=>{if(e.key==='ArrowLeft')go(1);if(e.key==='ArrowRight')go(-1)};
   L.onclick=e=>{const x=e.target.closest('button,[data-close]');if(!x)return;if(x.hasAttribute('data-close')){L.innerHTML='';L.onkeydown=null;return}
     if(x.dataset.rzgo){go(+x.dataset.rzgo);return}
+    if(x.dataset.rztap){const n=rzCfg().rep,c=cnt[ck()]||0;if(c>=n){go(1);return}cnt[ck()]=c+1;try{navigator.vibrate&&navigator.vibrate(12)}catch(er){}
+      if(c+1>=n){draw();if(i<RZ_PAGES[k].length-1)setTimeout(()=>{if(L.querySelector('.rzsheet'))go(1)},550);else toast('أتممت أدعية «'+RZ_SECS.find(z=>z[0]===k)[1]+'»، تقبّل الله')}else{const el=L.querySelector('.rz-cnt');el.textContent='اضغط بعد كل قراءة · '+AR_D(c+1)+' من '+AR_D(n);const pgEl=L.querySelector('.rzpage');pgEl.classList.remove('pulse');void pgEl.offsetWidth;pgEl.classList.add('pulse')}return}
+    if(x.dataset.rzrep){S.settings.rizqBtn=Object.assign({},rzCfg(),{rep:+x.dataset.rzrep});putSettings();draw();return}
     if(x.dataset.rzto!==undefined){i=+x.dataset.rzto;save();draw();return}
     if(x.dataset.rzsec){k=x.dataset.rzsec;i=Math.min(+pg[k]||0,RZ_PAGES[k].length-1);draw();return}
     if(x.dataset.rzfs){fs=Math.max(14,Math.min(34,fs+(+x.dataset.rzfs)));try{localStorage.setItem('masareef:zfs',fs)}catch(e){}L.querySelector('.rzpage').style.fontSize=fs+'px';return}}}
+
+/* ===== صفحات القراءة (سورة الملك، الأذكار، أدعية الرزق): شاشة كاملة، زر خروج واضح، وألوان خلفية للاختيار ===== */
+const RD_THEMES=[['app','لون التطبيق','var(--bg)'],['paper','ورقي','#FBF5E6'],['green','أخضر هادئ','#EAF4EE'],['blue','أزرق فاتح','#EAF1FA'],['rose','وردي فاتح','#FAEEF1'],['night','ليلي','#10161E']];
+function rdTheme(){try{const v=localStorage.getItem('masareef:rdtheme');return RD_THEMES.some(t=>t[0]===v)?v:'app'}catch(e){return 'app'}}
+function rdThemeSet(v){try{localStorage.setItem('masareef:rdtheme',v)}catch(e){}document.querySelectorAll('.sheet.quran').forEach(rdDecorate)}
+function rdSwatches(){const cur=rdTheme();return `<div class="rdsw" role="group" aria-label="لون خلفية القراءة">${RD_THEMES.map(([k,n,c])=>`<button class="rdsw-b${cur===k?' on':''}" data-rdth="${k}" aria-pressed="${cur===k}" title="${n}"><i style="background:${c}"></i><span>${n}</span></button>`).join('')}</div>`}
+function rdDecorate(sh){RD_THEMES.forEach(([k])=>sh.classList.remove('rd-'+k));sh.classList.add('full','rd-'+rdTheme());
+  const tools=sh.querySelector('.qhead .qtools');if(tools&&!tools.querySelector('.rd-x')){tools.insertAdjacentHTML('afterbegin','<button class="iconbtn rd-th" data-rdpick="1" aria-label="لون الخلفية">🎨</button>');tools.insertAdjacentHTML('beforeend','<button class="iconbtn rd-x" data-close aria-label="خروج">✕</button>')}}
+try{new MutationObserver(()=>document.querySelectorAll('#layer .sheet.quran').forEach(sh=>{if(!sh.classList.contains('full')||!sh.querySelector('.rd-x'))rdDecorate(sh)})).observe(document.getElementById('layer'),{childList:true,subtree:true})}catch(e){}
+document.addEventListener('click',e=>{const pk=e.target.closest('[data-rdpick]');if(pk){e.stopPropagation();const sh=pk.closest('.sheet');const ex=sh.querySelector('.rdsw-pop');if(ex){ex.remove();return}const qh=sh.querySelector('.qhead');qh.insertAdjacentHTML('afterend','<div class="rdsw-pop">'+rdSwatches()+'</div>');return}
+  const th=e.target.closest('[data-rdth]');if(th){e.stopPropagation();rdThemeSet(th.dataset.rdth);document.querySelectorAll('.rdsw-b').forEach(b=>{const on=b.dataset.rdth===th.dataset.rdth;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on)});const pop=th.closest('.rdsw-pop');if(pop)setTimeout(()=>pop.remove(),250);return}},true);
 function spiritHtml(where){const W=wird();if(W.pos!==where)return '';const done=(W.log||[]).includes(today()),n=wirdStreak();const k=adhkarKind(),zd=adhkarDone(k),zt=ADHKAR[k].length;
   return `<div class="spirit ${where}${W.adhkar?'':' one'}${rzCfg().pos==='with'?' withrz':''}"><button class="wirdcard${done?' done':''}" data-wird="1"><span class="wd-ic">📖</span><span class="wd-main"><b>${esc(W.title)}</b><small>${done?'قرأتها اليوم ✓':esc(W.sub)}${n>1?' · '+countWord(n,'ليلة','ليلتان','ليالٍ','ليلة'):''}</small></span></button>
    ${W.adhkar?`<button class="wirdcard zkcard${zd===zt?' done':''}" data-adhkar="1"><span class="wd-ic">${k==='M'?'☀️':'🌙'}</span><span class="wd-main"><b>${k==='M'?'أذكار الصباح':'أذكار المساء'}</b><small>${zd===zt?'أتممتها اليوم ✓':zd?'أنجزت '+zd+' من '+zt:'حصن المسلم'}</small></span></button>`:''}${rzCfg().pos==='with'?rzBtn(true):''}</div>`}
@@ -2977,8 +3006,10 @@ function openLook(){const L=document.getElementById('layer');
 
 /* ---------- 24. الإصدار وما الجديد ---------- */
 const DEV={name:'ماجد الرميمي',title:'مهندس ومطور تقنية معلومات',country:'سلطنة عُمان',phone:'95134234',intl:'96895134234'};
-const APP_VERSION='2.23.0';
+const APP_VERSION='2.25.0';
 const CHANGELOG=[
+ {v:'2.25.0',d:'2026-10-15',items:['صفحات القراءة (سورة الملك، الأذكار، أدعية الرزق) تفتح بشاشة كاملة مع زر خروج ✕ واضح أعلى الصفحة','🎨 لون خلفية القراءة: لون التطبيق، ورقي، أخضر هادئ، أزرق فاتح، وردي فاتح، ليلي، من داخل الصفحة أو من ⚙️ الضبط','أدعية الرزق: اضغط على الدعاء أو الآية بعد كل قراءة، وبعد ٣ مرات ينتقل تلقائيًا للتالي، ويمكن اختيار التكرار مرة أو ٣ أو ٧']},
+ {v:'2.24.0',d:'2026-10-15',items:['قسم «💼 الراتب والمتبقي هذا الشهر» في إدارة البيانات: نفس أرقام الرئيسية (الدخل، المصاريف، المتبقي من الراتب، الالتزامات غير المدفوعة، المتبقي بعدها، والراتب القادم) وتتحدث معها تلقائيًا','منه: تسجيل الراتب بضغطة، والراتب المعتاد، ويوم نزول الراتب (تتحول الرئيسية لحساب دورة الراتب)، وخطة الصرف اليومية','خانة «سقف المصاريف الشهري» بجانبها زر «حفظ»، وتُحفظ أيضًا بزر «تم» في لوحة المفاتيح أو عند الخروج من الخانة','تظهر فوقها حالة السقف: السقف الحالي، وما صرفته، والمتبقي أو التجاوز، والمبلغ اليومي المتاح','اقتراحات بضغطة: الشهر الماضي أو متوسط آخر الأشهر، وزر «إلغاء السقف»','حدود الفئات تُحفظ تلقائيًا عند الخروج من كل خانة، وزر حفظها صار داخل قسمها']},
  {v:'2.23.0',d:'2026-10-15',items:['زر صغير «💰 أدعية الرزق» بجانب زر الأذكار في الأعلى','صفحة قراءة بنظام الصفحات: دعاء في كل صفحة بخط كبير، مع «التالي/السابق» والسحب بالإصبع ونقاط الصفحات، ويتذكر آخر صفحة','قسمان: «عند نزول الراتب» (الحمد والشكر وسؤال البركة والإنفاق) و«البركة في الرزق» (آيات وأدعية صحيحة بمصادرها)، والآيات منسوخة حرفيًا من نص تنزيل','من ⚙️ الضبط: إظهار الزر أو إخفاؤه، ونقله بجانب الأذكار أو أعلى الرئيسية أو بعد التنبيهات أو أسفلها']},
  {v:'2.22.0',d:'2026-10-14',items:['الاستيراد والتصدير مرتب بالأقسام في صفحة إدارة البيانات: لكل قسم صف بزرّي «📤 تصدير» و«📥 استيراد»، مع «تصدير الكل» و«استيراد ملف كامل»','💰 الإيداعات والدخل في ورقة مستقلة، و💸 المصروفات والخصومات في ورقة مستقلة: التاريخ والمبلغ والفئة والبيان وطريقة الدفع والحساب (ولمن في المصروفات)، بقوائم منسدلة','اختيار الفترة: هذا الشهر، هذه السنة، الكل، أو «قالب فارغ» للإدخال من الصفر','الاستيراد يكشف المكرر فلا يُضاف مرتين، ويرفض التاريخ والفئة غير الصحيحين برقم الصف، ويقبل التاريخ 14/10/2026 أو 2026-10-14','استيراد قسم يقرأ ورقة ذلك القسم فقط']},
  {v:'2.21.0',d:'2026-10-14',items:['صفحة «🗄️ إدارة البيانات» مكان «الخطة» في الشريط السفلي: الأشخاص، الجهات (بنوك ومحلات وجهات)، الحسابات، الالتزامات، الديون، ومعها الخطط والميزانية','أيقونات «أقسامي» و«تسجيل سريع» انتقلت من الرئيسية إلى إدارة البيانات؛ الرئيسية صارت للمتابعة والتقارير اليومية والشهرية والسنوية والخطط','الاختيار من البيانات بدل الكتابة: جهة الدين تُختار من القائمة، والجهات المسجلة تظهر في زر + للاختيار، ومع خيار «+ اسم جديد» يُحفظ في البيانات','تصدير البيانات الأساسية إلى Excel / Numbers بقوائم منسدلة جاهزة في كل عمود، ثم استيرادها بعد التعديل مع معاينة (جديد/معدّل/أخطاء) ولقطة قبل الاستيراد وتراجع، ثم مزامنة تلقائية']},
@@ -3604,7 +3635,8 @@ function vSettings(){const c=lockCfg(),af=c&&c.after!=null?+c.after:60;setTimeou
   <h2>🤲 زر أدعية الرزق</h2>${(()=>{const c=rzCfg();return `<div class="panel stack setbox">
    <div class="setrow"><div><b>إظهار زر «💰 أدعية الرزق»</b><small>أدعية البركة في الرزق ودعاء نزول الراتب، في صفحات سهلة القراءة</small></div><button class="tgl${c.pos!=='hide'?' on':''}" id="rzOn" role="switch" aria-checked="${c.pos!=='hide'}" aria-label="إظهار زر أدعية الرزق"><i></i></button></div>
    ${c.pos!=='hide'?`<div class="setrow col"><div><b>مكان الزر</b></div><div class="seg rzposseg">${RZ_POS.filter(x=>x[0]!=='hide').map(([v,n])=>`<button class="n" data-rzpos="${v}" aria-pressed="${c.pos===v}">${n}</button>`).join('')}</div></div>`:''}
-   <div class="setrow"><div><b>فتح الأدعية الآن</b></div><button class="chip" data-rizq="1">💰 فتح</button></div></div>`})()}
+   <div class="setrow"><div><b>فتح الأدعية الآن</b></div><button class="chip" data-rizq="1">💰 فتح</button></div>
+   <div class="setrow col"><div><b>لون خلفية صفحات القراءة</b><small>سورة الملك والأذكار والأدعية · خاص بهذا الجهاز</small></div>${rdSwatches()}</div></div>`})()}
   <h2>🔒 قفل الدفع قبل الموعد</h2>${payLockHtml()}
   <h2>☁️ المزامنة مع Google Drive</h2><div id="syncBox">${syncHtml()}</div>
   <h2>🛡️ وضع المدير</h2>${admHtml()}
@@ -3792,6 +3824,27 @@ const PAYEE_T={bank:'بنك / جهة تمويل',shop:'محل / متجر',gov:'�
 function payees(){return S.settings.payees||[]}
 /* كل الأسماء المسجّلة (أشخاص وجهات) للاختيار منها */
 function knownNames(types){const P=payees().filter(p=>!types||types.includes(p.type)).map(p=>p.name);return [...new Set(P.concat(!types||types.includes('person')?people().map(p=>p.name):[]))].filter(Boolean)}
+/* إدارة الراتب: نفس أرقام «المتبقي» في الرئيسية، مع ضبط يوم الراتب ومبلغه وتسجيله */
+function salAmt(){const v=+S.settings.salaryAmt;if(v>0)return v;const ls=lastSalary();return ls?+ls.amount:0}
+function salMgmtHtml(){const now=new Date(),cm=ym(now),pc=payCycle(),a=pc?inRange(pc.start,pc.end):inMonth(cm);const inc=sum(a,'inc'),exp=sum(a,'exp'),left=r3(inc-exp);
+  const st=recStatus(cm),due=st.dueLeft,after=r3(left-due);const sal=a.filter(t=>t.type==='inc'&&t.cat==='salary').sort((x,y)=>y.date.localeCompare(x.date))[0];
+  const pd=+S.settings.payday||0,rule=S.settings.payRule||'none',SA=salAmt();
+  return `<div class="panel stack salbox">
+   <div class="salhead"><span>${pc?'دورة الراتب: '+dmy(pc.start)+' ← '+dmy(pc.end):'شهر '+esc(MONTHS[now.getMonth()])+' '+now.getFullYear()}</span><small>نفس الأرقام التي تظهر في الرئيسية، وتتحدث معها تلقائيًا</small></div>
+   <div class="salgrid">
+    <div><span>الدخل</span><b class="num amt-inc">${amtH(inc)}</b></div>
+    <div><span>المصاريف</span><b class="num amt-exp">${amtH(exp)}</b></div>
+    <div class="big ${left<0?'neg':''}"><span>المتبقي من الراتب</span><b class="num">${left<0?'−':''}${amtH(Math.abs(left))}</b></div>
+    <div><span>التزامات لم تُدفع</span><b class="num">${amtH(due)}</b></div>
+    <div class="${after<0?'neg':''}"><span>المتبقي بعد الالتزامات</span><b class="num">${after<0?'−':''}${amtH(Math.abs(after))}</b></div>
+    ${pc?`<div><span>الراتب القادم</span><b>${dmy(pc.next)}</b><small>بعد ${countWord(pc.left,'يوم واحد','يومين','أيام','يومًا')}</small></div>`:''}
+   </div>
+   ${sal?`<div class="okbox" style="margin:0">✓ سُجّل راتب هذه ${pc?'الدورة':'الشهر'}: <b class="num">${amtH(sal.amount)}</b> بتاريخ ${dmy(sal.date)}</div>`:`<div class="warnbox" style="margin:0">لم يُسجَّل راتب ${pc?'هذه الدورة':'هذا الشهر'} بعد.</div>`}
+   <button class="btn block" data-salrec="1">💰 ${sal?'تسجيل دخل/راتب آخر':'تسجيل الراتب الآن'}${SA?' · '+money(SA):''}</button>
+   <div class="setrow col"><div><b>الراتب المعتاد</b><small>يُقترح عند تسجيل الراتب، وإن تركته فارغًا يُستخدم آخر راتب سجّلته</small></div><div class="capin"><input class="inp num" id="salAmt" inputmode="decimal" placeholder="0.000" value="${+S.settings.salaryAmt?amtIn(S.settings.salaryAmt):''}" style="text-align:left" enterkeyhint="done"><button class="btn" id="salAmtSave">حفظ</button></div></div>
+   <div class="setrow col"><div><b>يوم نزول الراتب</b><small>${pd?'تُحسب الرئيسية من يوم نزوله حتى الراتب القادم':'غير محدد: تُحسب الرئيسية حتى نهاية الشهر'}</small></div><select class="inp" id="payDay"><option value="0" ${!pd?'selected':''}>غير محدد</option>${[...Array(31)].map((_,i)=>`<option value="${i+1}" ${pd===i+1?'selected':''}>يوم ${i+1}</option>`).join('')}</select></div>
+   ${pd?`<div class="setrow col"><div><b>إذا صادف جمعة أو سبت</b></div><div class="seg seg3">${[['none','في موعده'],['before','ينزل قبلها'],['after','ينزل بعدها']].map(([v,n])=>`<button class="n" data-prule="${v}" aria-pressed="${rule===v}">${n}</button>`).join('')}</div></div>`:''}
+   <div class="row2"><button class="btn ghost" data-dayplan="1">📅 خطة الصرف اليومية</button><button class="btn ghost" data-tab="home">🏠 عرض في الرئيسية</button></div></div>`}
 function vMaster(){const P=people(),Y=payees(),A=accList(),R=recs(),D=debts();
   const row=(t,s,attr,ico)=>`<div class="mdrow"><div><b>${t}</b>${s?`<small>${s}</small>`:''}</div>${attr?`<button class="chip" ${attr}><span class="lk">🔒 </span>تعديل</button>`:''}</div>`;
   const sec=(title,items,addAttr,addTxt,empty)=>`<h2>${title}</h2><div class="panel mdlist">${items.length?items.join(''):`<p class="note" style="margin:6px 0">${empty}</p>`}</div><button class="chip secadd" ${addAttr}><span class="lk">🔒 </span>${addTxt}</button>`;
@@ -3799,6 +3852,7 @@ function vMaster(){const P=people(),Y=payees(),A=accList(),R=recs(),D=debts();
   <p class="note" style="margin:0 2px 10px">أدخل هنا الأشخاص والجهات والحسابات والالتزامات والديون مرة واحدة، فتظهر جاهزة للاختيار في كل مكان بالتطبيق، بدون كتابة الأسماء من جديد ولا أخطاء إملائية.</p>
   <h2>📊 الاستيراد والتصدير (Excel / Numbers)</h2>${mdIoHtml()}
   <h2>أقسامي</h2>${dashHtml(true)}${quickHtml()}
+  <h2>💼 الراتب والمتبقي هذا الشهر</h2>${salMgmtHtml()}
   ${sec('👨‍👩‍👧 الأشخاص',P.map(p=>row(esc(p.name),[p.rel?esc(p.rel):'',+p.allowance?'المخصص '+money(p.allowance):''].filter(Boolean).join(' · '),`data-pedit="${esc(p.id)}"`)),'data-padd="1"','+ شخص','لا يوجد أشخاص بعد.')}
   ${sec('🏢 الجهات (بنوك، محلات، جهات)',Y.map(p=>row(esc(p.name),esc(PAYEE_T[p.type]||PAYEE_T.other)+(p.note?' · '+esc(p.note):''),`data-payedit="${esc(p.id)}"`)),'id="payAdd"','+ جهة','أضف البنوك والمحلات والجهات التي تتعامل معها لتختارها بدل كتابتها.')}
   ${sec('💳 الحسابات',A.map(a=>row(esc(a.name),esc(ACC_KIND[a.kind]||''),`data-acedit="${esc(a.id)}"`)),'id="acAdd"','+ حساب','')}
@@ -3998,7 +4052,7 @@ document.addEventListener('click',async e=>{
   if(b.dataset.accopen){openAccounts();return}
   if(b.dataset.paycal){openPayCalendar();return}
   if(b.dataset.zakat){openZakat();return}
-  if(b.dataset.salyes){const ls=lastSalary();openSheet(null,{type:'inc',cat:'salary',amount:ls?amtIn(ls.amount):'',note:'راتب',method:'transfer'});return}
+  if(b.dataset.salyes){const A=salAmt();openSheet(null,{type:'inc',cat:'salary',amount:A?amtIn(A):'',note:'راتب',method:'transfer'});return}
   if(b.dataset.salno){try{localStorage.setItem('masareef:salskip',today())}catch(e){}render();return}
   if(b.dataset.bknow){await saveBackupFile();render();return}
   if(b.dataset.bklater){try{localStorage.setItem('masareef:bksnooze',addDays(today(),3))}catch(e){}render();return}
@@ -4112,7 +4166,13 @@ document.addEventListener('click',async e=>{
   if(b.dataset.edit){openSheet(S.tx[b.dataset.edit]);return}
   if(b.dataset.ftype){S.ftype=b.dataset.ftype;render();return}
   if(b.id==='loadSample'){loadSample();return}
-  if(b.id==='saveBudget'){S.settings.monthlyBudget=parseAmt(document.getElementById('mb').value);const bb={};document.querySelectorAll('[data-bcat]').forEach(i=>{const v=parseAmt(i.value);if(v)bb[i.dataset.bcat]=v});S.settings.budgets=bb;document.activeElement.blur();await putSettings();render();toast('حُفظت الميزانية');return}
+  if(b.dataset.salrec){const A=salAmt();openSheet(null,{type:'inc',cat:'salary',amount:A?amtIn(A):'',note:'راتب '+MONTHS[new Date().getMonth()],method:'transfer'});return}
+  if(b.id==='salAmtSave'){salAmtSave(document.getElementById('salAmt').value);return}
+  if(b.dataset.prule&&!b.closest('#layer')){S.settings.payRule=b.dataset.prule;await putSettings();render();return}
+  if(b.id==='mbSave'){capSave(document.getElementById('mb').value);return}
+  if(b.dataset.mbset){capSave(b.dataset.mbset);return}
+  if(b.id==='mbClear'){capSave(0);return}
+  if(b.id==='saveBudget'){const bb={};document.querySelectorAll('[data-bcat]').forEach(i=>{const v=parseAmt(i.value);if(v)bb[i.dataset.bcat]=v});S.settings.budgets=bb;document.activeElement.blur();await putSettings();render();toast('حُفظت حدود الفئات');return}
   if(b.id==='clearSample'){delTxMany(list().filter(t=>t.sample).map(t=>t.id));toast('حُذفت بيانات المثال');return}
   if(b.id==='wipeAsk'){openWipe();return}
   if(b.id==='copyBackup'||b.id==='fileBackup'){try{localStorage.setItem('masareef:lastBackup',today())}catch(e){}}
@@ -4139,6 +4199,12 @@ document.addEventListener('dblclick',e=>{if(!e.target.closest('input,textarea'))
 /* ---------- 30. التشغيل ---------- */
 checkVersion();cacheLoad();migrateRecs();secSeed();if(lockCfg())showLock();privBtnInit();render();dbBoot();handleLaunchUrl();Sync.start();setTimeout(notifyCarAlerts,1500);vaultLoad();
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.classList&&e.target.classList.contains('pin')){const b=document.getElementById(e.target.id==='vPin'?'vaultUnlock':'vaultSetup');b&&b.click()}});
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='mb'){e.preventDefault();capSave(e.target.value)}if(e.key==='Enter'&&e.target.id==='salAmt'){e.preventDefault();salAmtSave(e.target.value)}});
+function salAmtSave(v){const n=String(v||'').trim()===''?0:parseAmt(String(v));if(n===null||isNaN(n)||n<0){toast('اكتب مبلغًا صحيحًا');return}S.settings.salaryAmt=r3(n);if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();putSettings();render();toast(n?'حُفظ الراتب المعتاد '+rial(n):'أُلغي الراتب المعتاد')}
+document.addEventListener('change',e=>{if(e.target.id==='payDay'&&!e.target.closest('#layer')){S.settings.payday=+e.target.value;putSettings();render();toast(+e.target.value?'تُحسب الرئيسية الآن من يوم نزول الراتب':'تُحسب الرئيسية حتى نهاية الشهر');return}
+  if(e.target.id==='salAmt'){const v=parseAmt(e.target.value||'0')||0;if(Math.abs(v-(+S.settings.salaryAmt||0))>0.0005)salAmtSave(e.target.value);return}
+  if(e.target.id==='mb'){const v=parseAmt(e.target.value||'0')||0;if(Math.abs(v-(+S.settings.monthlyBudget||0))>0.0005)capSave(e.target.value);return}
+  if(e.target.dataset&&e.target.dataset.bcat!==undefined){const v=parseAmt(e.target.value||'')||0;const bb=Object.assign({},S.settings.budgets||{});if(v)bb[e.target.dataset.bcat]=r3(v);else delete bb[e.target.dataset.bcat];S.settings.budgets=bb;putSettings()}});
 document.addEventListener('change',e=>{if(e.target.id==='mdFile'&&e.target.files&&e.target.files[0]){const f=e.target.files[0];e.target.value='';mdImportFile(f,S.mdOnly||'all')}});
 document.addEventListener('change',async e=>{if(e.target.id==='vaultImportFile'&&e.target.files[0]){const f=e.target.files[0];e.target.value='';const txt=await f.text();const L=document.getElementById('layer');
   L.innerHTML=`<div class="scrim" data-close></div><div class="sheet" data-vault role="dialog" aria-modal="true" aria-label="استيراد خزنة"><div class="in"><div class="grab"></div><h2 style="margin-top:0">استيراد خزنة</h2><div class="stack"><div class="field"><label for="vImpPin">رمز الخزنة التي صُدّر منها الملف</label><input class="inp num pin" id="vImpPin" type="password" inputmode="numeric" maxlength="8"></div><div class="actions"><button class="btn block" id="vImpGo">استيراد</button><button class="btn ghost block" data-close>إلغاء</button></div></div></div></div>`;
